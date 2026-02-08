@@ -69,6 +69,18 @@ const navItems: NavItem[] = [
       UsuarioRol.TRABAJADOR,
     ],
   },
+  {
+    label: 'Procedimientos (PETS)',
+    href: '/riesgos/pets',
+    icon: FileText,
+    roles: [
+      UsuarioRol.SUPER_ADMIN,
+      UsuarioRol.ADMIN_EMPRESA,
+      UsuarioRol.INGENIERO_SST,
+      UsuarioRol.SUPERVISOR,
+      UsuarioRol.TRABAJADOR,
+    ],
+  },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
@@ -102,6 +114,23 @@ export function Sidebar() {
         
         // Filtrar "Permisos de Alto Riesgo (PETAR)": TRABAJADOR solo si tiene trabajadorId
         if (item.href === '/riesgos/petar') {
+          if (hasAnyRole([
+            UsuarioRol.SUPER_ADMIN,
+            UsuarioRol.ADMIN_EMPRESA,
+            UsuarioRol.INGENIERO_SST,
+            UsuarioRol.SUPERVISOR,
+          ])) {
+            return true;
+          }
+          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.TRABAJADOR)) {
+            return !!usuario?.trabajadorId;
+          }
+          return false;
+        }
+        
+        // Filtrar "Procedimientos (PETS)": TRABAJADOR solo si tiene trabajadorId
+        if (item.href === '/riesgos/pets') {
           if (hasAnyRole([
             UsuarioRol.SUPER_ADMIN,
             UsuarioRol.ADMIN_EMPRESA,
@@ -182,9 +211,12 @@ export function Sidebar() {
             } else if (item.href === '/riesgos/petar') {
               // "Permisos de Alto Riesgo (PETAR)" activo si estamos en /riesgos/petar o cualquier sub-ruta (como /riesgos/petar/[id])
               isActive = pathname === '/riesgos/petar' || pathname.startsWith('/riesgos/petar/');
+            } else if (item.href === '/riesgos/pets') {
+              // "Procedimientos (PETS)" activo si estamos en /riesgos/pets o cualquier sub-ruta (como /riesgos/pets/[id])
+              isActive = pathname === '/riesgos/pets' || pathname.startsWith('/riesgos/pets/');
             } else if (item.href === '/riesgos') {
-              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar
-              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar'));
+              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar ni /riesgos/pets
+              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar') && !pathname.startsWith('/riesgos/pets'));
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
