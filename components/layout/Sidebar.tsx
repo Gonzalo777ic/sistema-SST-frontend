@@ -20,6 +20,7 @@ import {
   MapPin,
   HeartPulse,
   ShieldCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
@@ -56,6 +57,18 @@ const navItems: NavItem[] = [
     icon: ShieldCheck,
     roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST],
   },
+  {
+    label: 'Permisos de Alto Riesgo (PETAR)',
+    href: '/riesgos/petar',
+    icon: ShieldAlert,
+    roles: [
+      UsuarioRol.SUPER_ADMIN,
+      UsuarioRol.ADMIN_EMPRESA,
+      UsuarioRol.INGENIERO_SST,
+      UsuarioRol.SUPERVISOR,
+      UsuarioRol.TRABAJADOR,
+    ],
+  },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
@@ -85,6 +98,23 @@ export function Sidebar() {
         // Filtrar "Mi Salud": visible si tiene trabajadorId O es SUPER_ADMIN
         if (item.href === '/mis-examenes') {
           return !!usuario?.trabajadorId || hasRole(UsuarioRol.SUPER_ADMIN);
+        }
+        
+        // Filtrar "Permisos de Alto Riesgo (PETAR)": TRABAJADOR solo si tiene trabajadorId
+        if (item.href === '/riesgos/petar') {
+          if (hasAnyRole([
+            UsuarioRol.SUPER_ADMIN,
+            UsuarioRol.ADMIN_EMPRESA,
+            UsuarioRol.INGENIERO_SST,
+            UsuarioRol.SUPERVISOR,
+          ])) {
+            return true;
+          }
+          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.TRABAJADOR)) {
+            return !!usuario?.trabajadorId;
+          }
+          return false;
         }
         
         // Filtrar por roles
@@ -149,9 +179,12 @@ export function Sidebar() {
             } else if (item.href === '/mis-examenes') {
               // "Mi Salud" activo si estamos en /mis-examenes o sus subrutas como /mis-examenes/citas
               isActive = pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
+            } else if (item.href === '/riesgos/petar') {
+              // "Permisos de Alto Riesgo (PETAR)" activo si estamos en /riesgos/petar o cualquier sub-ruta (como /riesgos/petar/[id])
+              isActive = pathname === '/riesgos/petar' || pathname.startsWith('/riesgos/petar/');
             } else if (item.href === '/riesgos') {
-              // "Gestión de Riesgos" activo si estamos en /riesgos o cualquier sub-ruta (como /riesgos/petar, /riesgos/iperc, etc.)
-              isActive = pathname === '/riesgos' || pathname.startsWith('/riesgos/');
+              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar
+              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar'));
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
