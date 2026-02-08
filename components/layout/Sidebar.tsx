@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   TrendingUp,
   FolderClosed,
+  UserCog,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
@@ -37,7 +38,9 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA] },
+  // Sección Administrativa - Solo SUPER_ADMIN
+  { label: 'Gestión de Usuarios', href: '/gestion-usuarios', icon: UserCog, roles: [UsuarioRol.SUPER_ADMIN] },
+  { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN] },
   { 
     label: 'Gestión de Áreas', 
     href: '', 
@@ -256,6 +259,9 @@ export function Sidebar() {
             } else if (item.href === '/evaluacion-riesgos') {
               // "Evaluación de Riesgos" activo si estamos en /evaluacion-riesgos o cualquier sub-ruta
               isActive = pathname === '/evaluacion-riesgos' || pathname.startsWith('/evaluacion-riesgos/');
+            } else if (item.href === '/gestion-usuarios') {
+              // "Gestión de Usuarios" activo si estamos en /gestion-usuarios o cualquier sub-ruta
+              isActive = pathname === '/gestion-usuarios' || pathname.startsWith('/gestion-usuarios/');
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
