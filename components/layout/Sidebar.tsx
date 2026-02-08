@@ -21,6 +21,7 @@ import {
   HeartPulse,
   ShieldCheck,
   ShieldAlert,
+  TrendingUp,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
@@ -81,7 +82,21 @@ const navItems: NavItem[] = [
       UsuarioRol.TRABAJADOR,
     ],
   },
+  {
+    label: 'Matriz IPERC',
+    href: '/riesgos/iperc',
+    icon: TrendingUp,
+    roles: [
+      UsuarioRol.SUPER_ADMIN,
+      UsuarioRol.ADMIN_EMPRESA,
+      UsuarioRol.INGENIERO_SST,
+      UsuarioRol.SUPERVISOR,
+      UsuarioRol.TRABAJADOR,
+    ],
+  },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
+  { label: 'Inspecciones', href: '/inspecciones', icon: ClipboardCheck },
+  { label: 'Evaluación de Riesgos', href: '/evaluacion-riesgos', icon: ShieldAlert },
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
   { label: 'Capacitaciones', href: '/capacitaciones', icon: Calendar },
@@ -131,6 +146,23 @@ export function Sidebar() {
         
         // Filtrar "Procedimientos (PETS)": TRABAJADOR solo si tiene trabajadorId
         if (item.href === '/riesgos/pets') {
+          if (hasAnyRole([
+            UsuarioRol.SUPER_ADMIN,
+            UsuarioRol.ADMIN_EMPRESA,
+            UsuarioRol.INGENIERO_SST,
+            UsuarioRol.SUPERVISOR,
+          ])) {
+            return true;
+          }
+          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.TRABAJADOR)) {
+            return !!usuario?.trabajadorId;
+          }
+          return false;
+        }
+        
+        // Filtrar "Matriz IPERC": TRABAJADOR solo si tiene trabajadorId
+        if (item.href === '/riesgos/iperc') {
           if (hasAnyRole([
             UsuarioRol.SUPER_ADMIN,
             UsuarioRol.ADMIN_EMPRESA,
@@ -214,9 +246,15 @@ export function Sidebar() {
             } else if (item.href === '/riesgos/pets') {
               // "Procedimientos (PETS)" activo si estamos en /riesgos/pets o cualquier sub-ruta (como /riesgos/pets/[id])
               isActive = pathname === '/riesgos/pets' || pathname.startsWith('/riesgos/pets/');
+            } else if (item.href === '/riesgos/iperc') {
+              // "Matriz IPERC" activo si estamos en /riesgos/iperc o cualquier sub-ruta (como /riesgos/iperc/[id])
+              isActive = pathname === '/riesgos/iperc' || pathname.startsWith('/riesgos/iperc/');
             } else if (item.href === '/riesgos') {
-              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar ni /riesgos/pets
-              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar') && !pathname.startsWith('/riesgos/pets'));
+              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar, /riesgos/pets ni /riesgos/iperc
+              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar') && !pathname.startsWith('/riesgos/pets') && !pathname.startsWith('/riesgos/iperc'));
+            } else if (item.href === '/evaluacion-riesgos') {
+              // "Evaluación de Riesgos" activo si estamos en /evaluacion-riesgos o cualquier sub-ruta
+              isActive = pathname === '/evaluacion-riesgos' || pathname.startsWith('/evaluacion-riesgos/');
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
