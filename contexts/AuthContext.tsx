@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Usuario, UsuarioRol } from '@/types';
 import { authService } from '@/services/auth.service';
+import { toast } from 'sonner';
+
 
 interface AuthContextType {
   usuario: Usuario | null;
@@ -10,6 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  refreshUserProfile: () => Promise<void>;
   hasRole: (role: UsuarioRol) => boolean;
   hasAnyRole: (roles: UsuarioRol[]) => boolean;
 }
@@ -40,6 +43,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsuario(null);
   };
 
+  const refreshUserProfile = async () => {
+    if (!usuario?.id) return;
+  
+    try {
+      // 1. Obtener los datos más frescos del servidor
+      const updatedUsuario = await authService.getProfile(usuario.id);
+      
+      // 2. Sincronizar persistencia (esto evita que al recargar la página se pierdan los cambios)
+      const currentToken = authService.getStoredToken();
+      if (currentToken) {
+        authService.setAuthData(currentToken, updatedUsuario);
+      }
+      
+      // 3. Actualizar el estado global para disparar re-renders en Sidebar y Pages
+      setUsuario(updatedUsuario);
+      
+      console.log('Perfil sincronizado con éxito:', updatedUsuario.trabajadorId);
+    } catch (error) {
+      console.error('Error al sincronizar perfil:', error);
+      toast.error('Sesión desactualizada. Por favor, re-ingresa.');
+    }
+  };
+
   const hasRole = (role: UsuarioRol): boolean => {
     return usuario?.roles.includes(role) ?? false;
   };
@@ -56,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         logout,
+        refreshUserProfile,
         hasRole,
         hasAnyRole,
       }}

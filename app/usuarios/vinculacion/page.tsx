@@ -40,7 +40,7 @@ const vinculacionSchema = z.object({
 type VinculacionFormData = z.infer<typeof vinculacionSchema>;
 
 export default function VinculacionUsuariosPage() {
-  const { hasRole, usuario: currentUser } = useAuth();
+  const { hasRole, usuario: currentUser, refreshUserProfile } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
@@ -142,34 +142,31 @@ export default function VinculacionUsuariosPage() {
 
   const onSubmit = async (data: VinculacionFormData) => {
     if (!selectedUsuario) return;
-
+    
     try {
+      // 1. Ejecutar la actualización en el Backend
       await usuariosService.update(selectedUsuario.id, {
         empresaId: data.empresa_id || undefined,
         trabajadorId: data.trabajador_id || undefined,
         roles: data.roles,
         activo: data.activo,
       });
-      toast.success('Usuario actualizado', {
-        description: 'La vinculación se ha actualizado correctamente',
-      });
+      
+      toast.success('Usuario actualizado correctamente');
+  
+      // 2. VALIDACIÓN CRÍTICA: Si me edité a mí mismo (SUPER_ADMIN), refrescar mi contexto
+      if (selectedUsuario.id === currentUser?.id) {
+        await refreshUserProfile();
+        // Esto hará que el Sidebar detecte el nuevo trabajadorId automáticamente
+      }
+  
       setIsModalOpen(false);
       setSelectedUsuario(null);
-      loadUsuarios();
+      loadUsuarios(); // Recargar la tabla local
     } catch (error: any) {
-      // Manejo específico del error 412 (Precondition Failed)
-      if (error.response?.status === 412) {
-        toast.error('Operación no permitida', {
-          description:
-            error.response?.data?.message ||
-            'No se puede realizar esta operación por restricciones de seguridad del sistema',
-        });
-      } else {
-        toast.error('Error al actualizar usuario', {
-          description:
-            error.response?.data?.message || 'No se pudo actualizar la vinculación',
-        });
-      }
+      // Manejo de errores (412, etc.)
+      const message = error.response?.data?.message || 'Error en la vinculación';
+      toast.error('Error', { description: message });
     }
   };
 

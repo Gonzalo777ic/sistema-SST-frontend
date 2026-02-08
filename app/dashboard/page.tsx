@@ -10,6 +10,7 @@ import {
   Users,
   TrendingUp,
 } from 'lucide-react';
+import { UsuarioRol } from '@/types';
 
 export default function DashboardPage() {
   const { usuario, hasRole } = useAuth();
@@ -125,9 +126,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Estadísticas (Solo para Admin/Supervisor) */}
-        {(hasRole('ADMIN_EMPRESA') ||
-          hasRole('INGENIERO_SST') ||
-          hasRole('SUPERVISOR')) && (
+        {hasRole(UsuarioRol.ADMIN_EMPRESA) ||
+          hasRole(UsuarioRol.INGENIERO_SST)||
+          hasRole(UsuarioRol.SUPERVISOR) && (
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
             <h2 className="text-xl font-semibold text-slate-900 mb-4">
               Estadísticas del Mes

@@ -176,9 +176,9 @@ export default function EmpresaAreasPage() {
       allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]}
     >
       <MainLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
+        <div className="space-y-6 w-full">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
               <Link
                 href="/empresas"
                 className="text-sm text-slate-600 hover:text-slate-900 mb-2 inline-flex items-center gap-1"
@@ -186,7 +186,7 @@ export default function EmpresaAreasPage() {
                 <ArrowLeft className="w-4 h-4" />
                 Volver a Empresas
               </Link>
-              <h1 className="text-3xl font-bold text-slate-900">
+              <h1 className="text-3xl font-bold text-slate-900 mt-0">
                 Gestión de Áreas
               </h1>
               <p className="text-slate-600 mt-2">
@@ -194,14 +194,16 @@ export default function EmpresaAreasPage() {
               </p>
             </div>
             {canManage && (
-              <Button onClick={openCreateModal}>
-                <Plus className="w-5 h-5 mr-2" />
-                Nueva Área
-              </Button>
+              <div className="flex-shrink-0">
+                <Button onClick={openCreateModal}>
+                  <Plus className="w-5 h-5 mr-2" />
+                  Nueva Área
+                </Button>
+              </div>
             )}
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden w-full">
             {isLoading ? (
               <div className="p-6 space-y-4">
                 {[1, 2, 3].map((i) => (
@@ -220,66 +222,72 @@ export default function EmpresaAreasPage() {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Descripción</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Fecha Creación</TableHead>
-                      {canManage && (
-                        <TableHead className="text-right">Acciones</TableHead>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {areas.map((area) => (
-                      <TableRow key={area.id}>
-                        <TableCell className="font-medium">
-                          {area.nombre}
-                        </TableCell>
-                        <TableCell className="text-slate-600">
-                          {area.descripcion || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded ${
-                              area.activo
-                                ? 'bg-success-light/20 text-success'
-                                : 'bg-slate-200 text-slate-600'
-                            }`}
-                          >
-                            {area.activo ? 'Activa' : 'Inactiva'}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(area.createdAt).toLocaleDateString('es-PE')}
-                        </TableCell>
+              <div className="w-full overflow-hidden">
+                <div className="overflow-x-auto w-full">
+                  <Table className="w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[200px]">Nombre</TableHead>
+                        <TableHead className="min-w-[250px]">Descripción</TableHead>
+                        <TableHead className="min-w-[120px]">Estado</TableHead>
+                        <TableHead className="min-w-[140px]">Fecha Creación</TableHead>
                         {canManage && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openEditModal(area)}
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="danger"
-                                size="sm"
-                                onClick={() => handleDelete(area.id)}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+                          <TableHead className="min-w-[140px] text-right">Acciones</TableHead>
                         )}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {areas.map((area) => (
+                        <TableRow key={area.id}>
+                          <TableCell className="font-medium">
+                            {area.nombre}
+                          </TableCell>
+                          <TableCell className="text-slate-600">
+                            <span className="line-clamp-2">
+                              {area.descripcion || '-'}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`inline-flex px-2 py-1 text-xs font-medium rounded whitespace-nowrap ${
+                                area.activo
+                                  ? 'bg-success-light/20 text-success'
+                                  : 'bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {area.activo ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-slate-600 whitespace-nowrap">
+                            {new Date(area.createdAt).toLocaleDateString('es-PE')}
+                          </TableCell>
+                          {canManage && (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEditModal(area)}
+                                  className="flex-shrink-0"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDelete(area.id)}
+                                  className="flex-shrink-0"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </div>

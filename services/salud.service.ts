@@ -1,0 +1,203 @@
+import apiClient from '@/lib/axios';
+
+export enum TipoExamen {
+  Ingreso = 'Ingreso',
+  Periodico = 'Periódico',
+  Retiro = 'Retiro',
+  Reingreso = 'Reingreso',
+  PorExposicion = 'Por Exposición',
+}
+
+export enum ResultadoExamen {
+  Apto = 'Apto',
+  AptoConRestricciones = 'Apto con Restricciones',
+  NoApto = 'No Apto',
+  Pendiente = 'Pendiente',
+}
+
+export enum EstadoExamen {
+  Programado = 'Programado',
+  Realizado = 'Realizado',
+  Vencido = 'Vencido',
+  PorVencer = 'Por Vencer',
+  Revisado = 'Revisado',
+}
+
+export enum EstadoCita {
+  Programada = 'Programada',
+  Confirmada = 'Confirmada',
+  Completada = 'Completada',
+  Cancelada = 'Cancelada',
+  NoAsistio = 'No Asistió',
+}
+
+export enum DiaSemana {
+  Lunes = 'Lunes',
+  Martes = 'Martes',
+  Miercoles = 'Miércoles',
+  Jueves = 'Jueves',
+  Viernes = 'Viernes',
+  Sabado = 'Sábado',
+  Domingo = 'Domingo',
+}
+
+export interface ExamenMedico {
+  id: string;
+  trabajador_id: string;
+  trabajador_nombre: string | null;
+  tipo_examen: TipoExamen;
+  fecha_programada: string;
+  fecha_realizado: string | null;
+  fecha_vencimiento: string | null;
+  centro_medico: string;
+  medico_evaluador: string;
+  resultado: ResultadoExamen;
+  restricciones: string | null;
+  observaciones: string | null;
+  resultado_archivo_url: string | null;
+  estado: EstadoExamen;
+  revisado_por_doctor: boolean;
+  doctor_interno_id: string | null;
+  fecha_revision_doctor: string | null;
+  cargado_por: string | null;
+  cargado_por_id: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ComentarioMedico {
+  id: string;
+  examen_id: string;
+  trabajador_id: string;
+  doctor_id: string;
+  doctor_nombre: string;
+  comentario: string;
+  recomendaciones: string | null;
+  fecha_comentario: string;
+  es_confidencial: boolean;
+  leido_por_paciente: boolean;
+  fecha_lectura: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CitaMedica {
+  id: string;
+  motivo: string;
+  estado: EstadoCita;
+  fecha_cita: string;
+  hora_cita: string;
+  duracion_minutos: number;
+  fecha_confirmacion: string | null;
+  notas_cita: string | null;
+  doctor_nombre: string | null;
+  trabajador_id: string;
+  trabajador_nombre: string | null;
+  doctor_id: string | null;
+  examen_relacionado_id: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface HorarioDoctor {
+  id: string;
+  dia_semana: DiaSemana;
+  hora_inicio: string;
+  hora_fin: string;
+  duracion_cita_minutos: number;
+  activo: boolean;
+  doctor_id: string;
+  doctor_nombre: string | null;
+  empresa_id: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateCitaMedicaDto {
+  motivo: string;
+  fecha_cita: string;
+  hora_cita: string;
+  duracion_minutos?: number;
+  notas_cita?: string;
+  doctor_nombre?: string;
+  trabajador_id: string;
+  doctor_id?: string;
+  examen_relacionado_id?: string;
+  estado?: EstadoCita;
+}
+
+export const saludService = {
+  // Exámenes Médicos
+  async findAllExamenes(trabajadorId?: string): Promise<ExamenMedico[]> {
+    const params = trabajadorId ? { trabajador_id: trabajadorId } : {};
+    const response = await apiClient.get<ExamenMedico[]>('/salud/examenes', {
+      params,
+    });
+    return response.data;
+  },
+
+  async findOneExamen(id: string): Promise<ExamenMedico> {
+    const response = await apiClient.get<ExamenMedico>(`/salud/examenes/${id}`);
+    return response.data;
+  },
+
+  // Comentarios Médicos
+  async findAllComentarios(
+    examenId?: string,
+    trabajadorId?: string,
+  ): Promise<ComentarioMedico[]> {
+    const params: Record<string, string> = {};
+    if (examenId) params.examen_id = examenId;
+    if (trabajadorId) params.trabajador_id = trabajadorId;
+    const response = await apiClient.get<ComentarioMedico[]>('/salud/comentarios', {
+      params,
+    });
+    return response.data;
+  },
+
+  async findOneComentario(id: string): Promise<ComentarioMedico> {
+    // El backend marca automáticamente como leído cuando se obtiene un comentario
+    const response = await apiClient.get<ComentarioMedico>(
+      `/salud/comentarios/${id}`,
+    );
+    return response.data;
+  },
+
+  // Citas Médicas
+  async findAllCitas(
+    trabajadorId?: string,
+    doctorId?: string,
+  ): Promise<CitaMedica[]> {
+    const params: Record<string, string> = {};
+    if (trabajadorId) params.trabajador_id = trabajadorId;
+    if (doctorId) params.doctor_id = doctorId;
+    const response = await apiClient.get<CitaMedica[]>('/salud/citas', {
+      params,
+    });
+    return response.data;
+  },
+
+  async findOneCita(id: string): Promise<CitaMedica> {
+    const response = await apiClient.get<CitaMedica>(`/salud/citas/${id}`);
+    return response.data;
+  },
+
+  async createCita(dto: CreateCitaMedicaDto): Promise<CitaMedica> {
+    const response = await apiClient.post<CitaMedica>('/salud/citas', dto);
+    return response.data;
+  },
+
+  // Horarios Doctor
+  async findAllHorarios(
+    doctorId?: string,
+    empresaId?: string,
+  ): Promise<HorarioDoctor[]> {
+    const params: Record<string, string> = {};
+    if (doctorId) params.doctor_id = doctorId;
+    if (empresaId) params.empresa_id = empresaId;
+    const response = await apiClient.get<HorarioDoctor[]>('/salud/horarios', {
+      params,
+    });
+    return response.data.filter((h) => h.activo);
+  },
+};

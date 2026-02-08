@@ -1,5 +1,6 @@
 import apiClient from '@/lib/axios';
-import { LoginRequest, LoginResponse } from '@/types';
+import { LoginRequest, LoginResponse, Usuario } from '@/types';
+import { usuariosService } from './usuarios.service';
 
 export const authService = {
   async login(credentials: LoginRequest): Promise<LoginResponse> {
@@ -21,6 +22,11 @@ export const authService = {
       authProvider: 'LOCAL',
     });
     return response.data;
+  },
+
+  async getProfile(userId: string): Promise<Usuario> {
+    const usuario = await usuariosService.findOne(userId);
+    return usuario;
   },
 
   logout(): void {

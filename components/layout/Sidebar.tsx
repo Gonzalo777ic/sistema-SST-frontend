@@ -18,8 +18,9 @@ import {
   UserPlus,
   ClipboardCheck,
   MapPin,
+  HeartPulse,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
 
 interface NavItem {
@@ -52,29 +53,38 @@ const navItems: NavItem[] = [
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
   { label: 'Capacitaciones', href: '/capacitaciones', icon: Calendar },
+  { label: 'Mi Salud', href: '/mis-examenes', icon: HeartPulse },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { usuario, logout, hasAnyRole } = useAuth();
+  const { usuario, logout, hasAnyRole, hasRole } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const filteredNavItems = navItems
-    .map((item) => {
-      // Resolver href dinámico si existe
-      if (item.dynamicHref) {
-        const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
-        if (!dynamicHref) return null; // No mostrar si no hay empresaId
-        return { ...item, href: dynamicHref };
-      }
-      return item;
-    })
-    .filter((item): item is NavItem => {
-      if (!item) return false;
-      // Filtrar por roles
-      if (!item.roles) return true;
-      return hasAnyRole(item.roles);
-    });
+  const filteredNavItems = useMemo(() => {
+    return navItems
+      .map((item) => {
+        // Resolver href dinámico si existe
+        if (item.dynamicHref) {
+          const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
+          if (!dynamicHref) return null; // No mostrar si no hay empresaId
+          return { ...item, href: dynamicHref };
+        }
+        return item;
+      })
+      .filter((item): item is NavItem => {
+        if (!item) return false;
+        
+        // Filtrar "Mi Salud": visible si tiene trabajadorId O es SUPER_ADMIN
+        if (item.href === '/mis-examenes') {
+          return !!usuario?.trabajadorId || hasRole(UsuarioRol.SUPER_ADMIN);
+        }
+        
+        // Filtrar por roles
+        if (!item.roles) return true;
+        return hasAnyRole(item.roles);
+      });
+  }, [usuario?.empresaId, usuario?.trabajadorId, hasAnyRole, hasRole]);
 
   return (
     <>
@@ -98,9 +108,9 @@ export function Sidebar() {
         className={`
           fixed top-0 left-0 h-full bg-white border-r border-slate-200 z-40
           transform transition-transform duration-300 ease-in-out
-          lg:translate-x-0 lg:static lg:z-auto
+          lg:translate-x-0 lg:static lg:z-auto lg:h-screen
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
-          w-64 flex flex-col
+          w-64 min-w-[16rem] flex flex-col flex-shrink-0
         `}
       >
         <div className="p-6 border-b border-slate-200">
@@ -113,23 +123,42 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
-            // Mejorar la detección de ruta activa para rutas dinámicas y rutas padre
-            const isActive = 
-              pathname === item.href || 
-              (item.href !== '/' && pathname.startsWith(item.href + '/')) ||
+            
+            // Lógica mejorada de detección de ruta activa
+            let isActive = false;
+            
+            // Prioridad: Primero verificar rutas específicas que pueden tener subrutas
+            // IMPORTANTE: Verificar Gestión de Áreas ANTES que Empresas para evitar conflictos
+            if (item.href && item.href.includes('/areas')) {
+              // "Gestión de Áreas" solo activo si la ruta contiene /areas
+              isActive = pathname.includes('/areas');
+            } else if (item.href === '/empresas') {
+              // "Empresas" solo activo si es exactamente /empresas o /empresas/[id] pero NO si contiene /areas
+              // Esta verificación debe ser explícita para evitar que se active cuando estamos en /areas
+              isActive = (pathname === '/empresas' || pathname.startsWith('/empresas/')) && !pathname.includes('/areas');
+            } else if (item.href === '/ats') {
               // Caso especial: si estamos en /ats/nuevo o /ats/[id], resaltar ATS
-              (item.href === '/ats' && pathname.startsWith('/ats'));
+              isActive = pathname === '/ats' || pathname.startsWith('/ats/');
+            } else if (item.href === '/mis-examenes') {
+              // "Mi Salud" activo si estamos en /mis-examenes o sus subrutas como /mis-examenes/citas
+              isActive = pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
+            } else {
+              // Para otras rutas: exacta o que empiece con la ruta + /
+              isActive = pathname === item.href || 
+                        (item.href !== '/' && pathname.startsWith(item.href + '/'));
+            }
+            
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setIsMobileOpen(false)}
                 className={`
-                  flex items-center gap-3 px-4 py-3 rounded-md transition-colors
+                  flex items-center gap-3 px-4 py-3 rounded-md transition-colors duration-200
                   ${
                     isActive
-                      ? 'bg-primary text-white'
-                      : 'text-slate-700 hover:bg-slate-100'
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-slate-700 hover:bg-primary/10 hover:text-primary'
                   }
                 `}
               >
@@ -143,7 +172,7 @@ export function Sidebar() {
         <div className="p-4 border-t border-slate-200">
           <button
             onClick={logout}
-            className="flex items-center gap-3 px-4 py-3 w-full rounded-md text-slate-700 hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 w-full rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Cerrar Sesión</span>

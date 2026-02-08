@@ -242,12 +242,12 @@ export default function TrabajadoresPage() {
     >
       <MainLayout>
       <div className="space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <h1 className="text-3xl font-bold text-slate-900">Gestión de Trabajadores</h1>
             <p className="text-slate-600 mt-2">Directorio maestro del personal</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-shrink-0">
             <div className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-slate-500" />
               <Select
@@ -272,7 +272,7 @@ export default function TrabajadoresPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden w-full">
           {isLoading ? (
             <div className="p-6 space-y-4">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -285,8 +285,9 @@ export default function TrabajadoresPage() {
               <p className="text-slate-600">No hay trabajadores registrados</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="w-full overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
@@ -353,6 +354,7 @@ export default function TrabajadoresPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </div>
