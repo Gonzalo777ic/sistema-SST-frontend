@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   TrendingUp,
+  FolderClosed,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
@@ -97,7 +98,7 @@ const navItems: NavItem[] = [
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Inspecciones', href: '/inspecciones', icon: ClipboardCheck },
   { label: 'Evaluación de Riesgos', href: '/evaluacion-riesgos', icon: ShieldAlert },
-  { label: 'Documentos', href: '/documentos', icon: FileText },
+  { label: 'Documentos SST', href: '/documentos', icon: FolderClosed },
   { label: 'EPP', href: '/epp', icon: Shield },
   { label: 'Capacitaciones', href: '/capacitaciones', icon: Calendar },
   { label: 'Mi Salud', href: '/mis-examenes', icon: HeartPulse },
