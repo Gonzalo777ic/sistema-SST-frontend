@@ -2,7 +2,7 @@ import apiClient from '@/lib/axios';
 import { Usuario, UsuarioRol } from '@/types';
 
 export interface CreateUsuarioDto {
-  email: string;
+  dni: string;
   password?: string;
   roles: UsuarioRol[];
   empresaId?: string;
@@ -14,6 +14,17 @@ export interface UpdateUsuarioDto {
   activo?: boolean;
   empresaId?: string;
   trabajadorId?: string;
+  perfil_completado?: boolean;
+  debe_cambiar_password?: boolean;
+}
+
+export interface ChangePasswordDto {
+  nueva_password: string;
+  confirmacion_password: string;
+}
+
+export interface ResetPasswordDto {
+  usuario_id: string;
 }
 
 export const usuariosService = {
@@ -35,5 +46,13 @@ export const usuariosService = {
   async update(id: string, data: UpdateUsuarioDto): Promise<Usuario> {
     const response = await apiClient.patch<Usuario>(`/usuarios/${id}`, data);
     return response.data;
+  },
+
+  async changePassword(id: string, data: ChangePasswordDto): Promise<void> {
+    await apiClient.post(`/usuarios/${id}/change-password`, data);
+  },
+
+  async resetPassword(id: string): Promise<void> {
+    await apiClient.post(`/usuarios/${id}/reset-password`);
   },
 };

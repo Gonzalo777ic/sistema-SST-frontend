@@ -12,11 +12,11 @@ export const authService = {
   },
 
   async register(data: {
-    email: string;
+    dni: string;
     password: string;
     roles: string[];
     empresaId?: string;
-  }): Promise<{ id: string; email: string }> {
+  }): Promise<{ id: string; dni: string }> {
     const response = await apiClient.post('/auth/register', {
       ...data,
       authProvider: 'LOCAL',

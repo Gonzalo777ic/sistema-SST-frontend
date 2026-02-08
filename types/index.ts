@@ -16,13 +16,15 @@ export enum UsuarioRol {
 
 export interface Usuario {
   id: string;
-  email: string;
+  dni: string;
   authProvider: AuthProvider;
   roles: UsuarioRol[];
   activo: boolean;
+  debe_cambiar_password: boolean;
   ultimoAcceso: Date | null;
   empresaId: string | null;
   trabajadorId: string | null;
+  perfil_completado?: boolean;
   createdAt: Date;
 }
 
@@ -32,6 +34,6 @@ export interface LoginResponse {
 }
 
 export interface LoginRequest {
-  email: string;
+  dni: string;
   password: string;
 }

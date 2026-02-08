@@ -66,6 +66,17 @@ export interface UpdateTrabajadorDto {
   contacto_emergencia_nombre?: string;
   contacto_emergencia_telefono?: string;
   foto_url?: string;
+  talla_casco?: string;
+  talla_camisa?: string;
+  talla_pantalon?: string;
+  talla_calzado?: string;
+}
+
+export interface UpdatePersonalDataDto {
+  talla_casco?: string;
+  talla_camisa?: string;
+  talla_pantalon?: string;
+  talla_calzado?: string;
 }
 
 export const trabajadoresService = {
@@ -97,5 +108,13 @@ export const trabajadoresService = {
 
   async remove(id: string): Promise<void> {
     await apiClient.delete(`/trabajadores/${id}`);
+  },
+
+  async updatePersonalData(id: string, data: UpdatePersonalDataDto): Promise<Trabajador> {
+    const response = await apiClient.patch<Trabajador>(
+      `/trabajadores/${id}/personal-data`,
+      data
+    );
+    return response.data;
   },
 };

@@ -215,7 +215,7 @@ export function Sidebar() {
         <div className="p-6 border-b border-slate-200">
           <h2 className="text-xl font-bold text-slate-900">SST</h2>
           <p className="text-sm text-slate-600 mt-1">
-            {usuario?.email || 'Usuario'}
+            {usuario?.dni || 'Usuario'}
           </p>
         </div>
 

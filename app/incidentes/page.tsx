@@ -195,7 +195,7 @@ export default function IncidentesPage() {
           data.parte_cuerpo_afectada && data.parte_cuerpo_afectada !== ''
             ? data.parte_cuerpo_afectada
             : undefined,
-        dias_perdidos: data.dias_perdidos ?? 0,
+        dias_perdidos: data.dias_perdidos === '' || data.dias_perdidos === undefined ? undefined : Number(data.dias_perdidos),
         causas: data.causas && data.causas !== '' ? data.causas : undefined,
         acciones_inmediatas:
           data.acciones_inmediatas && data.acciones_inmediatas !== ''

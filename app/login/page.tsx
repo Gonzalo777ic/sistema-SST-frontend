@@ -9,10 +9,17 @@ import { Mail, Lock, AlertCircle } from 'lucide-react';
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [dni, setDni] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleDniChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Solo números
+    if (value.length <= 8) {
+      setDni(value);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,8 +27,18 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      router.push('/dashboard');
+      if (dni.length !== 8) {
+        setError('El DNI debe tener 8 dígitos');
+        setIsLoading(false);
+        return;
+      }
+
+      await login(dni, password);
+      // La redirección se maneja en AuthContext según debe_cambiar_password y perfil_completado
+      // Si no hay redirección, ir al dashboard
+      if (typeof window !== 'undefined' && !window.location.href.includes('/auth/reset-password') && !window.location.href.includes('/perfil/setup')) {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(
         err.response?.data?.message ||
@@ -65,23 +82,31 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
-                htmlFor="email"
+                htmlFor="dni"
                 className="block text-sm font-medium text-slate-700 mb-2"
               >
-                Correo Electrónico
+                DNI
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="dni"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={dni}
+                  onChange={handleDniChange}
                   required
+                  maxLength={8}
                   className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-primary focus:border-transparent text-base"
-                  placeholder="tu@empresa.com"
+                  placeholder="12345678"
                 />
               </div>
+              {dni.length > 0 && dni.length < 8 && (
+                <p className="mt-1 text-xs text-slate-500">
+                  {8 - dni.length} dígito(s) restante(s)
+                </p>
+              )}
             </div>
 
             <div>

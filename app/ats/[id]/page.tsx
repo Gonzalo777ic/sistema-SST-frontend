@@ -120,8 +120,6 @@ export default function ATSDetailPage() {
     name: 'personal_involucrado',
   });
 
-  const selectedEmpresaId = watch('empresa_id');
-
   useEffect(() => {
     if (id) {
       loadAts();
@@ -129,11 +127,11 @@ export default function ATSDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    if (selectedEmpresaId) {
-      loadAreas(selectedEmpresaId);
-      loadTrabajadores(selectedEmpresaId);
+    if (ats?.empresa_id) {
+      loadAreas(ats.empresa_id);
+      loadTrabajadores(ats.empresa_id);
     }
-  }, [selectedEmpresaId]);
+  }, [ats?.empresa_id]);
 
   const loadAts = async () => {
     try {
@@ -416,7 +414,7 @@ export default function ATSDetailPage() {
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Área *
                       </label>
-                      <Select {...register('area_id')} disabled={!selectedEmpresaId}>
+                      <Select {...register('area_id')} disabled={!ats?.empresa_id}>
                         <option value="">Seleccione un área</option>
                         {areas.map((area) => (
                           <option key={area.id} value={area.id}>
@@ -427,9 +425,9 @@ export default function ATSDetailPage() {
                       {errors.area_id && (
                         <p className="mt-1 text-sm text-danger">{errors.area_id.message}</p>
                       )}
-                      {selectedEmpresaId && areas.length === 0 && (
+                      {ats?.empresa_id && areas.length === 0 && (
                         <p className="mt-1 text-sm text-slate-500">
-                          No hay áreas disponibles. <a href={`/empresas/${selectedEmpresaId}/areas`} className="text-primary hover:underline">Crear área</a>
+                          No hay áreas disponibles. <a href={`/empresas/${ats.empresa_id}/areas`} className="text-primary hover:underline">Crear área</a>
                         </p>
                       )}
                     </div>

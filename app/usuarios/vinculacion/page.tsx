@@ -218,7 +218,7 @@ export default function VinculacionUsuariosPage() {
                 <TableBody>
                   {usuarios.map((usuario) => (
                     <TableRow key={usuario.id}>
-                      <TableCell className="font-medium">{usuario.email}</TableCell>
+                      <TableCell className="font-medium">{usuario.dni}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {usuario.roles.map((role: UsuarioRol) => (

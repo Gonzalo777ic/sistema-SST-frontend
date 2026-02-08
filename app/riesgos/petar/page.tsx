@@ -876,7 +876,7 @@ export default function PetarPage() {
                   Firma del Supervisor
                 </h3>
                 <p className="text-sm text-slate-600">
-                  Al firmar, el estado cambiará automáticamente a "Pendiente de Aprobación"
+                  Al firmar, el estado cambiará automáticamente a &quot;Pendiente de Aprobación&quot;
                 </p>
                 <SignatureCanvas
                   onSave={(dataUrl) => setFirmaSupervisor(dataUrl)}

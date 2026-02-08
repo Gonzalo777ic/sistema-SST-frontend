@@ -354,7 +354,7 @@ export default function PetsPage() {
     try {
       await petsService.registrarLectura(petsId, {
         usuario_id: usuario.id,
-        usuario_nombre: usuario.nombreCompleto || usuario.email || 'Usuario',
+        usuario_nombre: usuario.nombreCompleto || usuario.dni || 'Usuario',
       });
       toast.success('Lectura confirmada', {
         description: 'Has confirmado la lectura del procedimiento',

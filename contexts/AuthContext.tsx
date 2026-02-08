@@ -10,7 +10,7 @@ interface AuthContextType {
   usuario: Usuario | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (dni: string, password: string) => Promise<void>;
   logout: () => void;
   refreshUserProfile: () => Promise<void>;
   hasRole: (role: UsuarioRol) => boolean;
@@ -32,10 +32,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const response = await authService.login({ email, password });
+  const login = async (dni: string, password: string) => {
+    const response = await authService.login({ dni, password });
     authService.setAuthData(response.access_token, response.usuario);
     setUsuario(response.usuario);
+    
+    // Redirigir a reset password si debe cambiar contraseña
+    if (response.usuario.debe_cambiar_password === true) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/reset-password';
+      }
+      return;
+    }
+    
+    // Redirigir a setup si el perfil no está completado
+    if (response.usuario.perfil_completado === false) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/perfil/setup';
+      }
+    }
   };
 
   const logout = () => {

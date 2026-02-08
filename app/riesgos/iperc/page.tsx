@@ -278,7 +278,7 @@ export default function IpercPage() {
       const razonSocial =
         data.razon_social ||
         empresaSeleccionada?.nombre ||
-        undefined;
+        '';
 
       // Calcular índices y valores para cada línea
       // Nota: El backend recalculará estos valores, pero los enviamos para referencia
@@ -290,7 +290,7 @@ export default function IpercPage() {
       });
 
       const payload: CreateIpercDto = {
-        // razon_social es opcional - el backend la obtendrá automáticamente de la empresa si no viene
+        // razon_social es requerido pero el backend la obtendrá automáticamente de la empresa si viene vacío
         razon_social: razonSocial,
         area_id: data.area_id && data.area_id !== '' ? data.area_id : undefined,
         proceso: data.proceso,
@@ -329,7 +329,7 @@ export default function IpercPage() {
       await ipercService.update(ipercId, {
         estado: EstadoIPERC.Aprobado,
         aprobado_por_id: usuario.id,
-        aprobado_por: usuario.email,
+        aprobado_por: usuario.dni,
         firma_aprobador: firmaAprobador,
       });
       toast.success('Matriz IPERC aprobada', {
@@ -986,7 +986,7 @@ export default function IpercPage() {
                   Firma del Elaborador
                 </h3>
                 <p className="text-sm text-slate-600">
-                  Al firmar, el estado cambiará automáticamente a "Completado"
+                  Al firmar, el estado cambiará automáticamente a &quot;Completado&quot;
                 </p>
                 <SignatureCanvas
                   onSave={(dataUrl) => setFirmaElaborador(dataUrl)}

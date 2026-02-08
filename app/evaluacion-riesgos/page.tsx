@@ -539,7 +539,7 @@ export default function EvaluacionRiesgosPage() {
     Evaluador <span className="text-red-500">*</span>
   </label>
   <Input 
-    value={usuario?.email || 'Cargando...'} 
+    value={usuario?.dni || 'Cargando...'} 
     readOnly 
     className="bg-slate-50 cursor-not-allowed"
   />
