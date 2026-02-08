@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   MapPin,
   HeartPulse,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { UsuarioRol } from '@/types';
@@ -48,6 +49,12 @@ const navItems: NavItem[] = [
     href: '/ats', 
     icon: ClipboardCheck,
     roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR, UsuarioRol.TRABAJADOR],
+  },
+  {
+    label: 'Gestión de Riesgos',
+    href: '/riesgos',
+    icon: ShieldCheck,
+    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST],
   },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Documentos', href: '/documentos', icon: FileText },
@@ -142,6 +149,9 @@ export function Sidebar() {
             } else if (item.href === '/mis-examenes') {
               // "Mi Salud" activo si estamos en /mis-examenes o sus subrutas como /mis-examenes/citas
               isActive = pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
+            } else if (item.href === '/riesgos') {
+              // "Gestión de Riesgos" activo si estamos en /riesgos o cualquier sub-ruta (como /riesgos/petar, /riesgos/iperc, etc.)
+              isActive = pathname === '/riesgos' || pathname.startsWith('/riesgos/');
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
