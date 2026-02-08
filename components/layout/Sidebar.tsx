@@ -14,6 +14,8 @@ import {
   LogOut,
   Menu,
   X,
+  Building2,
+  UserPlus,
 } from 'lucide-react';
 import { useState } from 'react';
 import { UsuarioRol } from '@/types';
@@ -27,8 +29,10 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
+  { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA] },
   { label: 'Trabajadores', href: '/trabajadores', icon: Users },
+  { label: 'Vinculación de Usuarios', href: '/usuarios/vinculacion', icon: UserPlus, roles: [UsuarioRol.SUPER_ADMIN] },
+  { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
   { label: 'Capacitaciones', href: '/capacitaciones', icon: Calendar },
