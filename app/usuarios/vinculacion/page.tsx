@@ -21,12 +21,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link2, UserX, UserCheck } from 'lucide-react';
+import { Link2, UserX, UserCheck, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { UsuarioRol } from '@/types';
+import { Tooltip } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 const vinculacionSchema = z.object({
   empresa_id: z.string().uuid().optional().or(z.literal('')),
@@ -38,7 +40,7 @@ const vinculacionSchema = z.object({
 type VinculacionFormData = z.infer<typeof vinculacionSchema>;
 
 export default function VinculacionUsuariosPage() {
-  const { hasRole } = useAuth();
+  const { hasRole, usuario: currentUser } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
@@ -155,10 +157,19 @@ export default function VinculacionUsuariosPage() {
       setSelectedUsuario(null);
       loadUsuarios();
     } catch (error: any) {
-      toast.error('Error al actualizar usuario', {
-        description:
-          error.response?.data?.message || 'No se pudo actualizar la vinculación',
-      });
+      // Manejo específico del error 412 (Precondition Failed)
+      if (error.response?.status === 412) {
+        toast.error('Operación no permitida', {
+          description:
+            error.response?.data?.message ||
+            'No se puede realizar esta operación por restricciones de seguridad del sistema',
+        });
+      } else {
+        toast.error('Error al actualizar usuario', {
+          description:
+            error.response?.data?.message || 'No se pudo actualizar la vinculación',
+        });
+      }
     }
   };
 
@@ -319,23 +330,52 @@ export default function VinculacionUsuariosPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Roles *
                 </label>
+                {currentUser?.id === selectedUsuario.id && (
+                  <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md flex items-start gap-2">
+                    <Info className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-yellow-800">
+                      No puedes modificar tus propios roles administrativos por seguridad.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2 border border-slate-200 rounded-md p-4">
                   {Object.values(UsuarioRol).map((role) => {
                     const currentRoles = watch('roles');
                     const isSelected = currentRoles.includes(role);
+                    const isCurrentUser = currentUser?.id === selectedUsuario.id;
+                    const isSuperAdminRole = role === UsuarioRol.SUPER_ADMIN;
+                    const isDisabled = isCurrentUser && isSuperAdminRole;
+
                     return (
-                      <label
+                      <Tooltip
                         key={role}
-                        className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded"
+                        content={
+                          isDisabled
+                            ? 'No puedes modificar tus propios roles administrativos por seguridad'
+                            : ''
+                        }
                       >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleRoleToggle(role, currentRoles)}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm text-slate-700">{role}</span>
-                      </label>
+                        <label
+                          className={cn(
+                            'flex items-center gap-2 p-2 rounded',
+                            isDisabled
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'cursor-pointer hover:bg-slate-50',
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleRoleToggle(role, currentRoles)}
+                            disabled={isDisabled}
+                            className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:cursor-not-allowed"
+                          />
+                          <span className="text-sm text-slate-700">{role}</span>
+                          {isDisabled && (
+                            <Info className="w-4 h-4 text-slate-400 ml-auto" />
+                          )}
+                        </label>
+                      </Tooltip>
                     );
                   })}
                 </div>
@@ -349,11 +389,25 @@ export default function VinculacionUsuariosPage() {
                   type="checkbox"
                   id="activo"
                   {...register('activo')}
-                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  disabled={currentUser?.id === selectedUsuario.id}
+                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                 />
-                <label htmlFor="activo" className="text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="activo"
+                  className={cn(
+                    'text-sm font-medium',
+                    currentUser?.id === selectedUsuario.id
+                      ? 'text-slate-400 cursor-not-allowed'
+                      : 'text-slate-700',
+                  )}
+                >
                   Usuario activo
                 </label>
+                {currentUser?.id === selectedUsuario.id && (
+                  <Tooltip content="No puedes desactivar tu propia cuenta por seguridad">
+                    <Info className="w-4 h-4 text-slate-400" />
+                  </Tooltip>
+                )}
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -368,7 +422,14 @@ export default function VinculacionUsuariosPage() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Guardando...' : 'Guardar Vinculación'}
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Guardando...
+                    </>
+                  ) : (
+                    'Guardar Vinculación'
+                  )}
                 </Button>
               </div>
             </form>
