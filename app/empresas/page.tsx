@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -34,6 +35,7 @@ const empresaSchema = z.object({
 type EmpresaFormData = z.infer<typeof empresaSchema>;
 
 export default function EmpresasPage() {
+  const router = useRouter();
   const { hasRole } = useAuth();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -219,6 +221,14 @@ export default function EmpresasPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(`/empresas/${empresa.id}/areas`)}
+                            title="Gestionar áreas"
+                          >
+                            <Building2 className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"

@@ -16,6 +16,8 @@ import {
   X,
   Building2,
   UserPlus,
+  ClipboardCheck,
+  MapPin,
 } from 'lucide-react';
 import { useState } from 'react';
 import { UsuarioRol } from '@/types';
@@ -25,13 +27,27 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   roles?: UsuarioRol[];
+  dynamicHref?: (empresaId: string | null) => string | null; // Para rutas dinámicas
 }
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA] },
+  { 
+    label: 'Gestión de Áreas', 
+    href: '', 
+    icon: MapPin, 
+    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+    dynamicHref: (empresaId) => empresaId ? `/empresas/${empresaId}/areas` : null,
+  },
   { label: 'Trabajadores', href: '/trabajadores', icon: Users },
   { label: 'Vinculación de Usuarios', href: '/usuarios/vinculacion', icon: UserPlus, roles: [UsuarioRol.SUPER_ADMIN] },
+  { 
+    label: 'Análisis de Riesgos (ATS)', 
+    href: '/ats', 
+    icon: ClipboardCheck,
+    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR, UsuarioRol.TRABAJADOR],
+  },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
   { label: 'Documentos', href: '/documentos', icon: FileText },
   { label: 'EPP', href: '/epp', icon: Shield },
@@ -43,10 +59,22 @@ export function Sidebar() {
   const { usuario, logout, hasAnyRole } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const filteredNavItems = navItems.filter((item) => {
-    if (!item.roles) return true;
-    return hasAnyRole(item.roles);
-  });
+  const filteredNavItems = navItems
+    .map((item) => {
+      // Resolver href dinámico si existe
+      if (item.dynamicHref) {
+        const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
+        if (!dynamicHref) return null; // No mostrar si no hay empresaId
+        return { ...item, href: dynamicHref };
+      }
+      return item;
+    })
+    .filter((item): item is NavItem => {
+      if (!item) return false;
+      // Filtrar por roles
+      if (!item.roles) return true;
+      return hasAnyRole(item.roles);
+    });
 
   return (
     <>
@@ -85,7 +113,12 @@ export function Sidebar() {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            // Mejorar la detección de ruta activa para rutas dinámicas y rutas padre
+            const isActive = 
+              pathname === item.href || 
+              (item.href !== '/' && pathname.startsWith(item.href + '/')) ||
+              // Caso especial: si estamos en /ats/nuevo o /ats/[id], resaltar ATS
+              (item.href === '/ats' && pathname.startsWith('/ats'));
             return (
               <Link
                 key={item.href}
