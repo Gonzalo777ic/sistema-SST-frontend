@@ -38,8 +38,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  // Sección Administrativa - Solo SUPER_ADMIN
-  { label: 'Gestión de Usuarios', href: '/gestion-usuarios', icon: UserCog, roles: [UsuarioRol.SUPER_ADMIN] },
+  // Sección Administrativa
+  { label: 'Gestión de Usuarios', href: '/gestion-usuarios', icon: UserCog, roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA] },
   { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN] },
   { 
     label: 'Gestión de Áreas', 

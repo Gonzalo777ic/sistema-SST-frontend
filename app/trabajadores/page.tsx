@@ -605,7 +605,10 @@ export default function TrabajadoresPage() {
                       <Select {...register('rol_usuario')}>
                         <option value="">Seleccione un rol</option>
                         {Object.values(UsuarioRol)
-                          .filter((rol) => rol !== UsuarioRol.SUPER_ADMIN) // Excluir SUPER_ADMIN
+                          .filter((rol) => 
+                            rol !== UsuarioRol.SUPER_ADMIN && 
+                            rol !== UsuarioRol.ADMIN_EMPRESA // Excluir roles administrativos
+                          )
                           .map((rol) => (
                             <option key={rol} value={rol}>
                               {rol.replace(/_/g, ' ')}
@@ -614,6 +617,11 @@ export default function TrabajadoresPage() {
                       </Select>
                       {errors.rol_usuario && (
                         <p className="mt-1 text-sm text-danger">{errors.rol_usuario.message}</p>
+                      )}
+                      {watch('rol_usuario') === UsuarioRol.ADMIN_EMPRESA && (
+                        <p className="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                          ⚠️ Advertencia: Los administradores sin ficha de trabajador vinculada no podrán firmar registros legales de SST.
+                        </p>
                       )}
                     </div>
                   )}

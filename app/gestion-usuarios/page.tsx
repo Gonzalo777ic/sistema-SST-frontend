@@ -88,22 +88,24 @@ export default function GestionUsuariosPage() {
   const selectedRoles = watch('roles');
   const dniValue = watch('dni');
 
-  // Validación de acceso - solo SUPER_ADMIN
+  // Validación de acceso - SUPER_ADMIN y ADMIN_EMPRESA
   useEffect(() => {
-    if (currentUser && !hasRole(UsuarioRol.SUPER_ADMIN)) {
+    if (currentUser && !hasRole(UsuarioRol.SUPER_ADMIN) && !hasRole(UsuarioRol.ADMIN_EMPRESA)) {
       toast.error('Acceso Denegado', {
-        description: 'Solo los administradores del sistema pueden acceder a esta página',
+        description: 'Solo los administradores pueden acceder a esta página',
       });
       router.push('/dashboard');
       return;
     }
-  }, [currentUser, router]);
+  }, [currentUser, router, hasRole]);
 
   useEffect(() => {
-    if (hasRole(UsuarioRol.SUPER_ADMIN)) {
+    if (hasRole(UsuarioRol.SUPER_ADMIN) || hasRole(UsuarioRol.ADMIN_EMPRESA)) {
       loadUsuarios();
       loadTrabajadoresDisponibles();
-      loadEmpresas();
+      if (hasRole(UsuarioRol.SUPER_ADMIN)) {
+        loadEmpresas();
+      }
     }
   }, [hasRole]);
 
@@ -383,12 +385,12 @@ export default function GestionUsuariosPage() {
     return null;
   }
 
-  if (!hasRole(UsuarioRol.SUPER_ADMIN)) {
+  if (!hasRole(UsuarioRol.SUPER_ADMIN) && !hasRole(UsuarioRol.ADMIN_EMPRESA)) {
     return (
-          <div className="p-12 text-center">
-            <Shield className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600">Solo los administradores del sistema pueden acceder a esta página</p>
-          </div>
+      <div className="p-12 text-center">
+        <Shield className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+        <p className="text-slate-600">Solo los administradores pueden acceder a esta página</p>
+      </div>
     );
   }
 
