@@ -418,10 +418,20 @@ export default function TrabajadoresPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Documento de Identidad *
                 </label>
-                <Input {...register('documento_identidad')} placeholder="12345678" />
+                <Input
+                  {...register('documento_identidad')}
+                  placeholder="12345678"
+                  disabled={!!editingTrabajador}
+                  className={editingTrabajador ? 'bg-slate-50 cursor-not-allowed' : ''}
+                />
                 {errors.documento_identidad && (
                   <p className="mt-1 text-sm text-danger">
                     {errors.documento_identidad.message}
+                  </p>
+                )}
+                {editingTrabajador && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Para corregir el DNI, es necesario eliminar y volver a crear el registro.
                   </p>
                 )}
               </div>
