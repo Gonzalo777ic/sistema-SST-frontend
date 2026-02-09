@@ -46,6 +46,16 @@ const trabajadorSchema = z.object({
   contacto_emergencia_telefono: z.string().optional().or(z.literal('')),
   foto_url: z.string().url('Debe ser una URL válida').optional().or(z.literal('')),
   habilitar_acceso: z.boolean().optional(),
+  rol_usuario: z.nativeEnum(UsuarioRol).optional(),
+}).refine((data) => {
+  // Si habilitar_acceso es true, rol_usuario es obligatorio
+  if (data.habilitar_acceso && !data.rol_usuario) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Debe seleccionar un rol cuando se habilita el acceso al sistema',
+  path: ['rol_usuario'],
 });
 
 type TrabajadorFormData = z.infer<typeof trabajadorSchema>;
@@ -83,10 +93,12 @@ export default function TrabajadoresPage() {
       contacto_emergencia_telefono: '',
       foto_url: '',
       habilitar_acceso: false,
+      rol_usuario: undefined,
     },
   });
 
   const selectedEmpresaId = watch('empresa_id');
+  const habilitarAcceso = watch('habilitar_acceso');
 
   const canCreate = hasRole(UsuarioRol.SUPER_ADMIN) || hasRole(UsuarioRol.ADMIN_EMPRESA);
   const canEdit = hasRole(UsuarioRol.SUPER_ADMIN) || hasRole(UsuarioRol.ADMIN_EMPRESA);
@@ -105,42 +117,62 @@ export default function TrabajadoresPage() {
   }, [selectedEmpresaId]);
 
   useEffect(() => {
-    if (editingTrabajador) {
-      reset({
-        nombre_completo: editingTrabajador.nombre_completo,
-        documento_identidad: editingTrabajador.documento_identidad,
-        cargo: editingTrabajador.cargo,
-        empresa_id: editingTrabajador.empresa_id,
-        area_id: editingTrabajador.area_id || '',
-        telefono: editingTrabajador.telefono || '',
-        email: editingTrabajador.email_personal || '',
-        fecha_ingreso: editingTrabajador.fecha_ingreso,
-        estado: editingTrabajador.estado,
-        grupo_sanguineo: editingTrabajador.grupo_sanguineo || undefined,
-        contacto_emergencia_nombre: (editingTrabajador as any).contacto_emergencia_nombre || '',
-        contacto_emergencia_telefono: (editingTrabajador as any).contacto_emergencia_telefono || '',
-        foto_url: editingTrabajador.foto_url || '',
-        habilitar_acceso: !!editingTrabajador.usuario_id,
-      });
-      loadAreas(editingTrabajador.empresa_id);
-    } else {
-      reset({
-        nombre_completo: '',
-        documento_identidad: '',
-        cargo: '',
-        empresa_id: usuario?.empresaId || '',
-        area_id: '',
-        telefono: '',
-        email: '',
-        fecha_ingreso: '',
-        estado: EstadoTrabajador.Activo,
-        grupo_sanguineo: undefined,
-        contacto_emergencia_nombre: '',
-        contacto_emergencia_telefono: '',
-        foto_url: '',
-        habilitar_acceso: false,
-      });
-    }
+    const loadEditingData = async () => {
+      if (editingTrabajador) {
+        let rolUsuario: UsuarioRol | undefined = undefined;
+        
+        // Si tiene usuario vinculado, obtener el rol
+        if (editingTrabajador.usuario_id) {
+          try {
+            const { usuariosService } = await import('@/services/usuarios.service');
+            const usuario = await usuariosService.findOne(editingTrabajador.usuario_id);
+            // Tomar el primer rol (ya que ahora solo permitimos un rol)
+            rolUsuario = usuario.roles?.[0] as UsuarioRol | undefined;
+          } catch (error) {
+            console.error('Error al cargar datos del usuario:', error);
+          }
+        }
+
+        reset({
+          nombre_completo: editingTrabajador.nombre_completo,
+          documento_identidad: editingTrabajador.documento_identidad,
+          cargo: editingTrabajador.cargo,
+          empresa_id: editingTrabajador.empresa_id,
+          area_id: editingTrabajador.area_id || '',
+          telefono: editingTrabajador.telefono || '',
+          email: editingTrabajador.email_personal || '',
+          fecha_ingreso: editingTrabajador.fecha_ingreso,
+          estado: editingTrabajador.estado,
+          grupo_sanguineo: editingTrabajador.grupo_sanguineo || undefined,
+          contacto_emergencia_nombre: (editingTrabajador as any).contacto_emergencia_nombre || '',
+          contacto_emergencia_telefono: (editingTrabajador as any).contacto_emergencia_telefono || '',
+          foto_url: editingTrabajador.foto_url || '',
+          habilitar_acceso: !!editingTrabajador.usuario_id,
+          rol_usuario: rolUsuario,
+        });
+        loadAreas(editingTrabajador.empresa_id);
+      } else {
+        reset({
+          nombre_completo: '',
+          documento_identidad: '',
+          cargo: '',
+          empresa_id: usuario?.empresaId || '',
+          area_id: '',
+          telefono: '',
+          email: '',
+          fecha_ingreso: '',
+          estado: EstadoTrabajador.Activo,
+          grupo_sanguineo: undefined,
+          contacto_emergencia_nombre: '',
+          contacto_emergencia_telefono: '',
+          foto_url: '',
+          habilitar_acceso: false,
+          rol_usuario: undefined,
+        });
+      }
+    };
+
+    loadEditingData();
   }, [editingTrabajador, reset, usuario]);
 
   const loadEmpresas = async () => {
@@ -209,19 +241,20 @@ export default function TrabajadoresPage() {
       }
 
       // Si se activó "Habilitar acceso al sistema" y es creación o edición sin usuario
-      if (data.habilitar_acceso && trabajadorCreado) {
+      if (data.habilitar_acceso && trabajadorCreado && data.rol_usuario) {
         // Verificar si ya tiene usuario vinculado
         if (!trabajadorCreado.usuario_id) {
           try {
             const { usuariosService } = await import('@/services/usuarios.service');
+            // Asegurar que trabajadorId se envíe automáticamente para relación 1:1
             await usuariosService.create({
               dni: data.documento_identidad,
-              trabajadorId: trabajadorCreado.id,
-              roles: [UsuarioRol.TRABAJADOR],
+              trabajadorId: trabajadorCreado.id, // Vinculación automática 1:1
+              roles: [data.rol_usuario], // Usar el rol seleccionado (sin SUPER_ADMIN)
               empresaId: data.empresa_id,
             });
             toast.success('Acceso creado', {
-              description: `Se ha creado el acceso al sistema con DNI: ${data.documento_identidad}. La contraseña temporal es el DNI.`,
+              description: `Se ha creado el acceso al sistema con DNI: ${data.documento_identidad} y rol ${data.rol_usuario}. La contraseña temporal es el DNI.`,
             });
           } catch (error: any) {
             toast.error('Error al crear acceso', {
@@ -546,22 +579,45 @@ export default function TrabajadoresPage() {
               </div>
 
               {canCreate && (
-                <div className="md:col-span-2 flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
-                  <input
-                    type="checkbox"
-                    id="habilitar_acceso"
-                    {...register('habilitar_acceso')}
-                    className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
-                  />
-                  <div className="flex-1">
-                    <label htmlFor="habilitar_acceso" className="text-sm font-medium text-slate-900 cursor-pointer">
-                      Habilitar acceso al sistema
-                    </label>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.
-                    </p>
+                <>
+                  <div className="md:col-span-2 flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                    <input
+                      type="checkbox"
+                      id="habilitar_acceso"
+                      {...register('habilitar_acceso')}
+                      className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="habilitar_acceso" className="text-sm font-medium text-slate-900 cursor-pointer">
+                        Habilitar acceso al sistema
+                      </label>
+                      <p className="text-xs text-slate-600 mt-1">
+                        Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.
+                      </p>
+                    </div>
                   </div>
-                </div>
+                  
+                  {habilitarAcceso && (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Rol de Usuario *
+                      </label>
+                      <Select {...register('rol_usuario')}>
+                        <option value="">Seleccione un rol</option>
+                        {Object.values(UsuarioRol)
+                          .filter((rol) => rol !== UsuarioRol.SUPER_ADMIN) // Excluir SUPER_ADMIN
+                          .map((rol) => (
+                            <option key={rol} value={rol}>
+                              {rol.replace(/_/g, ' ')}
+                            </option>
+                          ))}
+                      </Select>
+                      {errors.rol_usuario && (
+                        <p className="mt-1 text-sm text-danger">{errors.rol_usuario.message}</p>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

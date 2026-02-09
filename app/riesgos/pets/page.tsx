@@ -521,7 +521,7 @@ export default function PetsPage() {
                             Ver
                           </Button>
                           {pets.estado === EstadoPETS.Vigente &&
-                            !hasRole(UsuarioRol.TRABAJADOR) &&
+                            !hasRole(UsuarioRol.EMPLEADO) &&
                             (hasRole(UsuarioRol.SUPER_ADMIN) ||
                               hasRole(UsuarioRol.ADMIN_EMPRESA) ||
                               hasRole(UsuarioRol.INGENIERO_SST)) && (
@@ -1248,7 +1248,7 @@ export default function PetsPage() {
 
                 {/* Botón de Confirmar Lectura para Trabajadores */}
                 {usuario &&
-                  hasRole(UsuarioRol.TRABAJADOR) &&
+                  hasRole(UsuarioRol.EMPLEADO) &&
                   selectedPets.estado === EstadoPETS.Vigente &&
                   !yaLeyo(selectedPets) && (
                     <div className="pt-4 border-t border-slate-200">

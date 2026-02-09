@@ -44,7 +44,7 @@ export default function EPPPage() {
     UsuarioRol.ADMIN_EMPRESA,
     UsuarioRol.INGENIERO_SST,
     UsuarioRol.SUPERVISOR,
-    UsuarioRol.TRABAJADOR,
+    UsuarioRol.EMPLEADO,
   ]);
 
   const canApprove = hasAnyRole([

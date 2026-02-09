@@ -53,7 +53,7 @@ const navItems: NavItem[] = [
     label: 'Análisis de Riesgos (ATS)', 
     href: '/ats', 
     icon: ClipboardCheck,
-    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR, UsuarioRol.TRABAJADOR],
+    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR, UsuarioRol.EMPLEADO],
   },
   {
     label: 'Gestión de Riesgos',
@@ -70,7 +70,7 @@ const navItems: NavItem[] = [
       UsuarioRol.ADMIN_EMPRESA,
       UsuarioRol.INGENIERO_SST,
       UsuarioRol.SUPERVISOR,
-      UsuarioRol.TRABAJADOR,
+      UsuarioRol.EMPLEADO,
     ],
   },
   {
@@ -82,7 +82,7 @@ const navItems: NavItem[] = [
       UsuarioRol.ADMIN_EMPRESA,
       UsuarioRol.INGENIERO_SST,
       UsuarioRol.SUPERVISOR,
-      UsuarioRol.TRABAJADOR,
+      UsuarioRol.EMPLEADO,
     ],
   },
   {
@@ -94,7 +94,7 @@ const navItems: NavItem[] = [
       UsuarioRol.ADMIN_EMPRESA,
       UsuarioRol.INGENIERO_SST,
       UsuarioRol.SUPERVISOR,
-      UsuarioRol.TRABAJADOR,
+      UsuarioRol.EMPLEADO,
     ],
   },
   { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
@@ -130,7 +130,7 @@ function SidebarComponent() {
           return !!usuario?.trabajadorId || hasRole(UsuarioRol.SUPER_ADMIN);
         }
         
-        // Filtrar "Permisos de Alto Riesgo (PETAR)": TRABAJADOR solo si tiene trabajadorId
+        // Filtrar "Permisos de Alto Riesgo (PETAR)": EMPLEADO solo si tiene trabajadorId
         if (item.href === '/riesgos/petar') {
           if (hasAnyRole([
             UsuarioRol.SUPER_ADMIN,
@@ -140,14 +140,14 @@ function SidebarComponent() {
           ])) {
             return true;
           }
-          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.TRABAJADOR)) {
+          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.EMPLEADO)) {
             return !!usuario?.trabajadorId;
           }
           return false;
         }
         
-        // Filtrar "Procedimientos (PETS)": TRABAJADOR solo si tiene trabajadorId
+        // Filtrar "Procedimientos (PETS)": EMPLEADO solo si tiene trabajadorId
         if (item.href === '/riesgos/pets') {
           if (hasAnyRole([
             UsuarioRol.SUPER_ADMIN,
@@ -157,14 +157,14 @@ function SidebarComponent() {
           ])) {
             return true;
           }
-          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.TRABAJADOR)) {
+          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.EMPLEADO)) {
             return !!usuario?.trabajadorId;
           }
           return false;
         }
         
-        // Filtrar "Matriz IPERC": TRABAJADOR solo si tiene trabajadorId
+        // Filtrar "Matriz IPERC": EMPLEADO solo si tiene trabajadorId
         if (item.href === '/riesgos/iperc') {
           if (hasAnyRole([
             UsuarioRol.SUPER_ADMIN,
@@ -174,8 +174,8 @@ function SidebarComponent() {
           ])) {
             return true;
           }
-          // Si es TRABAJADOR, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.TRABAJADOR)) {
+          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
+          if (hasRole(UsuarioRol.EMPLEADO)) {
             return !!usuario?.trabajadorId;
           }
           return false;

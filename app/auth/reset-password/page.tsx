@@ -88,14 +88,30 @@ export default function ResetPasswordPage() {
       });
 
       // Esperar un momento para que el backend procese el cambio
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Refrescar perfil para obtener el estado actualizado
+      // Refrescar perfil para obtener el estado actualizado (debe_cambiar_password = false)
       const updatedUsuario = await refreshUserProfile();
+      
+      // Verificar que el perfil se actualizó correctamente
+      if (!updatedUsuario) {
+        toast.error('Error', {
+          description: 'No se pudo actualizar el perfil. Por favor, recarga la página.',
+        });
+        return;
+      }
+
+      // Verificar que debe_cambiar_password sea false antes de redirigir
+      if (updatedUsuario.debe_cambiar_password) {
+        toast.warning('Advertencia', {
+          description: 'El estado de la contraseña no se actualizó correctamente. Por favor, intenta nuevamente.',
+        });
+        return;
+      }
       
       // Redirigir según el estado del perfil
       // Usar window.location para forzar recarga completa y evitar problemas de estado
-      if (updatedUsuario?.perfil_completado === false) {
+      if (updatedUsuario.perfil_completado === false) {
         window.location.href = '/perfil/setup';
       } else {
         window.location.href = '/dashboard';

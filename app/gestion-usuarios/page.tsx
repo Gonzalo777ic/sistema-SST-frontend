@@ -33,6 +33,7 @@ import { z } from 'zod';
 interface UsuarioConTrabajador extends Usuario {
   trabajador_nombre?: string | null;
   trabajador_dni?: string | null;
+  trabajador_estado?: string | null; // Estado laboral del trabajador vinculado
 }
 
 const createUsuarioSchema = z.object({
@@ -145,12 +146,14 @@ export default function GestionUsuariosPage() {
                 ...u,
                 trabajador_nombre: trabajador.nombre_completo,
                 trabajador_dni: trabajador.documento_identidad,
+                trabajador_estado: trabajador.estado, // Estado laboral del trabajador
               };
             } catch {
               return {
                 ...u,
                 trabajador_nombre: null,
                 trabajador_dni: null,
+                trabajador_estado: null,
               };
             }
           }
@@ -158,6 +161,7 @@ export default function GestionUsuariosPage() {
             ...u,
             trabajador_nombre: null,
             trabajador_dni: null,
+            trabajador_estado: null,
           };
         })
       );
@@ -488,7 +492,10 @@ export default function GestionUsuariosPage() {
                       Roles
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Estado
+                      Estado Cuenta
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
+                      Estado Laboral
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                       Último Acceso
@@ -537,6 +544,30 @@ export default function GestionUsuariosPage() {
                             <XCircle className="w-3 h-3 mr-1" />
                             Inactivo
                           </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {u.trabajador_estado ? (
+                          <span
+                            className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded border ${
+                              u.trabajador_estado === 'Activo'
+                                ? 'bg-green-100 text-green-800 border-green-300'
+                                : u.trabajador_estado === 'Inactivo'
+                                ? 'bg-red-100 text-red-800 border-red-300'
+                                : u.trabajador_estado === 'Vacaciones' || u.trabajador_estado === 'Licencia'
+                                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                                : 'bg-slate-100 text-slate-800 border-slate-300'
+                            }`}
+                          >
+                            {u.trabajador_estado === 'Activo' ? (
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                            ) : (
+                              <XCircle className="w-3 h-3 mr-1" />
+                            )}
+                            {u.trabajador_estado}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-slate-400">N/A</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
