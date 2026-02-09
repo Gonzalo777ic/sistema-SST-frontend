@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { memo } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -105,7 +106,7 @@ const navItems: NavItem[] = [
   { label: 'Mi Salud', href: '/mis-examenes', icon: HeartPulse },
 ];
 
-export function Sidebar() {
+function SidebarComponent() {
   const pathname = usePathname();
   const { usuario, logout, hasAnyRole, hasRole } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -270,6 +271,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 onClick={() => setIsMobileOpen(false)}
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-md transition-colors duration-200
@@ -308,3 +310,6 @@ export function Sidebar() {
     </>
   );
 }
+
+// Memoizar el componente para evitar re-renderizados innecesarios
+export const Sidebar = memo(SidebarComponent);

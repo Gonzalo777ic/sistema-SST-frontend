@@ -923,15 +923,7 @@ export default function NuevoATSPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="max-w-5xl mx-auto">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-900">Nuevo ATS</h1>
@@ -1052,7 +1044,6 @@ export default function NuevoATSPage() {
             </div>
           </form>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

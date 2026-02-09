@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   documentosSstService,
   DocumentoSST,
@@ -104,8 +102,7 @@ export default function DocumentosPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <MainLayout>
+
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -354,7 +351,6 @@ export default function DocumentosPage() {
             </Modal>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

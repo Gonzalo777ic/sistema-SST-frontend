@@ -205,10 +205,7 @@ export default function NuevaCapacitacionPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST]}
-    >
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <Link href="/capacitaciones">
@@ -674,7 +671,6 @@ export default function NuevaCapacitacionPage() {
             </form>
           </div>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

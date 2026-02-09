@@ -172,10 +172,7 @@ export default function EmpresaAreasPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]}
-    >
-      <MainLayout>
+
         <div className="space-y-6 w-full">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -360,7 +357,6 @@ export default function EmpresaAreasPage() {
             </form>
           </Modal>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

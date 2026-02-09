@@ -285,22 +285,22 @@ export default function ATSDetailPage() {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      
         <div className="space-y-6">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-96 w-full" />
         </div>
-      </MainLayout>
+      
     );
   }
 
   if (!ats) {
     return (
-      <MainLayout>
+      
         <div className="text-center py-12">
           <p className="text-slate-600">ATS no encontrado</p>
         </div>
-      </MainLayout>
+      
     );
   }
 
@@ -322,16 +322,7 @@ export default function ATSDetailPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -746,7 +737,6 @@ export default function ATSDetailPage() {
             </div>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

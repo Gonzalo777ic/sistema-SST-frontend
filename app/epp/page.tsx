@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   eppService,
   SolicitudEPP,
@@ -195,8 +193,7 @@ export default function EPPPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={Object.values(UsuarioRol)}>
-      <MainLayout>
+      <>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -420,7 +417,7 @@ export default function EPPPage() {
             </div>
           </div>
         </Modal>
-      </MainLayout>
-    </ProtectedRoute>
+
+    </>
   );
 }

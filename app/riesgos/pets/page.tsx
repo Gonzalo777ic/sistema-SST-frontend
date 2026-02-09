@@ -406,16 +406,7 @@ export default function PetsPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="space-y-6 w-full">
           {/* Cabecera */}
           <div className="flex items-start justify-between gap-4">
@@ -1287,8 +1278,7 @@ export default function PetsPage() {
             </Modal>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }
 

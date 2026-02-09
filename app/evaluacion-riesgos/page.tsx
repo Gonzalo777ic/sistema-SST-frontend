@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   evaluacionRiesgosService,
   EvaluacionRiesgo,
@@ -115,13 +113,11 @@ export default function EvaluacionRiesgosPage() {
     }
   }, [usuario?.empresaId]);
 
-
   useEffect(() => {
     if (isModalOpen && usuario?.id) {
       setValue('evaluador_id', usuario.id, { shouldValidate: true });
     }
   }, [isModalOpen, usuario?.id, setValue]);
-
 
   useEffect(() => {
     if (usuario?.id) {
@@ -289,8 +285,7 @@ export default function EvaluacionRiesgosPage() {
   const nivelRiesgoCalculado = watch('nivel_riesgo');
 
   return (
-    <ProtectedRoute>
-      <MainLayout>
+
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -839,7 +834,6 @@ export default function EvaluacionRiesgosPage() {
             </Modal>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

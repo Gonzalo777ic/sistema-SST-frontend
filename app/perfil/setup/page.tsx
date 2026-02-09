@@ -91,8 +91,7 @@ export default function PerfilSetupPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <MainLayout>
+
         <div className="max-w-2xl mx-auto py-8">
           <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8">
             <div className="text-center mb-8">
@@ -196,7 +195,6 @@ export default function PerfilSetupPage() {
             </form>
           </div>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

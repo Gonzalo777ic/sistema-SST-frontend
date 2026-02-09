@@ -28,6 +28,9 @@ export interface LineaIpercDto {
   probabilidad_c: number;
   probabilidad_d: number;
   indice_severidad: number;
+  indice_probabilidad?: number; // Campo calculado (A+B+C+D)
+  valor_riesgo?: number; // Campo calculado (indice_probabilidad * indice_severidad)
+  nivel_riesgo?: NivelRiesgo; // Campo calculado basado en valor_riesgo
   jerarquia_eliminacion?: boolean;
   jerarquia_sustitucion?: boolean;
   jerarquia_controles_ingenieria?: boolean;

@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -147,17 +145,7 @@ export default function RiesgosPage() {
   }, []);
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
-        <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full">
           {/* Cabecera */}
           <div className="flex items-start gap-4">
             <div className="p-3 bg-primary/10 rounded-lg">
@@ -345,7 +333,5 @@ export default function RiesgosPage() {
             </div>
           </div>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
   );
 }

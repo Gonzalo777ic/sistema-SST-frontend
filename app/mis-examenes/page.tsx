@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   saludService,
   ExamenMedico,
@@ -178,16 +176,7 @@ export default function MisExamenesPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.MEDICO,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -497,7 +486,6 @@ export default function MisExamenesPage() {
             )}
           </Modal>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

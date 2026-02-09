@@ -151,8 +151,7 @@ export default function NuevaSolicitudEPPPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={Object.values(UsuarioRol)}>
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <Link href="/epp">
@@ -304,7 +303,6 @@ export default function NuevaSolicitudEPPPage() {
             </form>
           </div>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

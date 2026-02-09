@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   ipercService,
   IPERC,
@@ -391,17 +389,7 @@ export default function IpercPage() {
   }, [ipercList, selectedAreaFilter, selectedEstadoFilter, searchTerm]);
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
-        <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full">
           {/* Cabecera */}
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -1173,21 +1161,54 @@ export default function IpercPage() {
                               {linea.probabilidad_d}
                             </td>
                             <td className="px-2 py-2 border border-slate-300 text-center font-medium">
-                              {linea.indice_probabilidad}
+                              {linea.indice_probabilidad ?? calcularIndiceProbabilidad(
+                                linea.probabilidad_a,
+                                linea.probabilidad_b,
+                                linea.probabilidad_c,
+                                linea.probabilidad_d
+                              )}
                             </td>
                             <td className="px-2 py-2 border border-slate-300 text-center">
                               {linea.indice_severidad}
                             </td>
                             <td className="px-2 py-2 border border-slate-300 text-center font-bold">
-                              {linea.valor_riesgo}
+                              {linea.valor_riesgo ?? calcularValorRiesgo(
+                                linea.indice_probabilidad ?? calcularIndiceProbabilidad(
+                                  linea.probabilidad_a,
+                                  linea.probabilidad_b,
+                                  linea.probabilidad_c,
+                                  linea.probabilidad_d
+                                ),
+                                linea.indice_severidad
+                              )}
                             </td>
                             <td className="px-2 py-2 border border-slate-300 text-center">
                               <span
                                 className={`px-1 py-0.5 text-xs font-medium rounded ${getNivelRiesgoColor(
-                                  linea.nivel_riesgo,
+                                  linea.nivel_riesgo ?? calcularNivelRiesgo(
+                                    linea.valor_riesgo ?? calcularValorRiesgo(
+                                      linea.indice_probabilidad ?? calcularIndiceProbabilidad(
+                                        linea.probabilidad_a,
+                                        linea.probabilidad_b,
+                                        linea.probabilidad_c,
+                                        linea.probabilidad_d
+                                      ),
+                                      linea.indice_severidad
+                                    )
+                                  )
                                 )}`}
                               >
-                                {linea.nivel_riesgo}
+                                {linea.nivel_riesgo ?? calcularNivelRiesgo(
+                                  linea.valor_riesgo ?? calcularValorRiesgo(
+                                    linea.indice_probabilidad ?? calcularIndiceProbabilidad(
+                                      linea.probabilidad_a,
+                                      linea.probabilidad_b,
+                                      linea.probabilidad_c,
+                                      linea.probabilidad_d
+                                    ),
+                                    linea.indice_severidad
+                                  )
+                                )}
                               </span>
                             </td>
                             <td className="px-2 py-2 border border-slate-300 text-slate-700 text-xs">
@@ -1274,7 +1295,5 @@ export default function IpercPage() {
             </Modal>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
   );
 }

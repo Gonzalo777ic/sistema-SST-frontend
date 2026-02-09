@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { atsService, ATS, EstadoATS } from '@/services/ats.service';
 import { empresasService } from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
@@ -98,16 +96,7 @@ export default function ATSPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
@@ -255,7 +244,6 @@ export default function ATSPage() {
             )}
           </div>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

@@ -3,8 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
@@ -156,11 +154,7 @@ export default function EmpresasPage() {
   };
 
   return (
-    <ProtectedRoute
-      allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]}
-    >
-      <MainLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Gestión de Empresas</h1>
@@ -336,7 +330,6 @@ export default function EmpresasPage() {
           </form>
         </Modal>
       </div>
-    </MainLayout>
-    </ProtectedRoute>
+
   );
 }

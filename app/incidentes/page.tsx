@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   incidentesService,
   Incidente,
@@ -254,17 +252,7 @@ export default function IncidentesPage() {
   const filteredIncidentes = incidentes;
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.SUPERVISOR,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
-        <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-3xl font-bold text-slate-900 mt-0">
@@ -635,7 +623,5 @@ export default function IncidentesPage() {
             </form>
           </Modal>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
   );
 }

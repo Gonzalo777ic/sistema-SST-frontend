@@ -218,16 +218,7 @@ export default function AgendarCitaPage() {
   const fechaMinima = new Date().toISOString().split('T')[0];
 
   return (
-    <ProtectedRoute
-      allowedRoles={[
-        UsuarioRol.SUPER_ADMIN,
-        UsuarioRol.ADMIN_EMPRESA,
-        UsuarioRol.INGENIERO_SST,
-        UsuarioRol.MEDICO,
-        UsuarioRol.TRABAJADOR,
-      ]}
-    >
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <Link href="/mis-examenes">
@@ -391,7 +382,6 @@ export default function AgendarCitaPage() {
             </form>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

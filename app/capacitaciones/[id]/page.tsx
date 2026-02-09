@@ -116,14 +116,12 @@ export default function CapacitacionDetailPage() {
 
   if (isLoading) {
     return (
-      <ProtectedRoute allowedRoles={Object.values(UsuarioRol)}>
-        <MainLayout>
+
           <div className="space-y-6">
             <Skeleton className="h-32 w-full" />
             <Skeleton className="h-64 w-full" />
           </div>
-        </MainLayout>
-      </ProtectedRoute>
+
     );
   }
 
@@ -132,8 +130,7 @@ export default function CapacitacionDetailPage() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={Object.values(UsuarioRol)}>
-      <MainLayout>
+
         <div className="space-y-6">
           <div className="flex items-center gap-4">
             <Link href="/capacitaciones">
@@ -302,7 +299,6 @@ export default function CapacitacionDetailPage() {
             </div>
           )}
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }

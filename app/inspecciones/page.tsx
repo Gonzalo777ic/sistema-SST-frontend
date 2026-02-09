@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   inspeccionesService,
   Inspeccion,
@@ -270,8 +268,7 @@ export default function InspeccionesPage() {
   };
 
   return (
-    <ProtectedRoute>
-      <MainLayout>
+
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -706,7 +703,6 @@ export default function InspeccionesPage() {
             </form>
           </Modal>
         </div>
-      </MainLayout>
-    </ProtectedRoute>
+
   );
 }
