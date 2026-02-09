@@ -69,6 +69,8 @@ export default function TrabajadoresPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrabajador, setEditingTrabajador] = useState<Trabajador | null>(null);
   const [selectedEmpresaFilter, setSelectedEmpresaFilter] = useState<string>('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [trabajadorToDelete, setTrabajadorToDelete] = useState<string | null>(null);
 
   const {
     register,
@@ -276,14 +278,21 @@ export default function TrabajadoresPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este trabajador?')) return;
+  const handleOpenDeleteModal = (id: string) => {
+    setTrabajadorToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!trabajadorToDelete) return;
 
     try {
-      await trabajadoresService.remove(id);
+      await trabajadoresService.remove(trabajadorToDelete);
       toast.success('Trabajador eliminado', {
         description: 'El trabajador se ha eliminado correctamente',
       });
+      setIsDeleteModalOpen(false);
+      setTrabajadorToDelete(null);
       loadTrabajadores(selectedEmpresaFilter || undefined);
     } catch (error: any) {
       toast.error('Error al eliminar trabajador', {
@@ -398,7 +407,7 @@ export default function TrabajadoresPage() {
                                 <Button
                                   variant="danger"
                                   size="sm"
-                                  onClick={() => handleDelete(trabajador.id)}
+                                  onClick={() => handleOpenDeleteModal(trabajador.id)}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
@@ -604,16 +613,33 @@ export default function TrabajadoresPage() {
                       </label>
                       <Select {...register('rol_usuario')}>
                         <option value="">Seleccione un rol</option>
-                        {Object.values(UsuarioRol)
-                          .filter((rol) => 
-                            rol !== UsuarioRol.SUPER_ADMIN && 
-                            rol !== UsuarioRol.ADMIN_EMPRESA // Excluir roles administrativos
-                          )
-                          .map((rol) => (
-                            <option key={rol} value={rol}>
-                              {rol.replace(/_/g, ' ')}
-                            </option>
-                          ))}
+                        {(() => {
+                          // Jerarquía de roles según el creador
+                          const isSuperAdmin = hasRole(UsuarioRol.SUPER_ADMIN);
+                          const isAdminEmpresa = hasRole(UsuarioRol.ADMIN_EMPRESA) && !isSuperAdmin;
+                          
+                          // Roles operativos base
+                          const rolesOperativos = [
+                            UsuarioRol.SUPERVISOR,
+                            UsuarioRol.EMPLEADO,
+                            UsuarioRol.MEDICO,
+                            UsuarioRol.INGENIERO_SST,
+                            UsuarioRol.AUDITOR,
+                          ];
+                          
+                          // Si es SUPER_ADMIN o ADMIN (Sistema), puede crear ADMIN_EMPRESA también
+                          const rolesDisponibles = isSuperAdmin || !isAdminEmpresa
+                            ? [...rolesOperativos, UsuarioRol.ADMIN_EMPRESA]
+                            : rolesOperativos;
+                          
+                          return rolesDisponibles
+                            .filter((rol) => rol !== UsuarioRol.SUPER_ADMIN) // Nunca permitir SUPER_ADMIN
+                            .map((rol) => (
+                              <option key={rol} value={rol}>
+                                {rol.replace(/_/g, ' ')}
+                              </option>
+                            ));
+                        })()}
                       </Select>
                       {errors.rol_usuario && (
                         <p className="mt-1 text-sm text-danger">{errors.rol_usuario.message}</p>
@@ -645,6 +671,44 @@ export default function TrabajadoresPage() {
               </Button>
             </div>
           </form>
+        </Modal>
+
+        {/* Modal de Confirmación de Eliminación */}
+        <Modal
+          isOpen={isDeleteModalOpen}
+          onClose={() => {
+            setIsDeleteModalOpen(false);
+            setTrabajadorToDelete(null);
+          }}
+          title="Confirmar Eliminación"
+          size="md"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-700">
+              ¿Estás seguro de eliminar este trabajador? Esta acción no se puede deshacer.
+            </p>
+            <p className="text-xs text-slate-500">
+              Si el trabajador tiene un usuario vinculado, el acceso al sistema también será afectado.
+            </p>
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setTrabajadorToDelete(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmDelete}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Eliminar
+              </Button>
+            </div>
+          </div>
         </Modal>
       </div>
   );

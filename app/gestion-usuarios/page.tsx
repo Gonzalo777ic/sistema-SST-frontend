@@ -212,12 +212,38 @@ export default function GestionUsuariosPage() {
     aplicarFiltros(usuarios);
   }, [filtroEmpresa, filtroEstado, filtroVinculacion, usuarios]);
 
-  const loadTrabajadoresDisponibles = async () => {
+  const loadTrabajadoresDisponibles = async (usuarioParaVincular?: UsuarioConTrabajador) => {
     try {
       setIsLoadingTrabajadores(true);
-      // Cargar todos los trabajadores sin usuario vinculado
+      // Cargar todos los trabajadores
       const todosTrabajadores = await trabajadoresService.findAll();
-      const disponibles = todosTrabajadores.filter((t) => !t.usuario_id);
+      
+      // Si es ADMIN_EMPRESA vinculándose a sí mismo, buscar trabajadores con su mismo DNI sin usuario vinculado
+      const esAdminEmpresaVinculandose = usuarioParaVincular && 
+                                         usuarioParaVincular.id === currentUser?.id &&
+                                         usuarioParaVincular.roles.includes(UsuarioRol.ADMIN_EMPRESA);
+      
+      let disponibles = todosTrabajadores.filter((t) => {
+        // Trabajadores sin usuario vinculado
+        if (!t.usuario_id) {
+          // Si es ADMIN_EMPRESA vinculándose a sí mismo, priorizar trabajadores con su mismo DNI
+          if (esAdminEmpresaVinculandose && currentUser?.dni) {
+            return t.documento_identidad === currentUser.dni;
+          }
+          return true;
+        }
+        
+        return false;
+      });
+      
+      // Si es ADMIN_EMPRESA vinculándose a sí mismo y no hay trabajadores con su DNI,
+      // mostrar todos los trabajadores disponibles de su empresa
+      if (esAdminEmpresaVinculandose && disponibles.length === 0 && currentUser?.empresaId) {
+        disponibles = todosTrabajadores.filter((t) => 
+          !t.usuario_id && t.empresa_id === currentUser.empresaId
+        );
+      }
+      
       setTrabajadoresDisponibles(disponibles);
     } catch (error: any) {
       toast.error('Error al cargar trabajadores', {
@@ -344,7 +370,7 @@ export default function GestionUsuariosPage() {
   const handleOpenLinkModal = async (usuario: UsuarioConTrabajador) => {
     setLinkingUsuario(usuario);
     setSelectedTrabajadorToLink('');
-    await loadTrabajadoresDisponibles();
+    await loadTrabajadoresDisponibles(usuario);
     setIsLinkModalOpen(true);
   };
 
@@ -424,10 +450,13 @@ export default function GestionUsuariosPage() {
               Administra usuarios del sistema, roles y permisos
             </p>
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Crear Usuario
-          </Button>
+          {/* Botón Crear Usuario - Solo visible para SUPER_ADMIN y ADMIN (no ADMIN_EMPRESA) */}
+          {hasRole(UsuarioRol.SUPER_ADMIN) && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Crear Usuario
+            </Button>
+          )}
         </div>
 
         {/* Filtros */}
@@ -527,7 +556,14 @@ export default function GestionUsuariosPage() {
                   {usuariosFiltrados.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-slate-900">{u.dni}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-slate-900">{u.dni}</span>
+                          {u.roles.length > 0 && (
+                            <span className="text-xs text-slate-500 mt-0.5">
+                              {u.roles[0].replace('_', ' ')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {u.trabajador_nombre ? (
@@ -606,63 +642,122 @@ export default function GestionUsuariosPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {/* Vincular trabajador - Deshabilitado para SUPER_ADMIN y ADMIN_EMPRESA */}
-                          {!u.trabajadorId && 
-                           !u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
-                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenLinkModal(u)}
-                              title="Vincular trabajador"
-                              className="text-blue-600 hover:text-blue-700"
-                            >
-                              <LinkIcon className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {/* Reset de contraseña - Permitido para todos excepto el usuario actual */}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenResetPasswordModal(u)}
-                            title="Resetear contraseña usando el DNI"
-                            disabled={u.id === currentUser?.id}
-                            className={u.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''}
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </Button>
-                          {/* Editar roles - Deshabilitado para SUPER_ADMIN y ADMIN_EMPRESA */}
-                          {!u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
-                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditRoles(u)}
-                              title="Editar roles"
-                            >
-                              <UserCog className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {/* Toggle activo - Deshabilitado para el usuario actual y para SUPER_ADMIN/ADMIN_EMPRESA */}
-                          {!u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
-                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOpenToggleActivoModal(u)}
-                              title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                              disabled={u.id === currentUser?.id}
-                              className={`${
-                                u.id === currentUser?.id 
-                                  ? 'opacity-50 cursor-not-allowed' 
-                                  : u.activo 
-                                    ? 'text-red-600 hover:text-red-700' 
-                                    : 'text-green-600 hover:text-green-700'
-                              }`}
-                            >
-                              <ShieldOff className="w-4 h-4" />
-                            </Button>
-                          )}
+                          {(() => {
+                            const isCurrentUser = u.id === currentUser?.id;
+                            const isSuperAdmin = u.roles.includes(UsuarioRol.SUPER_ADMIN);
+                            const isAdminEmpresa = u.roles.includes(UsuarioRol.ADMIN_EMPRESA);
+                            const currentUserIsSuperAdmin = hasRole(UsuarioRol.SUPER_ADMIN);
+                            const currentUserIsAdminEmpresa = hasRole(UsuarioRol.ADMIN_EMPRESA) && !currentUserIsSuperAdmin;
+                            // ADMIN (Sistema) = Usuario con acceso a Gestión de Usuarios que puede crear usuarios
+                            // En este contexto, solo SUPER_ADMIN puede crear usuarios, así que ADMIN (Sistema) = SUPER_ADMIN
+                            // Pero ADMIN_EMPRESA también puede ver la lista (solo lectura para SUPER_ADMIN)
+                            
+                            // Si es el usuario actual, no mostrar acciones (excepto vinculación para ADMIN_EMPRESA)
+                            if (isCurrentUser) {
+                              // ADMIN_EMPRESA puede vincularse a sí mismo si no tiene trabajador vinculado
+                              if (isAdminEmpresa && !u.trabajadorId) {
+                                return (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenLinkModal(u)}
+                                    title="Vincular trabajador con mi DNI"
+                                    className="text-blue-600 hover:text-blue-700"
+                                  >
+                                    <LinkIcon className="w-4 h-4" />
+                                  </Button>
+                                );
+                              }
+                              return (
+                                <span className="text-xs text-slate-400 italic">
+                                  Tu cuenta
+                                </span>
+                              );
+                            }
+                            
+                            // Si la fila es SUPER_ADMIN y el usuario actual NO es SUPER_ADMIN, no mostrar acciones de edición
+                            // ADMIN (Sistema) puede ver SUPER_ADMIN pero no puede editarlo ni desactivarlo
+                            if (isSuperAdmin && !currentUserIsSuperAdmin) {
+                              return (
+                                <>
+                                  {/* Reset de contraseña deshabilitado para SUPER_ADMIN si no eres SUPER_ADMIN */}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenResetPasswordModal(u)}
+                                    title="Resetear contraseña usando el DNI"
+                                    disabled={true}
+                                    className="opacity-50 cursor-not-allowed"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </Button>
+                                  <span className="text-xs text-slate-400 italic ml-2">
+                                    Solo lectura
+                                  </span>
+                                </>
+                              );
+                            }
+                            
+                            // Determinar qué acciones se pueden realizar
+                            // Solo SUPER_ADMIN puede editar otros usuarios administrativos
+                            const canEditRoles = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
+                            const canToggleActivo = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
+                            const canLinkTrabajador = !u.trabajadorId && !isSuperAdmin;
+                            
+                            return (
+                              <>
+                                {/* Vincular trabajador */}
+                                {canLinkTrabajador && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenLinkModal(u)}
+                                    title="Vincular trabajador"
+                                    className="text-blue-600 hover:text-blue-700"
+                                  >
+                                    <LinkIcon className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                
+                                {/* Reset de contraseña - Siempre disponible excepto para SUPER_ADMIN si no eres SUPER_ADMIN */}
+                                {(!isSuperAdmin || currentUserIsSuperAdmin) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenResetPasswordModal(u)}
+                                    title="Resetear contraseña usando el DNI"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                
+                                {/* Editar roles */}
+                                {canEditRoles && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleEditRoles(u)}
+                                    title="Editar roles"
+                                  >
+                                    <UserCog className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                
+                                {/* Toggle activo */}
+                                {canToggleActivo && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenToggleActivoModal(u)}
+                                    title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                                    className={u.activo ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
+                                  >
+                                    <ShieldOff className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>
@@ -773,28 +868,31 @@ export default function GestionUsuariosPage() {
               Roles <span className="text-red-500">*</span>
             </label>
             <div className="space-y-2 border border-slate-300 rounded-md p-3 max-h-48 overflow-y-auto">
-              {Object.values(UsuarioRol).map((rol) => (
-                <label key={rol} className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    value={rol}
-                    checked={selectedRoles.includes(rol)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setValue('roles', [...selectedRoles, rol]);
-                      } else {
-                        setValue('roles', selectedRoles.filter((r) => r !== rol));
-                      }
-                    }}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-slate-700">{rol.replace('_', ' ')}</span>
-                </label>
-              ))}
+              {/* En Gestión de Usuarios solo se puede crear el rol ADMIN_EMPRESA (ADMIN del sistema) */}
+              {/* Los roles operativos se gestionan desde el módulo de Trabajadores */}
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  value={UsuarioRol.ADMIN_EMPRESA}
+                  checked={selectedRoles.includes(UsuarioRol.ADMIN_EMPRESA)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setValue('roles', [UsuarioRol.ADMIN_EMPRESA]);
+                    } else {
+                      setValue('roles', []);
+                    }
+                  }}
+                  className="rounded border-slate-300 text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-slate-700">ADMIN (Sistema)</span>
+              </label>
             </div>
             {errors.roles && (
               <p className="mt-1 text-sm text-red-600">{errors.roles.message}</p>
             )}
+            <p className="mt-2 text-xs text-slate-500">
+              Este módulo se reserva para crear administradores de nivel sistema. Los roles operativos se gestionan desde el módulo de Trabajadores.
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
