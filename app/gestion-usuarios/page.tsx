@@ -49,6 +49,7 @@ export default function GestionUsuariosPage() {
   const router = useRouter();
   const { usuario: currentUser, hasRole } = useAuth();
   const [usuarios, setUsuarios] = useState<UsuarioConTrabajador[]>([]);
+  const [usuariosFiltrados, setUsuariosFiltrados] = useState<UsuarioConTrabajador[]>([]);
   const [trabajadoresDisponibles, setTrabajadoresDisponibles] = useState<Trabajador[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +59,10 @@ export default function GestionUsuariosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<UsuarioConTrabajador | null>(null);
   const [isEditRolesModalOpen, setIsEditRolesModalOpen] = useState(false);
+  // Filtros
+  const [filtroEmpresa, setFiltroEmpresa] = useState<string>('');
+  const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activo' | 'inactivo'>('todos');
+  const [filtroVinculacion, setFiltroVinculacion] = useState<'todos' | 'vinculado' | 'sin-vinculacion'>('todos');
 
   const {
     register,
@@ -156,6 +161,7 @@ export default function GestionUsuariosPage() {
       );
 
       setUsuarios(usuariosConTrabajador);
+      aplicarFiltros(usuariosConTrabajador);
     } catch (error: any) {
       toast.error('Error al cargar usuarios', {
         description: error.response?.data?.message || 'No se pudieron cargar los usuarios',
@@ -164,6 +170,35 @@ export default function GestionUsuariosPage() {
       setIsLoading(false);
     }
   };
+
+  const aplicarFiltros = (listaUsuarios: UsuarioConTrabajador[]) => {
+    let filtrados = [...listaUsuarios];
+
+    // Filtro por empresa
+    if (filtroEmpresa) {
+      filtrados = filtrados.filter((u) => u.empresaId === filtroEmpresa);
+    }
+
+    // Filtro por estado
+    if (filtroEstado === 'activo') {
+      filtrados = filtrados.filter((u) => u.activo === true);
+    } else if (filtroEstado === 'inactivo') {
+      filtrados = filtrados.filter((u) => u.activo === false);
+    }
+
+    // Filtro por vinculación
+    if (filtroVinculacion === 'vinculado') {
+      filtrados = filtrados.filter((u) => u.trabajadorId !== null);
+    } else if (filtroVinculacion === 'sin-vinculacion') {
+      filtrados = filtrados.filter((u) => u.trabajadorId === null);
+    }
+
+    setUsuariosFiltrados(filtrados);
+  };
+
+  useEffect(() => {
+    aplicarFiltros(usuarios);
+  }, [filtroEmpresa, filtroEstado, filtroVinculacion, usuarios]);
 
   const loadTrabajadoresDisponibles = async () => {
     try {
@@ -337,6 +372,54 @@ export default function GestionUsuariosPage() {
             </Button>
           </div>
 
+          {/* Filtros */}
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Filtrar por Empresa
+                </label>
+                <Select
+                  value={filtroEmpresa}
+                  onChange={(e) => setFiltroEmpresa(e.target.value)}
+                >
+                  <option value="">Todas las empresas</option>
+                  {empresas.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Estado de Cuenta
+                </label>
+                <Select
+                  value={filtroEstado}
+                  onChange={(e) => setFiltroEstado(e.target.value as 'todos' | 'activo' | 'inactivo')}
+                >
+                  <option value="todos">Todos</option>
+                  <option value="activo">Activos</option>
+                  <option value="inactivo">Inactivos</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Vinculación
+                </label>
+                <Select
+                  value={filtroVinculacion}
+                  onChange={(e) => setFiltroVinculacion(e.target.value as 'todos' | 'vinculado' | 'sin-vinculacion')}
+                >
+                  <option value="todos">Todos</option>
+                  <option value="vinculado">Con Trabajador</option>
+                  <option value="sin-vinculacion">Sin Trabajador</option>
+                </Select>
+              </div>
+            </div>
+          </div>
+
           {/* Listado */}
           {isLoading ? (
             <div className="space-y-4">
@@ -344,10 +427,14 @@ export default function GestionUsuariosPage() {
                 <Skeleton key={i} className="h-20 w-full rounded-lg" />
               ))}
             </div>
-          ) : usuarios.length === 0 ? (
+          ) : usuariosFiltrados.length === 0 ? (
             <div className="p-12 text-center bg-white rounded-lg shadow-sm border border-slate-200">
               <Users className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-              <p className="text-slate-600">No hay usuarios registrados</p>
+              <p className="text-slate-600">
+                {usuarios.length === 0 
+                  ? 'No hay usuarios registrados' 
+                  : 'No hay usuarios que coincidan con los filtros seleccionados'}
+              </p>
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
@@ -376,7 +463,7 @@ export default function GestionUsuariosPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-slate-200">
-                    {usuarios.map((u) => (
+                    {usuariosFiltrados.map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-slate-900">{u.dni}</span>

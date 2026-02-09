@@ -26,7 +26,7 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const { usuario, refreshUserProfile } = useAuth();
+  const { usuario, isLoading, refreshUserProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -43,11 +43,29 @@ export default function ResetPasswordPage() {
   });
 
   useEffect(() => {
-    // Si el usuario no debe cambiar contraseña, redirigir
-    if (usuario && !usuario.debe_cambiar_password) {
-      router.push('/dashboard');
+    // Si está cargando, esperar
+    if (isLoading) {
+      return;
     }
-  }, [usuario, router]);
+
+    // Si no hay usuario autenticado, redirigir al login
+    if (!usuario) {
+      router.push('/login');
+      return;
+    }
+    
+    // Si el usuario NO debe cambiar contraseña, redirigir al dashboard
+    // (solo si ya completó el cambio de contraseña)
+    if (usuario && !usuario.debe_cambiar_password) {
+      // Verificar si viene de un cambio de contraseña exitoso
+      // Si no debe cambiar contraseña, puede ir al dashboard o setup de perfil
+      if (usuario.perfil_completado === false) {
+        router.push('/perfil/setup');
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  }, [usuario, isLoading, router]);
 
   const onSubmit = async (data: PasswordFormData) => {
     if (!usuario?.id) {
@@ -65,18 +83,22 @@ export default function ResetPasswordPage() {
       };
       await usuariosService.changePassword(usuario.id, passwordData);
       
-      // Refrescar perfil para actualizar debe_cambiar_password
-      await refreshUserProfile();
-      
       toast.success('Contraseña actualizada', {
-        description: 'Tu contraseña ha sido cambiada correctamente',
+        description: 'Tu contraseña ha sido cambiada correctamente. Redirigiendo...',
       });
 
+      // Esperar un momento para que el backend procese el cambio
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Refrescar perfil para obtener el estado actualizado
+      const updatedUsuario = await refreshUserProfile();
+      
       // Redirigir según el estado del perfil
-      if (usuario.perfil_completado === false) {
-        router.push('/perfil/setup');
+      // Usar window.location para forzar recarga completa y evitar problemas de estado
+      if (updatedUsuario?.perfil_completado === false) {
+        window.location.href = '/perfil/setup';
       } else {
-        router.push('/dashboard');
+        window.location.href = '/dashboard';
       }
     } catch (error: any) {
       toast.error('Error al cambiar contraseña', {
@@ -86,6 +108,18 @@ export default function ResetPasswordPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Mostrar loading mientras se verifica el usuario
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-slate-600">Verificando sesión...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">

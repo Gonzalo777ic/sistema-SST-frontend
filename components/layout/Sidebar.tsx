@@ -15,7 +15,6 @@ import {
   Menu,
   X,
   Building2,
-  UserPlus,
   ClipboardCheck,
   MapPin,
   HeartPulse,
@@ -49,7 +48,6 @@ const navItems: NavItem[] = [
     dynamicHref: (empresaId) => empresaId ? `/empresas/${empresaId}/areas` : null,
   },
   { label: 'Trabajadores', href: '/trabajadores', icon: Users },
-  { label: 'Vinculación de Usuarios', href: '/usuarios/vinculacion', icon: UserPlus, roles: [UsuarioRol.SUPER_ADMIN] },
   { 
     label: 'Análisis de Riesgos (ATS)', 
     href: '/ats', 

@@ -34,11 +34,8 @@ export default function LoginPage() {
       }
 
       await login(dni, password);
-      // La redirección se maneja en AuthContext según debe_cambiar_password y perfil_completado
-      // Si no hay redirección, ir al dashboard
-      if (typeof window !== 'undefined' && !window.location.href.includes('/auth/reset-password') && !window.location.href.includes('/perfil/setup')) {
-        router.push('/dashboard');
-      }
+      // La redirección se maneja completamente en AuthContext
+      // No hacer nada aquí para evitar redirecciones duplicadas
     } catch (err: any) {
       setError(
         err.response?.data?.message ||

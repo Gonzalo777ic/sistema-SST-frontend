@@ -12,7 +12,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (dni: string, password: string) => Promise<void>;
   logout: () => void;
-  refreshUserProfile: () => Promise<void>;
+  refreshUserProfile: () => Promise<Usuario | null>;
   hasRole: (role: UsuarioRol) => boolean;
   hasAnyRole: (roles: UsuarioRol[]) => boolean;
 }
@@ -28,28 +28,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const storedUsuario = authService.getStoredUsuario();
     if (storedUsuario && authService.getStoredToken()) {
       setUsuario(storedUsuario);
+      
+      // CRÍTICO: Si el usuario debe cambiar contraseña y NO está en /auth/reset-password,
+      // redirigir automáticamente (solo si estamos en el cliente)
+      if (typeof window !== 'undefined' && storedUsuario.debe_cambiar_password) {
+        const currentPath = window.location.pathname;
+        // Solo redirigir si NO está ya en /auth/reset-password o /login
+        if (currentPath !== '/auth/reset-password' && currentPath !== '/login') {
+          window.location.href = '/auth/reset-password';
+          return; // No continuar con setIsLoading para evitar renderizado innecesario
+        }
+      }
     }
     setIsLoading(false);
   }, []);
 
   const login = async (dni: string, password: string) => {
-    const response = await authService.login({ dni, password });
-    authService.setAuthData(response.access_token, response.usuario);
-    setUsuario(response.usuario);
-    
-    // Redirigir a reset password si debe cambiar contraseña
-    if (response.usuario.debe_cambiar_password === true) {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/auth/reset-password';
+    try {
+      const response = await authService.login({ dni, password });
+      authService.setAuthData(response.access_token, response.usuario);
+      setUsuario(response.usuario);
+      
+      // CRÍTICO: Redirigir a reset password si debe cambiar contraseña
+      // Usar router.push en lugar de window.location para mejor control
+      if (response.usuario.debe_cambiar_password === true) {
+        if (typeof window !== 'undefined') {
+          // Usar window.location para forzar recarga completa y evitar navegación
+          window.location.href = '/auth/reset-password';
+        }
+        return;
       }
-      return;
-    }
-    
-    // Redirigir a setup si el perfil no está completado
-    if (response.usuario.perfil_completado === false) {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/perfil/setup';
+      
+      // Redirigir a setup si el perfil no está completado
+      if (response.usuario.perfil_completado === false) {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/perfil/setup';
+        }
+        return;
       }
+      
+      // Si todo está bien, redirigir al dashboard
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard';
+      }
+    } catch (error: any) {
+      // Re-lanzar el error para que el componente de login lo maneje
+      throw error;
     }
   };
 
@@ -58,8 +82,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUsuario(null);
   };
 
-  const refreshUserProfile = async () => {
-    if (!usuario?.id) return;
+  const refreshUserProfile = async (): Promise<Usuario | null> => {
+    if (!usuario?.id) return null;
   
     try {
       // 1. Obtener los datos más frescos del servidor
@@ -75,9 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUsuario(updatedUsuario);
       
       console.log('Perfil sincronizado con éxito:', updatedUsuario.trabajadorId);
+      return updatedUsuario;
     } catch (error) {
       console.error('Error al sincronizar perfil:', error);
       toast.error('Sesión desactualizada. Por favor, re-ingresa.');
+      return null;
     }
   };
 

@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { UsuarioRol } from '@/types';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
 interface ProtectedRouteProps {
@@ -16,14 +16,27 @@ export function ProtectedRoute({
   allowedRoles,
   requireAny = true,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, hasRole, hasAnyRole } = useAuth();
+  const { usuario, isAuthenticated, isLoading, hasRole, hasAnyRole } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
+    // CRÍTICO: Manejar debe_cambiar_password ANTES de verificar autenticación
+    if (!isLoading && usuario && usuario.debe_cambiar_password) {
+      // Si el usuario debe cambiar contraseña y NO está en /auth/reset-password, redirigir
+      if (pathname !== '/auth/reset-password') {
+        router.push('/auth/reset-password');
+        return;
+      }
+      // Si ya está en /auth/reset-password, permitir el acceso (no redirigir)
+      return;
+    }
+
+    // Verificar autenticación normal solo si no debe cambiar contraseña
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, usuario, pathname, router]);
 
   if (isLoading) {
     return (
@@ -34,6 +47,11 @@ export function ProtectedRoute({
         </div>
       </div>
     );
+  }
+
+  // Si el usuario debe cambiar contraseña y está en /auth/reset-password, permitir acceso
+  if (usuario && usuario.debe_cambiar_password && pathname === '/auth/reset-password') {
+    return <>{children}</>;
   }
 
   if (!isAuthenticated) {

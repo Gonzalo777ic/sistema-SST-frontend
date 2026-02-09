@@ -1,19 +1,39 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { usuario, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
+    // CRÍTICO: Manejar debe_cambiar_password ANTES de verificar autenticación
+    if (!isLoading && usuario && usuario.debe_cambiar_password) {
+      // Si el usuario debe cambiar contraseña y NO está en /auth/reset-password, redirigir
+      if (pathname !== '/auth/reset-password') {
+        router.push('/auth/reset-password');
+        return;
+      }
+      // Si ya está en /auth/reset-password, NO usar MainLayout (debe usar layout simple)
+      // Este componente no debería renderizarse en /auth/reset-password
+      return;
+    }
+
+    // Verificar autenticación normal solo si no debe cambiar contraseña
     if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, usuario, pathname, router]);
+
+  // Si el usuario debe cambiar contraseña, NO mostrar MainLayout (incluye Sidebar)
+  // La página de reset-password debe tener su propio layout simple
+  if (usuario && usuario.debe_cambiar_password && pathname === '/auth/reset-password') {
+    return null; // No renderizar MainLayout para esta ruta
+  }
 
   // Si no está autenticado, no mostrar nada
   if (!isLoading && !isAuthenticated) {

@@ -12,6 +12,7 @@ import {
   CreateTrabajadorDto,
 } from '@/services/trabajadores.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
+import { areasService } from '@/services/areas.service';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Edit, Trash2, Users, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Users, Filter, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -46,6 +47,7 @@ const trabajadorSchema = z.object({
   contacto_emergencia_nombre: z.string().optional().or(z.literal('')),
   contacto_emergencia_telefono: z.string().optional().or(z.literal('')),
   foto_url: z.string().url('Debe ser una URL válida').optional().or(z.literal('')),
+  habilitar_acceso: z.boolean().optional(),
 });
 
 type TrabajadorFormData = z.infer<typeof trabajadorSchema>;
@@ -82,6 +84,7 @@ export default function TrabajadoresPage() {
       contacto_emergencia_nombre: '',
       contacto_emergencia_telefono: '',
       foto_url: '',
+      habilitar_acceso: false,
     },
   });
 
@@ -116,9 +119,10 @@ export default function TrabajadoresPage() {
         fecha_ingreso: editingTrabajador.fecha_ingreso,
         estado: editingTrabajador.estado,
         grupo_sanguineo: editingTrabajador.grupo_sanguineo || undefined,
-        contacto_emergencia_nombre: editingTrabajador.contacto_emergencia_nombre || '',
-        contacto_emergencia_telefono: editingTrabajador.contacto_emergencia_telefono || '',
+        contacto_emergencia_nombre: (editingTrabajador as any).contacto_emergencia_nombre || '',
+        contacto_emergencia_telefono: (editingTrabajador as any).contacto_emergencia_telefono || '',
         foto_url: editingTrabajador.foto_url || '',
+        habilitar_acceso: !!editingTrabajador.usuario_id,
       });
       loadAreas(editingTrabajador.empresa_id);
     } else {
@@ -136,6 +140,7 @@ export default function TrabajadoresPage() {
         contacto_emergencia_nombre: '',
         contacto_emergencia_telefono: '',
         foto_url: '',
+        habilitar_acceso: false,
       });
     }
   }, [editingTrabajador, reset, usuario]);
@@ -151,8 +156,8 @@ export default function TrabajadoresPage() {
 
   const loadAreas = async (empresaId: string) => {
     try {
-      const data = await empresasService.findAreas(empresaId);
-      setAreas(data);
+      const data = await areasService.findAll(empresaId);
+      setAreas(data.filter((a) => a.activo).map((a) => ({ id: a.id, nombre: a.nombre })));
     } catch (error: any) {
       setAreas([]);
     }
@@ -190,17 +195,46 @@ export default function TrabajadoresPage() {
         foto_url: data.foto_url || undefined,
       };
 
+      let trabajadorCreado: Trabajador | null = null;
+
       if (editingTrabajador) {
         await trabajadoresService.update(editingTrabajador.id, payload);
         toast.success('Trabajador actualizado', {
           description: 'El trabajador se ha actualizado correctamente',
         });
+        trabajadorCreado = await trabajadoresService.findOne(editingTrabajador.id);
       } else {
-        await trabajadoresService.create(payload);
+        trabajadorCreado = await trabajadoresService.create(payload);
         toast.success('Trabajador creado', {
           description: 'El trabajador se ha creado correctamente',
         });
       }
+
+      // Si se activó "Habilitar acceso al sistema" y es creación o edición sin usuario
+      if (data.habilitar_acceso && trabajadorCreado) {
+        // Verificar si ya tiene usuario vinculado
+        if (!trabajadorCreado.usuario_id) {
+          try {
+            const { usuariosService } = await import('@/services/usuarios.service');
+            await usuariosService.create({
+              dni: data.documento_identidad,
+              trabajadorId: trabajadorCreado.id,
+              roles: [UsuarioRol.TRABAJADOR],
+              empresaId: data.empresa_id,
+            });
+            toast.success('Acceso creado', {
+              description: `Se ha creado el acceso al sistema con DNI: ${data.documento_identidad}. La contraseña temporal es el DNI.`,
+            });
+          } catch (error: any) {
+            toast.error('Error al crear acceso', {
+              description: error.response?.data?.message || 'El trabajador se creó pero no se pudo crear el acceso',
+            });
+          }
+        } else {
+          toast.info('El trabajador ya tiene acceso al sistema');
+        }
+      }
+
       setIsModalOpen(false);
       setEditingTrabajador(null);
       loadTrabajadores(selectedEmpresaFilter || undefined);
@@ -510,6 +544,25 @@ export default function TrabajadoresPage() {
                   <p className="mt-1 text-sm text-danger">{errors.foto_url.message}</p>
                 )}
               </div>
+
+              {canCreate && (
+                <div className="md:col-span-2 flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                  <input
+                    type="checkbox"
+                    id="habilitar_acceso"
+                    {...register('habilitar_acceso')}
+                    className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                  />
+                  <div className="flex-1">
+                    <label htmlFor="habilitar_acceso" className="text-sm font-medium text-slate-900 cursor-pointer">
+                      Habilitar acceso al sistema
+                    </label>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-4">
