@@ -24,6 +24,7 @@ import {
   XCircle,
   Calendar,
   UserCheck,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { UsuarioRol, Usuario } from '@/types';
@@ -59,6 +60,9 @@ export default function GestionUsuariosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingUsuario, setEditingUsuario] = useState<UsuarioConTrabajador | null>(null);
   const [isEditRolesModalOpen, setIsEditRolesModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [linkingUsuario, setLinkingUsuario] = useState<UsuarioConTrabajador | null>(null);
+  const [selectedTrabajadorToLink, setSelectedTrabajadorToLink] = useState<string>('');
   // Filtros
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activo' | 'inactivo'>('todos');
@@ -317,6 +321,45 @@ export default function GestionUsuariosPage() {
     }
   };
 
+  const handleOpenLinkModal = async (usuario: UsuarioConTrabajador) => {
+    setLinkingUsuario(usuario);
+    setSelectedTrabajadorToLink('');
+    await loadTrabajadoresDisponibles();
+    setIsLinkModalOpen(true);
+  };
+
+  const handleLinkTrabajador = async () => {
+    if (!linkingUsuario || !selectedTrabajadorToLink) {
+      toast.error('Error', {
+        description: 'Debe seleccionar un trabajador para vincular',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await usuariosService.update(linkingUsuario.id, {
+        trabajadorId: selectedTrabajadorToLink,
+      });
+
+      toast.success('Trabajador vinculado', {
+        description: 'El trabajador ha sido vinculado exitosamente al usuario',
+      });
+
+      setIsLinkModalOpen(false);
+      setLinkingUsuario(null);
+      setSelectedTrabajadorToLink('');
+      loadUsuarios();
+      loadTrabajadoresDisponibles();
+    } catch (error: any) {
+      toast.error('Error al vincular trabajador', {
+        description: error.response?.data?.message || 'No se pudo vincular el trabajador',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const getRolBadgeColor = (rol: UsuarioRol) => {
     switch (rol) {
       case UsuarioRol.SUPER_ADMIN:
@@ -521,6 +564,17 @@ export default function GestionUsuariosPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
+                            {!u.trabajadorId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleOpenLinkModal(u)}
+                                title="Vincular trabajador"
+                                className="text-blue-600 hover:text-blue-700"
+                              >
+                                <LinkIcon className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -764,6 +818,79 @@ export default function GestionUsuariosPage() {
               </Button>
               <Button onClick={handleUpdateRoles} disabled={isSubmitting}>
                 {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Modal de Vinculación de Trabajador */}
+        <Modal
+          isOpen={isLinkModalOpen}
+          onClose={() => {
+            setIsLinkModalOpen(false);
+            setLinkingUsuario(null);
+            setSelectedTrabajadorToLink('');
+          }}
+          title="Vincular Trabajador"
+          size="md"
+        >
+          <div className="space-y-6">
+            {linkingUsuario && (
+              <div className="bg-slate-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-slate-700">Usuario</p>
+                <p className="text-sm text-slate-900">DNI: {linkingUsuario.dni}</p>
+                {linkingUsuario.roles.length > 0 && (
+                  <p className="text-sm text-slate-600">
+                    Roles: {linkingUsuario.roles.map(r => r.replace('_', ' ')).join(', ')}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Seleccionar Trabajador <span className="text-red-500">*</span>
+              </label>
+              <Select
+                value={selectedTrabajadorToLink}
+                onChange={(e) => setSelectedTrabajadorToLink(e.target.value)}
+                disabled={isLoadingTrabajadores}
+              >
+                <option value="">Seleccione un trabajador</option>
+                {trabajadoresDisponibles.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre_completo} - DNI: {t.documento_identidad}
+                    {t.empresa_id && ` - ${t.cargo}`}
+                  </option>
+                ))}
+              </Select>
+              {trabajadoresDisponibles.length === 0 && !isLoadingTrabajadores && (
+                <p className="mt-2 text-sm text-slate-500">
+                  No hay trabajadores disponibles sin usuario vinculado
+                </p>
+              )}
+              {isLoadingTrabajadores && (
+                <p className="mt-2 text-sm text-slate-500">Cargando trabajadores...</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsLinkModalOpen(false);
+                  setLinkingUsuario(null);
+                  setSelectedTrabajadorToLink('');
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleLinkTrabajador}
+                disabled={isSubmitting || !selectedTrabajadorToLink || isLoadingTrabajadores}
+              >
+                {isSubmitting ? 'Vinculando...' : 'Vincular Trabajador'}
               </Button>
             </div>
           </div>
