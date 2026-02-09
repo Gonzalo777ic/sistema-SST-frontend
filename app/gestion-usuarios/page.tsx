@@ -62,6 +62,10 @@ export default function GestionUsuariosPage() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkingUsuario, setLinkingUsuario] = useState<UsuarioConTrabajador | null>(null);
   const [selectedTrabajadorToLink, setSelectedTrabajadorToLink] = useState<string>('');
+  // Modales de confirmación
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [isToggleActivoModalOpen, setIsToggleActivoModalOpen] = useState(false);
+  const [usuarioParaAccion, setUsuarioParaAccion] = useState<UsuarioConTrabajador | null>(null);
   // Filtros
   const [filtroEmpresa, setFiltroEmpresa] = useState<string>('');
   const [filtroEstado, setFiltroEstado] = useState<'todos' | 'activo' | 'inactivo'>('todos');
@@ -253,16 +257,22 @@ export default function GestionUsuariosPage() {
     }
   };
 
-  const handleResetPassword = async (usuarioId: string, dni: string) => {
-    if (!confirm(`¿Estás seguro de resetear la contraseña? La nueva contraseña será el DNI: ${dni}`)) {
-      return;
-    }
+  const handleOpenResetPasswordModal = (usuario: UsuarioConTrabajador) => {
+    setUsuarioParaAccion(usuario);
+    setIsResetPasswordModalOpen(true);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!usuarioParaAccion) return;
 
     try {
-      await usuariosService.resetPassword(usuarioId);
+      await usuariosService.resetPassword(usuarioParaAccion.id);
       toast.success('Contraseña reseteada', {
-        description: `La contraseña ha sido establecida como el DNI: ${dni}. El usuario deberá cambiarla al iniciar sesión.`,
+        description: `La contraseña ha sido establecida como el DNI: ${usuarioParaAccion.dni}. El usuario deberá cambiarla al iniciar sesión.`,
       });
+      setIsResetPasswordModalOpen(false);
+      setUsuarioParaAccion(null);
+      loadUsuarios();
     } catch (error: any) {
       toast.error('Error al resetear contraseña', {
         description: error.response?.data?.message || 'No se pudo resetear la contraseña',
@@ -302,21 +312,27 @@ export default function GestionUsuariosPage() {
     }
   };
 
-  const handleToggleActivo = async (usuario: UsuarioConTrabajador) => {
-    const action = usuario.activo ? 'desactivar' : 'activar';
-    if (!confirm(`¿Estás seguro de ${action} este usuario?`)) {
-      return;
-    }
+  const handleOpenToggleActivoModal = (usuario: UsuarioConTrabajador) => {
+    setUsuarioParaAccion(usuario);
+    setIsToggleActivoModalOpen(true);
+  };
+
+  const handleConfirmToggleActivo = async () => {
+    if (!usuarioParaAccion) return;
+
+    const action = usuarioParaAccion.activo ? 'desactivar' : 'activar';
 
     try {
-      await usuariosService.update(usuario.id, {
-        activo: !usuario.activo,
+      await usuariosService.update(usuarioParaAccion.id, {
+        activo: !usuarioParaAccion.activo,
       });
 
-      toast.success(`Usuario ${usuario.activo ? 'desactivado' : 'activado'}`, {
-        description: `El usuario ha sido ${usuario.activo ? 'desactivado' : 'activado'} exitosamente`,
+      toast.success(`Usuario ${usuarioParaAccion.activo ? 'desactivado' : 'activado'}`, {
+        description: `El usuario ha sido ${usuarioParaAccion.activo ? 'desactivado' : 'activado'} exitosamente`,
       });
 
+      setIsToggleActivoModalOpen(false);
+      setUsuarioParaAccion(null);
       loadUsuarios();
     } catch (error: any) {
       toast.error(`Error al ${action} usuario`, {
@@ -590,7 +606,10 @@ export default function GestionUsuariosPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          {!u.trabajadorId && (
+                          {/* Vincular trabajador - Deshabilitado para SUPER_ADMIN y ADMIN_EMPRESA */}
+                          {!u.trabajadorId && 
+                           !u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
+                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
                             <Button
                               variant="outline"
                               size="sm"
@@ -601,31 +620,49 @@ export default function GestionUsuariosPage() {
                               <LinkIcon className="w-4 h-4" />
                             </Button>
                           )}
+                          {/* Reset de contraseña - Permitido para todos excepto el usuario actual */}
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleResetPassword(u.id, u.dni)}
+                            onClick={() => handleOpenResetPasswordModal(u)}
                             title="Resetear contraseña usando el DNI"
+                            disabled={u.id === currentUser?.id}
+                            className={u.id === currentUser?.id ? 'opacity-50 cursor-not-allowed' : ''}
                           >
                             <RotateCcw className="w-4 h-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditRoles(u)}
-                            title="Editar roles"
-                          >
-                            <UserCog className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleActivo(u)}
-                            title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
-                            className={u.activo ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}
-                          >
-                            <ShieldOff className="w-4 h-4" />
-                          </Button>
+                          {/* Editar roles - Deshabilitado para SUPER_ADMIN y ADMIN_EMPRESA */}
+                          {!u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
+                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditRoles(u)}
+                              title="Editar roles"
+                            >
+                              <UserCog className="w-4 h-4" />
+                            </Button>
+                          )}
+                          {/* Toggle activo - Deshabilitado para el usuario actual y para SUPER_ADMIN/ADMIN_EMPRESA */}
+                          {!u.roles.includes(UsuarioRol.SUPER_ADMIN) && 
+                           !u.roles.includes(UsuarioRol.ADMIN_EMPRESA) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenToggleActivoModal(u)}
+                              title={u.activo ? 'Desactivar usuario' : 'Activar usuario'}
+                              disabled={u.id === currentUser?.id}
+                              className={`${
+                                u.id === currentUser?.id 
+                                  ? 'opacity-50 cursor-not-allowed' 
+                                  : u.activo 
+                                    ? 'text-red-600 hover:text-red-700' 
+                                    : 'text-green-600 hover:text-green-700'
+                              }`}
+                            >
+                              <ShieldOff className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -917,6 +954,99 @@ export default function GestionUsuariosPage() {
               disabled={isSubmitting || !selectedTrabajadorToLink || isLoadingTrabajadores}
             >
               {isSubmitting ? 'Vinculando...' : 'Vincular Trabajador'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Confirmación de Reset de Contraseña */}
+      <Modal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => {
+          setIsResetPasswordModalOpen(false);
+          setUsuarioParaAccion(null);
+        }}
+        title="Confirmar Reset de Contraseña"
+        size="md"
+      >
+        <div className="space-y-4">
+          {usuarioParaAccion && (
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-slate-700">Usuario</p>
+              <p className="text-sm text-slate-900">DNI: {usuarioParaAccion.dni}</p>
+              {usuarioParaAccion.trabajador_nombre && (
+                <p className="text-sm text-slate-600">{usuarioParaAccion.trabajador_nombre}</p>
+              )}
+            </div>
+          )}
+          <p className="text-sm text-slate-700">
+            ¿Estás seguro de resetear la contraseña de este usuario? La nueva contraseña será el DNI: <strong>{usuarioParaAccion?.dni}</strong>. El usuario deberá cambiarla al iniciar sesión.
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsResetPasswordModalOpen(false);
+                setUsuarioParaAccion(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmResetPassword}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Resetear Contraseña
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de Confirmación de Toggle Activo */}
+      <Modal
+        isOpen={isToggleActivoModalOpen}
+        onClose={() => {
+          setIsToggleActivoModalOpen(false);
+          setUsuarioParaAccion(null);
+        }}
+        title={usuarioParaAccion?.activo ? 'Confirmar Desactivación' : 'Confirmar Activación'}
+        size="md"
+      >
+        <div className="space-y-4">
+          {usuarioParaAccion && (
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <p className="text-sm font-medium text-slate-700">Usuario</p>
+              <p className="text-sm text-slate-900">DNI: {usuarioParaAccion.dni}</p>
+              {usuarioParaAccion.trabajador_nombre && (
+                <p className="text-sm text-slate-600">{usuarioParaAccion.trabajador_nombre}</p>
+              )}
+            </div>
+          )}
+          <p className="text-sm text-slate-700">
+            ¿Estás seguro de {usuarioParaAccion?.activo ? 'desactivar' : 'activar'} este usuario?
+            {usuarioParaAccion?.activo && (
+              <span className="block mt-2 text-amber-600 font-medium">
+                El usuario no podrá iniciar sesión hasta que sea reactivado.
+              </span>
+            )}
+          </p>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setIsToggleActivoModalOpen(false);
+                setUsuarioParaAccion(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmToggleActivo}
+              className={usuarioParaAccion?.activo ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}
+            >
+              {usuarioParaAccion?.activo ? 'Desactivar' : 'Activar'}
             </Button>
           </div>
         </div>

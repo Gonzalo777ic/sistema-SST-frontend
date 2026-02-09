@@ -261,6 +261,9 @@ function SidebarComponent() {
             } else if (item.href === '/gestion-usuarios') {
               // "Gestión de Usuarios" activo si estamos en /gestion-usuarios o cualquier sub-ruta
               isActive = pathname === '/gestion-usuarios' || pathname.startsWith('/gestion-usuarios/');
+            } else if (item.href === '/configuracion') {
+              // "Configuración" activo si estamos en /configuracion o cualquier sub-ruta
+              isActive = pathname === '/configuracion' || pathname.startsWith('/configuracion/');
             } else {
               // Para otras rutas: exacta o que empiece con la ruta + /
               isActive = pathname === item.href || 
@@ -289,7 +292,23 @@ function SidebarComponent() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-slate-200">
+        <div className="p-4 border-t border-slate-200 space-y-2">
+          <Link
+            href="/configuracion"
+            prefetch={true}
+            onClick={() => setIsMobileOpen(false)}
+            className={`
+              flex items-center gap-3 px-4 py-3 rounded-md transition-colors duration-200
+              ${
+                pathname === '/configuracion' || pathname.startsWith('/configuracion/')
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'text-slate-700 hover:bg-primary/10 hover:text-primary'
+              }
+            `}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="font-medium">Configuración</span>
+          </Link>
           <button
             onClick={logout}
             className="flex items-center gap-3 px-4 py-3 w-full rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors duration-200"
