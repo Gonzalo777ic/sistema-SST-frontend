@@ -140,38 +140,20 @@ export default function GestionUsuariosPage() {
   const loadUsuarios = async () => {
     try {
       setIsLoading(true);
+      // El backend ahora devuelve los usuarios con la propiedad 'trabajador' incluida
       const data = await usuariosService.findAll();
-
-      // Enriquecer con datos de trabajadores vinculados
-      const usuariosConTrabajador = await Promise.all(
-        data.map(async (u) => {
-          if (u.trabajadorId) {
-            try {
-              const trabajador = await trabajadoresService.findOne(u.trabajadorId);
-              return {
-                ...u,
-                trabajador_nombre: trabajador.nombre_completo,
-                trabajador_dni: trabajador.documento_identidad,
-                trabajador_estado: trabajador.estado, // Estado laboral del trabajador
-              };
-            } catch {
-              return {
-                ...u,
-                trabajador_nombre: null,
-                trabajador_dni: null,
-                trabajador_estado: null,
-              };
-            }
-          }
-          return {
-            ...u,
-            trabajador_nombre: null,
-            trabajador_dni: null,
-            trabajador_estado: null,
-          };
-        })
-      );
-
+  
+      // Mapeo directo de la relación precargada desde el backend
+      const usuariosConTrabajador = data.map((u: any) => ({
+        ...u,
+        // Extraemos los datos directamente del objeto 'trabajador' que viene del API
+        trabajador_nombre: u.trabajador?.nombreCompleto || null,
+        trabajador_dni: u.trabajador?.documentoIdentidad || null,
+        trabajador_estado: u.trabajador?.estado || null,
+        // Mantenemos el ID para futuras acciones de desvinculación o edición
+        trabajadorId: u.trabajadorId || u.trabajador?.id || null, 
+      }));
+  
       setUsuarios(usuariosConTrabajador);
       aplicarFiltros(usuariosConTrabajador);
     } catch (error: any) {
@@ -941,27 +923,65 @@ export default function GestionUsuariosPage() {
               Roles <span className="text-red-500">*</span>
             </label>
             <div className="space-y-2 border border-slate-300 rounded-md p-3 max-h-48 overflow-y-auto">
-              {Object.values(UsuarioRol).map((rol) => (
-                <label key={rol} className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    value={rol}
-                    checked={selectedRoles.includes(rol)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setValue('roles', [...selectedRoles, rol]);
-                      } else {
-                        setValue('roles', selectedRoles.filter((r) => r !== rol));
-                      }
-                    }}
-                    className="rounded border-slate-300 text-primary focus:ring-primary"
-                  />
-                  <span className="text-sm text-slate-700">{rol.replace('_', ' ')}</span>
-                </label>
-              ))}
+              {(() => {
+                // Lógica de "Mano Dura": Filtrar roles según si tiene trabajador vinculado
+                const tieneTrabajador = editingUsuario?.trabajadorId !== null && editingUsuario?.trabajadorId !== undefined;
+                
+                // Roles disponibles según el contexto
+                let rolesDisponibles = Object.values(UsuarioRol);
+                
+                // SIEMPRE: Ocultar SUPER_ADMIN de la lista
+                rolesDisponibles = rolesDisponibles.filter((rol) => rol !== UsuarioRol.SUPER_ADMIN);
+                
+                // Si tiene trabajador vinculado: Solo roles operativos (ocultar ADMIN)
+                if (tieneTrabajador) {
+                  rolesDisponibles = rolesDisponibles.filter((rol) => 
+                    rol !== UsuarioRol.ADMIN_EMPRESA &&
+                    [
+                      UsuarioRol.INGENIERO_SST,
+                      UsuarioRol.SUPERVISOR,
+                      UsuarioRol.MEDICO,
+                      UsuarioRol.EMPLEADO,
+                      UsuarioRol.AUDITOR,
+                    ].includes(rol)
+                  );
+                } else {
+                  // Si NO tiene trabajador: Solo ADMIN (ADMIN_EMPRESA)
+                  rolesDisponibles = [UsuarioRol.ADMIN_EMPRESA];
+                }
+                
+                return rolesDisponibles.map((rol) => (
+                  <label key={rol} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      value={rol}
+                      checked={selectedRoles.includes(rol)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setValue('roles', [...selectedRoles, rol]);
+                        } else {
+                          setValue('roles', selectedRoles.filter((r) => r !== rol));
+                        }
+                      }}
+                      className="rounded border-slate-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm text-slate-700">{rol.replace('_', ' ')}</span>
+                  </label>
+                ));
+              })()}
             </div>
             {errors.roles && (
               <p className="mt-1 text-sm text-red-600">{errors.roles.message}</p>
+            )}
+            {editingUsuario?.trabajadorId && (
+              <p className="mt-2 text-xs text-slate-500">
+                Usuario con trabajador vinculado: Solo se permiten roles operativos.
+              </p>
+            )}
+            {!editingUsuario?.trabajadorId && (
+              <p className="mt-2 text-xs text-slate-500">
+                Usuario sin trabajador: Solo se permite el rol ADMIN (Sistema).
+              </p>
             )}
           </div>
 
