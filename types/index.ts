@@ -44,3 +44,216 @@ export interface LoginRequest {
   dni: string;
   password: string;
 }
+
+// Enums para Comités
+export enum TipoMiembro {
+  TITULAR = 'TITULAR',
+  SUPLENTE = 'SUPLENTE',
+}
+
+export enum RolComite {
+  PRESIDENTE = 'PRESIDENTE',
+  SECRETARIO = 'SECRETARIO',
+  MIEMBRO = 'MIEMBRO',
+  OBSERVADOR = 'OBSERVADOR',
+}
+
+export enum Representacion {
+  EMPLEADOR = 'EMPLEADOR',
+  TRABAJADOR = 'TRABAJADOR',
+}
+
+// Interfaces para Comités
+export interface IComite {
+  id: string;
+  empresa_id: string;
+  nombre: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  descripcion: string | null;
+  nro_miembros: number;
+  activo: boolean;
+  empresa_nombre?: string; // Para mostrar en la tabla
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IMiembro {
+  id: string;
+  comite_id: string;
+  trabajador_id: string;
+  trabajador_nombre: string | null;
+  trabajador_dni?: string;
+  trabajador_cargo?: string;
+  tipo_miembro: TipoMiembro;
+  rol_comite: RolComite;
+  representacion: Representacion;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IDocumento {
+  id: string;
+  comite_id: string;
+  titulo: string;
+  url: string;
+  fecha_registro: string;
+}
+
+// Enums para Reuniones y Acuerdos
+export enum EstadoReunion {
+  PENDIENTE = 'PENDIENTE',
+  COMPLETADA = 'COMPLETADA',
+  CANCELADA = 'CANCELADA',
+}
+
+export enum TipoReunion {
+  ORDINARIA = 'ORDINARIA',
+  EXTRAORDINARIA = 'EXTRAORDINARIA',
+}
+
+export enum TipoAcuerdo {
+  INFORMATIVO = 'INFORMATIVO',
+  CON_SEGUIMIENTO = 'CON_SEGUIMIENTO',
+}
+
+export enum EstadoAcuerdo {
+  PENDIENTE = 'PENDIENTE',
+  EN_PROCESO = 'EN_PROCESO',
+  APROBADO = 'APROBADO',
+  ANULADO = 'ANULADO',
+}
+
+// Interfaces para Agenda
+export interface IAgendaReunion {
+  id: string;
+  reunion_id: string;
+  descripcion: string;
+  orden: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Interfaces para Reuniones
+export interface IReunion {
+  id: string;
+  comite_id: string;
+  comite_nombre?: string;
+  sesion: string;
+  fecha_realizacion: string;
+  hora_registro: string | null;
+  lugar: string | null;
+  descripcion: string | null;
+  estado: EstadoReunion;
+  tipo_reunion: TipoReunion;
+  enviar_alerta: boolean;
+  nro_acuerdos?: number;
+  agenda?: IAgendaReunion[];
+  registrado_por?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Interfaces para Acuerdos
+export interface IAcuerdo {
+  id: string;
+  reunion_id: string;
+  titulo: string;
+  descripcion?: string;
+  tipo_acuerdo: TipoAcuerdo;
+  fecha_programada: string | null;
+  fecha_real: string | null;
+  estado: EstadoAcuerdo;
+  responsables: Array<{
+    id: string;
+    nombre: string;
+    dni?: string;
+    puesto?: string;
+    area?: string;
+  }>;
+  observaciones: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// DTOs para crear/actualizar
+export interface CreateReunionComiteDto {
+  comites_ids: string[];
+  sesion: string;
+  fecha_realizacion: string;
+  hora_registro?: string;
+  lugar?: string;
+  descripcion?: string;
+  estado?: EstadoReunion;
+  tipo_reunion?: TipoReunion;
+  enviar_alerta?: boolean;
+  agenda?: string[];
+}
+
+export interface UpdateReunionComiteDto {
+  sesion?: string;
+  fecha_realizacion?: string;
+  hora_registro?: string;
+  lugar?: string;
+  descripcion?: string;
+  estado?: EstadoReunion;
+  tipo_reunion?: TipoReunion;
+  enviar_alerta?: boolean;
+  agenda?: string[];
+}
+
+export interface CreateAcuerdoComiteDto {
+  reunion_id: string;
+  titulo: string;
+  descripcion?: string;
+  tipo_acuerdo?: TipoAcuerdo;
+  fecha_programada?: string;
+  fecha_real?: string;
+  estado?: EstadoAcuerdo;
+  responsables_ids: string[];
+  observaciones?: string;
+}
+
+export interface UpdateAcuerdoComiteDto {
+  titulo?: string;
+  tipo_acuerdo?: TipoAcuerdo;
+  fecha_programada?: string;
+  fecha_real?: string;
+  estado?: EstadoAcuerdo;
+  responsable_id?: string;
+  observaciones?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateComiteDto {
+  empresa_id: string;
+  nombre: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  descripcion?: string;
+  nro_miembros?: number;
+  activo?: boolean;
+}
+
+export interface UpdateComiteDto {
+  nombre?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  descripcion?: string;
+  nro_miembros?: number;
+  activo?: boolean;
+}
+
+export interface CreateMiembroComiteDto {
+  trabajador_id: string;
+  tipo_miembro: TipoMiembro;
+  rol_comite: RolComite;
+  representacion: Representacion;
+}
+
+export interface CreateDocumentoComiteDto {
+  titulo: string;
+  url: string;
+  fecha_registro?: string;
+}

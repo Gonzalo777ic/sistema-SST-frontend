@@ -21,6 +21,8 @@ import {
   Database,
   Settings,
   CheckCircle2,
+  CalendarDays,
+  ListTodo,
 } from 'lucide-react';
 import { UsuarioRol } from '@/types';
 
@@ -71,11 +73,6 @@ export const sidebarConfig: SidebarGroup[] = [
         href: '/epp',
         icon: HardHat,
       },
-      {
-        label: 'Difusión de documentos',
-        href: '/dashboard/difusion',
-        icon: FileText,
-      },
     ],
   },
   {
@@ -83,7 +80,7 @@ export const sidebarConfig: SidebarGroup[] = [
     items: [
       {
         label: 'Seguimiento de acciones',
-        href: '/dashboard/acciones',
+        href: '/acciones-correctivas',
         icon: CheckCircle2,
       },
       {
@@ -164,9 +161,30 @@ export const sidebarConfig: SidebarGroup[] = [
         icon: FolderClosed,
       },
       {
+        label: 'Difusión de documentos',
+        href: '/difusion',
+        icon: FileText,
+      },
+      {
         label: 'Comité de SST',
-        href: '/dashboard/comite',
         icon: Users2,
+        items: [
+          {
+            label: 'Gestión de Comités',
+            href: '/comites',
+            icon: Users,
+          },
+          {
+            label: 'Reuniones y Actas',
+            href: '/comites/reuniones',
+            icon: CalendarDays,
+          },
+          {
+            label: 'Seguimiento de Acuerdos',
+            href: '/comites/acuerdos',
+            icon: ListTodo,
+          },
+        ],
       },
     ],
   },

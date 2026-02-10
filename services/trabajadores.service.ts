@@ -24,6 +24,7 @@ export interface Trabajador {
   documento_identidad: string;
   cargo: string;
   area_id: string | null;
+  area_nombre?: string;
   telefono: string | null;
   email_personal: string | null;
   fecha_ingreso: string;
@@ -33,7 +34,20 @@ export interface Trabajador {
   contacto_emergencia_telefono: string | null;
   foto_url: string | null;
   empresa_id: string;
+  empresa_nombre?: string;
   usuario_id: string | null;
+  // Campos adicionales para búsqueda detallada
+  fecha_nacimiento?: string;
+  sexo?: string;
+  pais?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
+  unidad?: string;
+  sede?: string;
+  puesto?: string;
+  centro_costos?: string;
+  jefe_directo?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -116,5 +130,19 @@ export const trabajadoresService = {
       data
     );
     return response.data;
+  },
+
+  async buscarPorDni(dni: string): Promise<Trabajador | null> {
+    try {
+      const response = await apiClient.get<Trabajador | null>(`/trabajadores/buscar`, {
+        params: { dni },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404 || error.response?.status === 400) {
+        return null;
+      }
+      throw error;
+    }
   },
 };

@@ -2,53 +2,62 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  capacitacionesService,
-  Capacitacion,
-  TipoCapacitacion,
-  EstadoCapacitacion,
-} from '@/services/capacitaciones.service';
+import { capacitacionesService, Capacitacion } from '@/services/capacitaciones.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Plus,
-  Search,
-  GraduationCap,
-  Calendar,
-  Clock,
-  User,
-  Users,
+  Monitor,
+  ChevronDown,
+  ChevronRight,
   FileText,
-  CheckCircle2,
+  Settings,
+  Search,
+  Upload,
+  Plus,
+  Package,
+  Eye,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { UsuarioRol } from '@/types';
-import { cn } from '@/lib/utils';
+
+// Interfaz para la tabla según las columnas especificadas
+interface ICapacitacionTable {
+  id: string;
+  sede: string;
+  razon_social: string;
+  unidad?: string;
+  asignacion?: string;
+  trabajadores?: number;
+  porcentaje?: number;
+  tipo: string;
+  tema: string;
+  grupo?: string;
+  fecha_inicio: string;
+  fecha_fin?: string;
+  estado: string;
+}
 
 export default function CapacitacionesPage() {
-  const { usuario, hasAnyRole } = useAuth();
+  const { usuario } = useAuth();
   const [capacitaciones, setCapacitaciones] = useState<Capacitacion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTipo, setSelectedTipo] = useState<TipoCapacitacion | ''>('');
-  const [selectedEstado, setSelectedEstado] = useState<EstadoCapacitacion | ''>('');
-
-  const canCreate = hasAnyRole([
-    UsuarioRol.SUPER_ADMIN,
-    UsuarioRol.ADMIN_EMPRESA,
-    UsuarioRol.INGENIERO_SST,
-  ]);
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   useEffect(() => {
     loadCapacitaciones();
   }, []);
-
-  useEffect(() => {
-    loadCapacitaciones();
-  }, [selectedTipo, selectedEstado]);
 
   const loadCapacitaciones = async () => {
     try {
@@ -65,197 +74,245 @@ export default function CapacitacionesPage() {
     }
   };
 
-  const filteredCapacitaciones = capacitaciones.filter((cap) => {
-    const matchesSearch =
-      !searchTerm ||
-      cap.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cap.descripcion.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTipo = !selectedTipo || cap.tipo === selectedTipo;
-    const matchesEstado = !selectedEstado || cap.estado === selectedEstado;
-    return matchesSearch && matchesTipo && matchesEstado;
-  });
-
-  const getTipoBadgeColor = (tipo: TipoCapacitacion) => {
-    const colors: Record<TipoCapacitacion, string> = {
-      [TipoCapacitacion.Induccion]: 'bg-blue-100 text-blue-800',
-      [TipoCapacitacion.TrabajoAltura]: 'bg-red-100 text-red-800',
-      [TipoCapacitacion.EspaciosConfinados]: 'bg-orange-100 text-orange-800',
-      [TipoCapacitacion.PrimerosAuxilios]: 'bg-green-100 text-green-800',
-      [TipoCapacitacion.ManejoEPP]: 'bg-purple-100 text-purple-800',
-      [TipoCapacitacion.PrevencionIncendios]: 'bg-yellow-100 text-yellow-800',
-      [TipoCapacitacion.ManejoDefensivo]: 'bg-indigo-100 text-indigo-800',
-      [TipoCapacitacion.IzajeSenalizacion]: 'bg-pink-100 text-pink-800',
-      [TipoCapacitacion.RiesgosElectricos]: 'bg-amber-100 text-amber-800',
-      [TipoCapacitacion.Otra]: 'bg-gray-100 text-gray-800',
+  // Transformar datos de Capacitacion a ICapacitacionTable
+  const transformarDatos = (cap: Capacitacion): ICapacitacionTable => {
+    return {
+      id: cap.id,
+      sede: cap.lugar || '-',
+      razon_social: 'Empresa', // TODO: Obtener de empresa_id
+      unidad: '-',
+      asignacion: '-',
+      trabajadores: cap.participantes?.length || 0,
+      porcentaje: 0, // TODO: Calcular porcentaje de asistencia
+      tipo: cap.tipo,
+      tema: cap.titulo,
+      grupo: '-',
+      fecha_inicio: cap.fecha,
+      fecha_fin: cap.fecha,
+      estado: cap.estado,
     };
-    return colors[tipo] || 'bg-gray-100 text-gray-800';
   };
 
-  const getEstadoColor = (estado: EstadoCapacitacion) => {
-    switch (estado) {
-      case EstadoCapacitacion.Programada:
-        return 'bg-warning-light/20 text-warning';
-      case EstadoCapacitacion.Completada:
-        return 'bg-success-light/20 text-success';
-      case EstadoCapacitacion.Cancelada:
-        return 'bg-danger-light/20 text-danger';
-      default:
-        return 'bg-slate-200 text-slate-700';
-    }
+  const datosTabla = capacitaciones.map(transformarDatos);
+
+  const getEstadoBadge = (estado: string) => {
+    const styles: Record<string, string> = {
+      Programada: 'bg-yellow-100 text-yellow-800',
+      Completada: 'bg-green-100 text-green-800',
+      Cancelada: 'bg-red-100 text-red-800',
+    };
+    return (
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-medium ${
+          styles[estado] || 'bg-gray-100 text-gray-800'
+        }`}
+      >
+        {estado}
+      </span>
+    );
   };
 
   return (
+    <div className="p-6 space-y-6">
+      {/* A. CABECERA */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Programación de Capacitaciones</h1>
+          <Monitor className="h-6 w-6 text-blue-600" />
+        </div>
+      </div>
 
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Capacitaciones</h1>
-              <p className="text-slate-600 mt-2">Gestión de capacitaciones y certificaciones</p>
-            </div>
-            {canCreate && (
-              <Link href="/capacitaciones/nueva">
-                <Button>
-                  <Plus className="w-5 h-5 mr-2" />
-                  Nueva Capacitación
-                </Button>
-              </Link>
-            )}
-          </div>
-
-          {/* Filtros */}
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                  <Input
-                    placeholder="Buscar por título o descripción..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+      {/* B. SECCIÓN DE FILTROS (Colapsable) */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        >
+          <span className="text-sm font-semibold text-gray-700">
+            {filtrosAbiertos ? <ChevronDown className="h-4 w-4 inline mr-2" /> : <ChevronRight className="h-4 w-4 inline mr-2" />}
+            Filtros de búsqueda
+          </span>
+        </button>
+        {filtrosAbiertos && (
+          <div className="border-t border-gray-200 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Buscar
+                </label>
+                <Input placeholder="Buscar..." />
               </div>
-              <div className="md:w-48">
-                <Select
-                  value={selectedTipo}
-                  onChange={(e) => setSelectedTipo(e.target.value as TipoCapacitacion | '')}
-                >
-                  <option value="">Todos los tipos</option>
-                  {Object.values(TipoCapacitacion).map((tipo) => (
-                    <option key={tipo} value={tipo}>
-                      {tipo}
-                    </option>
-                  ))}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Tipo
+                </label>
+                <Select>
+                  <option value="">Todos</option>
                 </Select>
               </div>
-              <div className="md:w-48">
-                <Select
-                  value={selectedEstado}
-                  onChange={(e) => setSelectedEstado(e.target.value as EstadoCapacitacion | '')}
-                >
-                  <option value="">Todos los estados</option>
-                  {Object.values(EstadoCapacitacion).map((estado) => (
-                    <option key={estado} value={estado}>
-                      {estado}
-                    </option>
-                  ))}
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="Programada">Programada</option>
+                  <option value="Completada">Completada</option>
+                  <option value="Cancelada">Cancelada</option>
                 </Select>
               </div>
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Cards de Capacitaciones */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoading ? (
-              <>
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <Skeleton key={i} className="h-64 w-full" />
-                ))}
-              </>
-            ) : filteredCapacitaciones.length === 0 ? (
-              <div className="col-span-full p-12 text-center">
-                <GraduationCap className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                <p className="text-slate-600">No hay capacitaciones registradas</p>
-              </div>
-            ) : (
-              filteredCapacitaciones.map((capacitacion) => (
-                <Link
-                  key={capacitacion.id}
-                  href={`/capacitaciones/${capacitacion.id}`}
-                  className="block"
-                >
-                  <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow h-full flex flex-col">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <GraduationCap className="w-6 h-6 text-primary" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-slate-900 text-lg line-clamp-2">
-                            {capacitacion.titulo}
-                          </h3>
-                          <span
-                            className={cn(
-                              'inline-block mt-1 px-2 py-1 text-xs font-medium rounded',
-                              getTipoBadgeColor(capacitacion.tipo),
-                            )}
-                          >
-                            {capacitacion.tipo}
-                          </span>
-                        </div>
-                      </div>
-                      {capacitacion.examenes && capacitacion.examenes.length > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-primary bg-primary/10 px-2 py-1 rounded">
-                          <FileText className="w-3 h-3" />
-                          <span>Examen</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2 mb-4 flex-1">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>{new Date(capacitacion.fecha).toLocaleDateString('es-PE')}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Clock className="w-4 h-4" />
-                        <span>
-                          {capacitacion.hora_inicio} - {capacitacion.hora_fin} ({capacitacion.duracion_horas}h)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <User className="w-4 h-4" />
-                        <span>{capacitacion.instructor || 'Sin instructor asignado'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Users className="w-4 h-4" />
-                        <span>{capacitacion.participantes.length} participantes</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                      <span
-                        className={cn(
-                          'px-2 py-1 text-xs font-medium rounded',
-                          getEstadoColor(capacitacion.estado),
-                        )}
-                      >
-                        {capacitacion.estado}
-                      </span>
-                      {capacitacion.participantes.some((p) => p.aprobado) && (
-                        <div className="flex items-center gap-1 text-xs text-success">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Certificados emitidos</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
+      {/* C. BARRA DE HERRAMIENTAS */}
+      <div className="flex flex-col gap-3">
+        {/* Fila Superior - Botones Izquierda */}
+        <div className="flex items-center gap-2">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <FileText className="h-4 w-4 mr-2" />
+            Reporte
+          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <Settings className="h-4 w-4 mr-2" />
+            Configuración
+          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <Search className="h-4 w-4 mr-2" />
+            Buscar por trabajador
+          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <Upload className="h-4 w-4 mr-2" />
+            Importar capacitaciones
+          </Button>
         </div>
 
+        {/* Fila Inferior - Botón Derecha */}
+        <div className="flex justify-end">
+          <Link href="/capacitaciones/nueva">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+              <Plus className="h-4 w-4 mr-2" />
+              Registrar capacitación
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* D. TABLA DE DATOS */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="p-6 space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : datosTabla.length === 0 ? (
+            // E. ESTADO VACÍO
+            <div className="p-12 text-center">
+              <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">Sin Información</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-gray-600 text-xs font-semibold">Sede</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Razón social / Unidad
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Asignación / Trab. / %
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Tipo/Tema
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Grupo</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Fechas</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Estado</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {datosTabla.map((row) => (
+                  <TableRow key={row.id} className="hover:bg-gray-50">
+                    <TableCell className="text-sm">{row.sede}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>
+                        <div className="font-medium">{row.razon_social}</div>
+                        {row.unidad && (
+                          <div className="text-xs text-gray-500">{row.unidad}</div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div className="space-y-1">
+                        {row.asignacion && <div>{row.asignacion}</div>}
+                        {row.trabajadores !== undefined && (
+                          <div className="text-xs text-gray-600">
+                            Trab: {row.trabajadores}
+                          </div>
+                        )}
+                        {row.porcentaje !== undefined && (
+                          <div className="text-xs text-gray-600">
+                            {row.porcentaje}%
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <div>
+                        <div className="font-medium">{row.tipo}</div>
+                        <div className="text-xs text-gray-600">{row.tema}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">{row.grupo || '-'}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>
+                        <div>
+                          {new Date(row.fecha_inicio).toLocaleDateString('es-PE')}
+                        </div>
+                        {row.fecha_fin && row.fecha_fin !== row.fecha_inicio && (
+                          <div className="text-xs text-gray-600">
+                            {new Date(row.fecha_fin).toLocaleDateString('es-PE')}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>{getEstadoBadge(row.estado)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/capacitaciones/${row.id}`}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Link href={`/capacitaciones/${row.id}/editar`}>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            // TODO: Implementar eliminación
+                            toast.info('Funcionalidad en desarrollo');
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

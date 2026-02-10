@@ -29,6 +29,7 @@ export interface TestigoDto {
 
 export interface Incidente {
   id: string;
+  codigo_correlativo: string | null;
   tipo: TipoIncidente;
   severidad: SeveridadIncidente;
   fecha_hora: string;
@@ -44,12 +45,20 @@ export interface Incidente {
   area_trabajo: string;
   trabajador_afectado: string | null;
   trabajador_afectado_id: string | null;
+  trabajador_afectado_dni: string | null;
   area_id: string | null;
+  area_nombre: string | null;
   responsable_investigacion: string | null;
   responsable_investigacion_id: string | null;
   empresa_id: string;
+  empresa_nombre: string | null;
   reportado_por: string | null;
   reportado_por_id: string;
+  reportado_por_dni: string | null;
+  sede: string | null;
+  unidad: string | null;
+  total_medidas: number;
+  medidas_aprobadas: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,11 +92,25 @@ export const incidentesService = {
     empresaId?: string,
     severidad?: SeveridadIncidente,
     search?: string,
+    tipo?: TipoIncidente,
+    estado?: EstadoIncidente,
+    fechaDesde?: string,
+    fechaHasta?: string,
+    unidad?: string,
+    areaId?: string,
+    sede?: string,
   ): Promise<Incidente[]> {
     const params: Record<string, string> = {};
     if (empresaId) params.empresa_id = empresaId;
     if (severidad) params.severidad = severidad;
+    if (tipo) params.tipo = tipo;
+    if (estado) params.estado = estado;
     if (search) params.search = search;
+    if (fechaDesde) params.fecha_desde = fechaDesde;
+    if (fechaHasta) params.fecha_hasta = fechaHasta;
+    if (unidad) params.unidad = unidad;
+    if (areaId) params.area_id = areaId;
+    if (sede) params.sede = sede;
     const response = await apiClient.get<Incidente[]>('/incidentes', { params });
     return response.data;
   },

@@ -8,6 +8,7 @@ import {
   EstadoTrabajador,
   GrupoSanguineo,
   CreateTrabajadorDto,
+  UpdateTrabajadorDto,
 } from '@/services/trabajadores.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { areasService } from '@/services/areas.service';
@@ -211,26 +212,26 @@ export default function TrabajadoresPage() {
 
   const onSubmit = async (data: TrabajadorFormData) => {
     try {
-      const payload: CreateTrabajadorDto = {
-        nombre_completo: data.nombre_completo,
-        documento_identidad: data.documento_identidad,
-        cargo: data.cargo,
-        empresa_id: data.empresa_id,
-        area_id: data.area_id || undefined,
-        telefono: data.telefono || undefined,
-        email: data.email || undefined,
-        fecha_ingreso: data.fecha_ingreso,
-        estado: data.estado,
-        grupo_sanguineo: data.grupo_sanguineo || undefined,
-        contacto_emergencia_nombre: data.contacto_emergencia_nombre || undefined,
-        contacto_emergencia_telefono: data.contacto_emergencia_telefono || undefined,
-        foto_url: data.foto_url || undefined,
-      };
-
       let trabajadorCreado: Trabajador | null = null;
 
       if (editingTrabajador) {
-        await trabajadoresService.update(editingTrabajador.id, payload);
+        // Para actualización, usar UpdateTrabajadorDto (no incluir empresa_id ni documento_identidad)
+        const updatePayload: UpdateTrabajadorDto = {
+          nombre_completo: data.nombre_completo,
+          cargo: data.cargo,
+          // Incluir area_id explícitamente: enviar null si está vacío para que se pueda actualizar
+          area_id: data.area_id && data.area_id.trim() !== '' ? data.area_id : null,
+          telefono: data.telefono || undefined,
+          email: data.email || undefined,
+          fecha_ingreso: data.fecha_ingreso,
+          estado: data.estado,
+          grupo_sanguineo: data.grupo_sanguineo || undefined,
+          contacto_emergencia_nombre: data.contacto_emergencia_nombre || undefined,
+          contacto_emergencia_telefono: data.contacto_emergencia_telefono || undefined,
+          foto_url: data.foto_url || undefined,
+        };
+        
+        await trabajadoresService.update(editingTrabajador.id, updatePayload);
         toast.success('Trabajador actualizado', {
           description: 'El trabajador se ha actualizado correctamente',
         });
@@ -470,7 +471,7 @@ export default function TrabajadoresPage() {
                   {...register('documento_identidad')}
                   placeholder="12345678"
                   disabled={!!editingTrabajador}
-                  className={editingTrabajador ? 'bg-slate-50 cursor-not-allowed' : ''}
+                  className={editingTrabajador ? 'bg-slate-50 cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed' : ''}
                 />
                 {errors.documento_identidad && (
                   <p className="mt-1 text-sm text-danger">
@@ -488,7 +489,11 @@ export default function TrabajadoresPage() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Empresa *
                 </label>
-                <Select {...register('empresa_id')}>
+                <Select
+                  {...register('empresa_id')}
+                  disabled={!!editingTrabajador}
+                  className={editingTrabajador ? 'bg-slate-50 cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed' : ''}
+                >
                   <option value="">Seleccione una empresa</option>
                   {empresas.map((empresa) => (
                     <option key={empresa.id} value={empresa.id}>
@@ -498,6 +503,11 @@ export default function TrabajadoresPage() {
                 </Select>
                 {errors.empresa_id && (
                   <p className="mt-1 text-sm text-danger">{errors.empresa_id.message}</p>
+                )}
+                {editingTrabajador && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    La empresa no puede ser modificada después de la creación.
+                  </p>
                 )}
               </div>
 

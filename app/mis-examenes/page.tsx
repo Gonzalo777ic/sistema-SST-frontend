@@ -9,6 +9,16 @@ import {
   ResultadoExamen,
 } from '@/services/salud.service';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Modal } from '@/components/ui/modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -21,6 +31,14 @@ import {
   MessageSquare,
   Download,
   Stethoscope,
+  Activity,
+  ChevronDown,
+  ChevronRight,
+  FileSpreadsheet,
+  Settings,
+  Upload,
+  CalendarPlus,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { UsuarioRol } from '@/types';
@@ -37,6 +55,7 @@ export default function MisExamenesPage() {
   const [examenComentarios, setExamenComentarios] = useState<ComentarioMedico[]>(
     [],
   );
+  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
 
   const isSuperAdmin = hasRole(UsuarioRol.SUPER_ADMIN);
   const tieneTrabajadorId = !!usuario?.trabajadorId;
@@ -175,149 +194,242 @@ export default function MisExamenesPage() {
     );
   };
 
-  return (
+  const getEstadoBadge = (revisado: boolean) => {
+    if (revisado) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          Revisado
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        Pendiente
+      </span>
+    );
+  };
 
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">
-                Mis Exámenes Médicos
-              </h1>
-              <p className="text-slate-600 mt-2">
-                Historial de salud ocupacional y certificados de aptitud
+  const handleExportarExcel = () => {
+    console.log('Exportar a Excel');
+    toast.info('Funcionalidad en desarrollo');
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* A. CABECERA PRINCIPAL */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Exámenes médicos ocupacionales - EMO
+          </h1>
+          <Activity className="h-6 w-6 text-blue-600" />
+        </div>
+        <Button
+          onClick={handleExportarExcel}
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-md gap-2"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          Excel
+        </Button>
+      </div>
+
+      {/* B. SECCIÓN DE FILTROS */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <button
+          onClick={() => setFiltrosAbiertos(!filtrosAbiertos)}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+        >
+          <span className="text-sm font-semibold text-gray-700">
+            {filtrosAbiertos ? (
+              <ChevronDown className="h-4 w-4 inline mr-2" />
+            ) : (
+              <ChevronRight className="h-4 w-4 inline mr-2" />
+            )}
+            Filtros de búsqueda
+          </span>
+        </button>
+        {filtrosAbiertos && (
+          <div className="border-t border-gray-200 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Buscar
+                </label>
+                <Input placeholder="Nombre, DNI..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Centro Médico
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Tipo Examen
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Estado
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="Revisado">Revisado</option>
+                  <option value="Pendiente">Pendiente</option>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* C. BARRA DE HERRAMIENTAS */}
+      <div className="flex items-center gap-2">
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+          <FileText className="h-4 w-4 mr-2" />
+          Formato DIGESA
+        </Button>
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+          <Settings className="h-4 w-4 mr-2" />
+          Configuración
+        </Button>
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+          <Upload className="h-4 w-4 mr-2" />
+          Importar
+        </Button>
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+          <CalendarPlus className="h-4 w-4 mr-2" />
+          Programar EMO
+        </Button>
+      </div>
+
+      {/* D. TABLA DE DATOS */}
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="p-6 space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : isSuperAdmin && !tieneTrabajadorId ? (
+            <div className="p-12 text-center">
+              <Stethoscope className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Acceso de Administrador
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Como administrador, puedes acceder a este módulo para revisar la interfaz.
+              </p>
+              <p className="text-sm text-gray-500">
+                Para ver tus propios registros médicos, necesitas tener un trabajador vinculado a tu cuenta.
               </p>
             </div>
-            <Link href="/mis-examenes/citas">
-              <Button>
-                <Calendar className="w-5 h-5 mr-2" />
-                Agendar Cita
-              </Button>
-            </Link>
-          </div>
-
-          {/* Listado de Exámenes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoading ? (
-              <>
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <Skeleton key={i} className="h-64 w-full" />
-                ))}
-              </>
-            ) : isSuperAdmin && !tieneTrabajadorId ? (
-              <div className="col-span-full p-12 text-center bg-white rounded-lg shadow-sm border border-slate-200">
-                <Stethoscope className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">
-                  Acceso de Administrador
-                </h3>
-                <p className="text-slate-600 mb-4">
-                  Como administrador, puedes acceder a este módulo para revisar la interfaz.
-                </p>
-                <p className="text-sm text-slate-500">
-                  Para ver tus propios registros médicos, necesitas tener un trabajador vinculado a tu cuenta.
-                </p>
-              </div>
-            ) : examenes.length === 0 ? (
-              <div className="col-span-full p-12 text-center bg-white rounded-lg shadow-sm border border-slate-200">
-                <FileText className="w-16 h-16 text-slate-400 mx-auto mb-4" />
-                <p className="text-slate-600">No hay exámenes médicos registrados</p>
-              </div>
-            ) : (
-              examenes.map((examen) => (
-                <div
-                  key={examen.id}
-                  className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow"
-                >
-                  {/* Header con Tipo y Badge de Revisión */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900 text-lg">
-                        {examen.tipo_examen}
-                      </h3>
-                      {examen.revisado_por_doctor && (
-                        <div className="mt-2 flex items-center gap-1 text-blue-600 text-sm">
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Validado por Medicina Ocupacional</span>
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      className={`flex items-center gap-1 px-2 py-1 rounded-md border text-sm font-medium ${getResultadoBadgeColor(
-                        examen.resultado,
-                      )}`}
-                    >
-                      {getResultadoIcon(examen.resultado)}
-                      <span>{examen.resultado}</span>
-                    </div>
-                  </div>
-
-                  {/* Información del Examen */}
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-600">
-                      <Building2 className="w-4 h-4" />
-                      <span>{examen.centro_medico}</span>
-                    </div>
-                    {examen.fecha_realizado && (
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <Calendar className="w-4 h-4" />
-                        <span>
-                          Realizado:{' '}
-                          {new Date(examen.fecha_realizado).toLocaleDateString(
-                            'es-PE',
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {examen.fecha_vencimiento && (
-                      <div className="text-sm text-slate-600">
-                        Vence:{' '}
-                        {new Date(examen.fecha_vencimiento).toLocaleDateString(
-                          'es-PE',
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Acciones */}
-                  <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-200">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleVerDetalle(examen)}
-                      className="flex-1"
-                    >
-                      <Stethoscope className="w-4 h-4 mr-1" />
-                      Detalle
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleVerComentarios(examen)}
-                      className="flex-1 relative"
-                    >
-                      <MessageSquare className="w-4 h-4 mr-1" />
-                      Comentarios
-                      {tieneComentariosNoLeidos(examen.id) && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-                      )}
-                    </Button>
-                    {examen.resultado_archivo_url && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleDescargarResultado(examen.resultado_archivo_url)
-                        }
-                        className="flex-1"
+          ) : examenes.length === 0 ? (
+            <div className="p-12 text-center">
+              <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">No hay exámenes médicos registrados</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Nombres
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Documento
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Centro Médico
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Proyecto
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Sede</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Tipo Examen
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Fecha Programación
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">
+                    Resultado
+                  </TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Vigencia</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Estado</TableHead>
+                  <TableHead className="text-gray-600 text-xs font-semibold">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {examenes.map((examen) => (
+                  <TableRow key={examen.id} className="hover:bg-gray-50">
+                    <TableCell className="text-sm font-medium">
+                      {examen.trabajador_nombre || usuario?.dni || '-'}
+                    </TableCell>
+                    <TableCell className="text-sm">{usuario?.dni || '-'}</TableCell>
+                    <TableCell className="text-sm">{examen.centro_medico}</TableCell>
+                    <TableCell className="text-sm">-</TableCell>
+                    <TableCell className="text-sm">-</TableCell>
+                    <TableCell className="text-sm">{examen.tipo_examen}</TableCell>
+                    <TableCell className="text-sm">
+                      {examen.fecha_realizado
+                        ? new Date(examen.fecha_realizado).toLocaleDateString('es-PE')
+                        : examen.fecha_programada
+                          ? new Date(examen.fecha_programada).toLocaleDateString('es-PE')
+                          : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium ${getResultadoBadgeColor(
+                          examen.resultado,
+                        )}`}
                       >
-                        <Download className="w-4 h-4 mr-1" />
-                        Descargar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                        {getResultadoIcon(examen.resultado)}
+                        <span>{examen.resultado}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {examen.fecha_vencimiento
+                        ? new Date(examen.fecha_vencimiento).toLocaleDateString('es-PE')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>{getEstadoBadge(examen.revisado_por_doctor)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleVerDetalle(examen)}
+                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleVerComentarios(examen)}
+                          className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50 relative"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                          {tieneComentariosNoLeidos(examen.id) && (
+                            <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </div>
 
           {/* Modal de Detalle Clínico */}
           <Modal
