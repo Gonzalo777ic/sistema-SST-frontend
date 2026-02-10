@@ -28,9 +28,16 @@ export interface Usuario {
   createdAt: Date;
 }
 
+export interface EmpresaVinculada {
+  id: string;
+  nombre: string;
+  logoUrl: string | null;
+}
+
 export interface LoginResponse {
   access_token: string;
   usuario: Usuario;
+  empresasVinculadas: EmpresaVinculada[];
 }
 
 export interface LoginRequest {

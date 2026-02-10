@@ -1,13 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Usuario, UsuarioRol } from '@/types';
+import { Usuario, UsuarioRol, EmpresaVinculada } from '@/types';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 
-
 interface AuthContextType {
   usuario: Usuario | null;
+  empresasVinculadas: EmpresaVinculada[];
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (dni: string, password: string) => Promise<void>;
@@ -21,13 +21,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [empresasVinculadas, setEmpresasVinculadas] = useState<EmpresaVinculada[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Cargar usuario desde localStorage al iniciar
     const storedUsuario = authService.getStoredUsuario();
+    const storedEmpresas = authService.getStoredEmpresasVinculadas();
     if (storedUsuario && authService.getStoredToken()) {
       setUsuario(storedUsuario);
+      if (storedEmpresas) {
+        setEmpresasVinculadas(storedEmpresas);
+      }
       
       // CRÍTICO: Si el usuario debe cambiar contraseña y NO está en /auth/reset-password,
       // redirigir automáticamente (solo si estamos en el cliente)
@@ -46,8 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (dni: string, password: string) => {
     try {
       const response = await authService.login({ dni, password });
-      authService.setAuthData(response.access_token, response.usuario);
+      authService.setAuthData(response.access_token, response.usuario, response.empresasVinculadas);
       setUsuario(response.usuario);
+      setEmpresasVinculadas(response.empresasVinculadas || []);
       
       // CRÍTICO: Redirigir a reset password si debe cambiar contraseña
       // Usar router.push en lugar de window.location para mejor control
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     authService.logout();
     setUsuario(null);
+    setEmpresasVinculadas([]);
   };
 
   const refreshUserProfile = async (): Promise<Usuario | null> => {
@@ -119,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         usuario,
+        empresasVinculadas,
         isAuthenticated: !!usuario,
         isLoading,
         login,

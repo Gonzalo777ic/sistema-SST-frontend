@@ -108,7 +108,7 @@ const navItems: NavItem[] = [
 
 function SidebarComponent() {
   const pathname = usePathname();
-  const { usuario, logout, hasAnyRole, hasRole } = useAuth();
+  const { usuario, empresasVinculadas, logout, hasAnyRole, hasRole } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const filteredNavItems = useMemo(() => {
@@ -219,6 +219,39 @@ function SidebarComponent() {
           <p className="text-sm text-slate-600 mt-1">
             {usuario?.dni || 'Usuario'}
           </p>
+          {/* Logos de empresas vinculadas */}
+          {empresasVinculadas && empresasVinculadas.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {empresasVinculadas.map((empresa) => (
+                <div
+                  key={empresa.id}
+                  className="flex items-center justify-center w-8 h-8 rounded border border-slate-200 bg-white overflow-hidden"
+                  title={empresa.nombre}
+                >
+                  {empresa.logoUrl ? (
+                    <img
+                      src={empresa.logoUrl}
+                      alt={empresa.nombre}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        // Si la imagen falla, mostrar placeholder
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const parent = target.parentElement;
+                        if (parent) {
+                          parent.innerHTML = `<span class="text-xs text-slate-500 font-medium">${empresa.nombre.charAt(0).toUpperCase()}</span>`;
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-500 font-medium">
+                      {empresa.nombre.charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">

@@ -1,5 +1,5 @@
 import apiClient from '@/lib/axios';
-import { LoginRequest, LoginResponse, Usuario } from '@/types';
+import { LoginRequest, LoginResponse, Usuario, EmpresaVinculada } from '@/types';
 import { usuariosService } from './usuarios.service';
 
 export const authService = {
@@ -33,6 +33,7 @@ export const authService = {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('access_token');
       localStorage.removeItem('usuario');
+      localStorage.removeItem('empresas_vinculadas');
     }
   },
 
@@ -51,10 +52,21 @@ export const authService = {
     return null;
   },
 
-  setAuthData(accessToken: string, usuario: any): void {
+  getStoredEmpresasVinculadas(): EmpresaVinculada[] | null {
+    if (typeof window !== 'undefined') {
+      const empresasStr = localStorage.getItem('empresas_vinculadas');
+      return empresasStr ? JSON.parse(empresasStr) : null;
+    }
+    return null;
+  },
+
+  setAuthData(accessToken: string, usuario: any, empresasVinculadas?: EmpresaVinculada[]): void {
     if (typeof window !== 'undefined') {
       localStorage.setItem('access_token', accessToken);
       localStorage.setItem('usuario', JSON.stringify(usuario));
+      if (empresasVinculadas) {
+        localStorage.setItem('empresas_vinculadas', JSON.stringify(empresasVinculadas));
+      }
     }
   },
 };
