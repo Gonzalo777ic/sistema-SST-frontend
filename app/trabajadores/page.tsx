@@ -248,16 +248,32 @@ export default function TrabajadoresPage() {
         if (!trabajadorCreado.usuario_id) {
           try {
             const { usuariosService } = await import('@/services/usuarios.service');
-            // Asegurar que trabajadorId se envíe automáticamente para relación 1:1
-            await usuariosService.create({
-              dni: data.documento_identidad,
-              trabajadorId: trabajadorCreado.id, // Vinculación automática 1:1
-              roles: [data.rol_usuario], // Usar el rol seleccionado (sin SUPER_ADMIN)
-              empresaId: data.empresa_id,
-            });
-            toast.success('Acceso creado', {
-              description: `Se ha creado el acceso al sistema con DNI: ${data.documento_identidad} y rol ${data.rol_usuario}. La contraseña temporal es el DNI.`,
-            });
+            
+            // Buscar si ya existe un usuario con ese DNI
+            const usuarioExistente = await usuariosService.findByDni(data.documento_identidad);
+            
+            if (usuarioExistente) {
+              // Si existe, vincularlo al trabajador
+              await usuariosService.update(usuarioExistente.id, {
+                trabajadorId: trabajadorCreado.id,
+                roles: [data.rol_usuario],
+                empresaId: data.empresa_id,
+              });
+              toast.success('Acceso vinculado', {
+                description: `Se ha vinculado el usuario existente con DNI: ${data.documento_identidad} al trabajador.`,
+              });
+            } else {
+              // Si no existe, crear nuevo usuario
+              await usuariosService.create({
+                dni: data.documento_identidad,
+                trabajadorId: trabajadorCreado.id, // Vinculación automática 1:1
+                roles: [data.rol_usuario], // Usar el rol seleccionado (sin SUPER_ADMIN)
+                empresaId: data.empresa_id,
+              });
+              toast.success('Acceso creado', {
+                description: `Se ha creado el acceso al sistema con DNI: ${data.documento_identidad} y rol ${data.rol_usuario}. La contraseña temporal es el DNI.`,
+              });
+            }
           } catch (error: any) {
             toast.error('Error al crear acceso', {
               description: error.response?.data?.message || 'El trabajador se creó pero no se pudo crear el acceso',
@@ -587,7 +603,7 @@ export default function TrabajadoresPage() {
                 )}
               </div>
 
-              {canCreate && (
+              {(canCreate || (editingTrabajador && !editingTrabajador.usuario_id)) && (
                 <>
                   <div className="md:col-span-2 flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
                     <input
@@ -601,7 +617,9 @@ export default function TrabajadoresPage() {
                         Habilitar acceso al sistema
                       </label>
                       <p className="text-xs text-slate-600 mt-1">
-                        Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.
+                        {editingTrabajador && !editingTrabajador.usuario_id
+                          ? 'Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.'
+                          : 'Al activar, se creará automáticamente un usuario con el DNI como credencial. La contraseña temporal será el DNI.'}
                       </p>
                     </div>
                   </div>

@@ -23,6 +23,7 @@ import {
   Calendar,
   UserCheck,
   Link as LinkIcon,
+  Unlink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { UsuarioRol, Usuario } from '@/types';
@@ -206,6 +207,11 @@ export default function GestionUsuariosPage() {
                                          usuarioParaVincular.roles.includes(UsuarioRol.ADMIN_EMPRESA);
       
       let disponibles = todosTrabajadores.filter((t) => {
+        // Si el usuario ya tiene un trabajador vinculado, incluirlo en la lista para permitir desvinculación
+        if (usuarioParaVincular?.trabajadorId && t.id === usuarioParaVincular.trabajadorId) {
+          return true;
+        }
+        
         // Trabajadores sin usuario vinculado
         if (!t.usuario_id) {
           // Si es ADMIN_EMPRESA vinculándose a sí mismo, priorizar trabajadores con su mismo DNI
@@ -357,7 +363,39 @@ export default function GestionUsuariosPage() {
   };
 
   const handleLinkTrabajador = async () => {
-    if (!linkingUsuario || !selectedTrabajadorToLink) {
+    if (!linkingUsuario) {
+      return;
+    }
+
+    // Si ya tiene trabajador vinculado, desvincular
+    if (linkingUsuario.trabajadorId && !selectedTrabajadorToLink) {
+      setIsSubmitting(true);
+      try {
+        await usuariosService.update(linkingUsuario.id, {
+          trabajadorId: null,
+        });
+
+        toast.success('Trabajador desvinculado', {
+          description: 'El trabajador ha sido desvinculado exitosamente del usuario',
+        });
+
+        setIsLinkModalOpen(false);
+        setLinkingUsuario(null);
+        setSelectedTrabajadorToLink('');
+        loadUsuarios();
+        loadTrabajadoresDisponibles();
+      } catch (error: any) {
+        toast.error('Error al desvincular trabajador', {
+          description: error.response?.data?.message || 'No se pudo desvincular el trabajador',
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Vincular nuevo trabajador
+    if (!selectedTrabajadorToLink) {
       toast.error('Error', {
         description: 'Debe seleccionar un trabajador para vincular',
       });
@@ -684,20 +722,20 @@ export default function GestionUsuariosPage() {
                             // Solo SUPER_ADMIN puede editar otros usuarios administrativos
                             const canEditRoles = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
                             const canToggleActivo = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
-                            const canLinkTrabajador = !u.trabajadorId && !isSuperAdmin;
+                            const canLinkTrabajador = !isSuperAdmin; // Permitir vincular/desvincular siempre excepto para SUPER_ADMIN
                             
                             return (
                               <>
-                                {/* Vincular trabajador */}
+                                {/* Vincular/Desvincular trabajador */}
                                 {canLinkTrabajador && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenLinkModal(u)}
-                                    title="Vincular trabajador"
-                                    className="text-blue-600 hover:text-blue-700"
+                                    title={u.trabajadorId ? "Desvincular trabajador" : "Vincular trabajador"}
+                                    className={u.trabajadorId ? "text-red-600 hover:text-red-700" : "text-blue-600 hover:text-blue-700"}
                                   >
-                                    <LinkIcon className="w-4 h-4" />
+                                    {u.trabajadorId ? <Unlink className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
                                   </Button>
                                 )}
                                 
@@ -1004,7 +1042,7 @@ export default function GestionUsuariosPage() {
         </div>
       </Modal>
 
-      {/* Modal de Vinculación de Trabajador */}
+      {/* Modal de Vinculación/Desvinculación de Trabajador */}
       <Modal
         isOpen={isLinkModalOpen}
         onClose={() => {
@@ -1012,7 +1050,7 @@ export default function GestionUsuariosPage() {
           setLinkingUsuario(null);
           setSelectedTrabajadorToLink('');
         }}
-        title="Vincular Trabajador"
+        title={linkingUsuario?.trabajadorId ? "Desvincular Trabajador" : "Vincular Trabajador"}
         size="md"
       >
         <div className="space-y-6">
@@ -1025,55 +1063,90 @@ export default function GestionUsuariosPage() {
                   Roles: {linkingUsuario.roles.map(r => r.replace('_', ' ')).join(', ')}
                 </p>
               )}
+              {linkingUsuario.trabajadorId && linkingUsuario.trabajador_nombre && (
+                <p className="text-sm text-slate-600 mt-2">
+                  Trabajador actual: <strong>{linkingUsuario.trabajador_nombre}</strong>
+                </p>
+              )}
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Seleccionar Trabajador <span className="text-red-500">*</span>
-            </label>
-            <Select
-              value={selectedTrabajadorToLink}
-              onChange={(e) => setSelectedTrabajadorToLink(e.target.value)}
-              disabled={isLoadingTrabajadores}
-            >
-              <option value="">Seleccione un trabajador</option>
-              {trabajadoresDisponibles.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre_completo} - DNI: {t.documento_identidad}
-                  {t.empresa_id && ` - ${t.cargo}`}
-                </option>
-              ))}
-            </Select>
-            {trabajadoresDisponibles.length === 0 && !isLoadingTrabajadores && (
-              <p className="mt-2 text-sm text-slate-500">
-                No hay trabajadores disponibles sin usuario vinculado
+          {linkingUsuario?.trabajadorId ? (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-700">
+                Este usuario tiene un trabajador vinculado. ¿Deseas desvincularlo?
               </p>
-            )}
-            {isLoadingTrabajadores && (
-              <p className="mt-2 text-sm text-slate-500">Cargando trabajadores...</p>
-            )}
-          </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsLinkModalOpen(false);
+                    setLinkingUsuario(null);
+                    setSelectedTrabajadorToLink('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleLinkTrabajador}
+                  disabled={isSubmitting}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isSubmitting ? 'Desvinculando...' : 'Desvincular Trabajador'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Seleccionar Trabajador <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={selectedTrabajadorToLink}
+                  onChange={(e) => setSelectedTrabajadorToLink(e.target.value)}
+                  disabled={isLoadingTrabajadores}
+                >
+                  <option value="">Seleccione un trabajador</option>
+                  {trabajadoresDisponibles.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre_completo} - DNI: {t.documento_identidad}
+                      {t.empresa_id && ` - ${t.cargo}`}
+                    </option>
+                  ))}
+                </Select>
+                {trabajadoresDisponibles.length === 0 && !isLoadingTrabajadores && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    No hay trabajadores disponibles sin usuario vinculado
+                  </p>
+                )}
+                {isLoadingTrabajadores && (
+                  <p className="mt-2 text-sm text-slate-500">Cargando trabajadores...</p>
+                )}
+              </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setIsLinkModalOpen(false);
-                setLinkingUsuario(null);
-                setSelectedTrabajadorToLink('');
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleLinkTrabajador}
-              disabled={isSubmitting || !selectedTrabajadorToLink || isLoadingTrabajadores}
-            >
-              {isSubmitting ? 'Vinculando...' : 'Vincular Trabajador'}
-            </Button>
-          </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsLinkModalOpen(false);
+                    setLinkingUsuario(null);
+                    setSelectedTrabajadorToLink('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleLinkTrabajador}
+                  disabled={isSubmitting || !selectedTrabajadorToLink || isLoadingTrabajadores}
+                >
+                  {isSubmitting ? 'Vinculando...' : 'Vincular Trabajador'}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

@@ -13,7 +13,7 @@ export interface UpdateUsuarioDto {
   roles?: UsuarioRol[];
   activo?: boolean;
   empresaId?: string;
-  trabajadorId?: string;
+  trabajadorId?: string | null;
   perfil_completado?: boolean;
   debe_cambiar_password?: boolean;
 }
@@ -36,6 +36,18 @@ export const usuariosService = {
   async findOne(id: string): Promise<Usuario> {
     const response = await apiClient.get<Usuario>(`/usuarios/${id}`);
     return response.data;
+  },
+
+  async findByDni(dni: string): Promise<Usuario | null> {
+    try {
+      const response = await apiClient.get<Usuario | null>(`/usuarios/dni/${dni}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   },
 
   async create(data: CreateUsuarioDto): Promise<Usuario> {
