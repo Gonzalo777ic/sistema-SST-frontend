@@ -3,189 +3,273 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { memo } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Shield,
-  Calendar,
-  AlertTriangle,
-  Settings,
   LogOut,
   Menu,
   X,
-  Building2,
-  ClipboardCheck,
-  MapPin,
-  HeartPulse,
-  ShieldCheck,
-  ShieldAlert,
-  TrendingUp,
-  FolderClosed,
-  UserCog,
+  ChevronDown,
+  ChevronRight,
+  Settings,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { sidebarConfig, SidebarItem, SidebarGroup } from '@/config/sidebar.config';
 import { UsuarioRol } from '@/types';
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: React.ElementType;
-  roles?: UsuarioRol[];
-  dynamicHref?: (empresaId: string | null) => string | null; // Para rutas dinámicas
-}
-
-const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  // Sección Administrativa
-  { label: 'Gestión de Usuarios', href: '/gestion-usuarios', icon: UserCog, roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA] },
-  { label: 'Empresas', href: '/empresas', icon: Building2, roles: [UsuarioRol.SUPER_ADMIN] },
-  { 
-    label: 'Gestión de Áreas', 
-    href: '', 
-    icon: MapPin, 
-    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
-    dynamicHref: (empresaId) => empresaId ? `/empresas/${empresaId}/areas` : null,
-  },
-  { label: 'Trabajadores', href: '/trabajadores', icon: Users },
-  { 
-    label: 'Análisis de Riesgos (ATS)', 
-    href: '/ats', 
-    icon: ClipboardCheck,
-    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR, UsuarioRol.EMPLEADO],
-  },
-  {
-    label: 'Gestión de Riesgos',
-    href: '/riesgos',
-    icon: ShieldCheck,
-    roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST],
-  },
-  {
-    label: 'Permisos de Alto Riesgo (PETAR)',
-    href: '/riesgos/petar',
-    icon: ShieldAlert,
-    roles: [
-      UsuarioRol.SUPER_ADMIN,
-      UsuarioRol.ADMIN_EMPRESA,
-      UsuarioRol.INGENIERO_SST,
-      UsuarioRol.SUPERVISOR,
-      UsuarioRol.EMPLEADO,
-    ],
-  },
-  {
-    label: 'Procedimientos (PETS)',
-    href: '/riesgos/pets',
-    icon: FileText,
-    roles: [
-      UsuarioRol.SUPER_ADMIN,
-      UsuarioRol.ADMIN_EMPRESA,
-      UsuarioRol.INGENIERO_SST,
-      UsuarioRol.SUPERVISOR,
-      UsuarioRol.EMPLEADO,
-    ],
-  },
-  {
-    label: 'Matriz IPERC',
-    href: '/riesgos/iperc',
-    icon: TrendingUp,
-    roles: [
-      UsuarioRol.SUPER_ADMIN,
-      UsuarioRol.ADMIN_EMPRESA,
-      UsuarioRol.INGENIERO_SST,
-      UsuarioRol.SUPERVISOR,
-      UsuarioRol.EMPLEADO,
-    ],
-  },
-  { label: 'Incidentes', href: '/incidentes', icon: AlertTriangle },
-  { label: 'Inspecciones', href: '/inspecciones', icon: ClipboardCheck },
-  { label: 'Evaluación de Riesgos', href: '/evaluacion-riesgos', icon: ShieldAlert },
-  { label: 'Documentos SST', href: '/documentos', icon: FolderClosed },
-  { label: 'EPP', href: '/epp', icon: Shield },
-  { label: 'Capacitaciones', href: '/capacitaciones', icon: Calendar },
-  { label: 'Mi Salud', href: '/mis-examenes', icon: HeartPulse },
-];
 
 function SidebarComponent() {
   const pathname = usePathname();
   const { usuario, empresasVinculadas, logout, hasAnyRole, hasRole } = useAuth();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const filteredNavItems = useMemo(() => {
-    return navItems
-      .map((item) => {
-        // Resolver href dinámico si existe
-        if (item.dynamicHref) {
-          const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
-          if (!dynamicHref) return null; // No mostrar si no hay empresaId
-          return { ...item, href: dynamicHref };
-        }
-        return item;
-      })
-      .filter((item): item is NavItem => {
-        if (!item) return false;
-        
-        // Filtrar "Mi Salud": visible si tiene trabajadorId O es SUPER_ADMIN
-        if (item.href === '/mis-examenes') {
-          return !!usuario?.trabajadorId || hasRole(UsuarioRol.SUPER_ADMIN);
-        }
-        
-        // Filtrar "Permisos de Alto Riesgo (PETAR)": EMPLEADO solo si tiene trabajadorId
-        if (item.href === '/riesgos/petar') {
-          if (hasAnyRole([
-            UsuarioRol.SUPER_ADMIN,
-            UsuarioRol.ADMIN_EMPRESA,
-            UsuarioRol.INGENIERO_SST,
-            UsuarioRol.SUPERVISOR,
-          ])) {
-            return true;
+  // Determinar si un item está activo (incluyendo hijos)
+  const isItemActive = (item: SidebarItem): boolean => {
+    if (!item.href) return false;
+    
+    // Rutas especiales que necesitan lógica específica
+    if (item.href === '/mis-examenes') {
+      return pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
+    }
+    if (item.href === '/riesgos/petar') {
+      return pathname === '/riesgos/petar' || pathname.startsWith('/riesgos/petar/');
+    }
+    if (item.href === '/riesgos/pets') {
+      return pathname === '/riesgos/pets' || pathname.startsWith('/riesgos/pets/');
+    }
+    if (item.href === '/riesgos/iperc') {
+      return pathname === '/riesgos/iperc' || pathname.startsWith('/riesgos/iperc/');
+    }
+    if (item.href === '/ats') {
+      return pathname === '/ats' || pathname.startsWith('/ats/');
+    }
+    if (item.href === '/trabajadores') {
+      return pathname === '/trabajadores' || pathname.startsWith('/trabajadores/');
+    }
+    if (item.href === '/capacitaciones') {
+      return pathname === '/capacitaciones' || pathname.startsWith('/capacitaciones/');
+    }
+    if (item.href === '/epp') {
+      return pathname === '/epp' || pathname.startsWith('/epp/');
+    }
+    if (item.href === '/incidentes') {
+      return pathname === '/incidentes' || pathname.startsWith('/incidentes/');
+    }
+    if (item.href === '/inspecciones') {
+      return pathname === '/inspecciones' || pathname.startsWith('/inspecciones/');
+    }
+    if (item.href === '/documentos') {
+      return pathname === '/documentos' || pathname.startsWith('/documentos/');
+    }
+    if (item.href === '/empresas') {
+      return (pathname === '/empresas' || pathname.startsWith('/empresas/')) && !pathname.includes('/areas');
+    }
+    if (item.href && item.href.includes('/areas')) {
+      return pathname.includes('/areas');
+    }
+    
+    // Rutas del dashboard - matching exacto o prefijo
+    if (item.href.startsWith('/dashboard/')) {
+      return pathname === item.href || pathname.startsWith(item.href + '/');
+    }
+    
+    // Lógica general
+    return pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/'));
+  };
+
+  // Determinar si un grupo padre tiene algún hijo activo
+  const hasActiveChild = (items: SidebarItem[]): boolean => {
+    return items.some(item => isItemActive(item));
+  };
+
+  // Verificar si un item debe mostrarse según roles y condiciones
+  const shouldShowItem = (item: SidebarItem): boolean => {
+    // Verificar roles
+    if (item.roles && !hasAnyRole(item.roles)) {
+      return false;
+    }
+
+    // Verificar si requiere trabajadorId
+    if (item.requiresTrabajadorId) {
+      // Si es EMPLEADO, requiere trabajadorId
+      if (hasRole(UsuarioRol.EMPLEADO) && !usuario?.trabajadorId) {
+        return false;
+      }
+      // Para otros roles operativos, también verificar
+      const rolesOperativos = [
+        UsuarioRol.EMPLEADO,
+        UsuarioRol.SUPERVISOR,
+        UsuarioRol.MEDICO,
+        UsuarioRol.INGENIERO_SST,
+        UsuarioRol.AUDITOR,
+      ];
+      if (rolesOperativos.some(rol => hasRole(rol)) && !usuario?.trabajadorId) {
+        return false;
+      }
+    }
+
+    // Verificar href dinámico
+    if (item.dynamicHref) {
+      const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
+      if (!dynamicHref) return false;
+    }
+
+    return true;
+  };
+
+  // Filtrar y procesar la configuración del sidebar
+  const processedGroups = useMemo(() => {
+    return sidebarConfig.map((group) => {
+      const filteredItems = group.items
+        .map((item) => {
+          // Si es un item con subitems
+          if ('items' in item && Array.isArray(item.items)) {
+            const filteredSubItems = item.items.filter(shouldShowItem);
+            if (filteredSubItems.length === 0) return null;
+            
+            return {
+              ...item,
+              items: filteredSubItems,
+            };
           }
-          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.EMPLEADO)) {
-            return !!usuario?.trabajadorId;
+          
+          // Si es un item simple
+          if ('href' in item) {
+            if (!shouldShowItem(item)) return null;
+            return item;
           }
-          return false;
-        }
-        
-        // Filtrar "Procedimientos (PETS)": EMPLEADO solo si tiene trabajadorId
-        if (item.href === '/riesgos/pets') {
-          if (hasAnyRole([
-            UsuarioRol.SUPER_ADMIN,
-            UsuarioRol.ADMIN_EMPRESA,
-            UsuarioRol.INGENIERO_SST,
-            UsuarioRol.SUPERVISOR,
-          ])) {
-            return true;
-          }
-          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.EMPLEADO)) {
-            return !!usuario?.trabajadorId;
-          }
-          return false;
-        }
-        
-        // Filtrar "Matriz IPERC": EMPLEADO solo si tiene trabajadorId
-        if (item.href === '/riesgos/iperc') {
-          if (hasAnyRole([
-            UsuarioRol.SUPER_ADMIN,
-            UsuarioRol.ADMIN_EMPRESA,
-            UsuarioRol.INGENIERO_SST,
-            UsuarioRol.SUPERVISOR,
-          ])) {
-            return true;
-          }
-          // Si es EMPLEADO, solo visible si tiene trabajadorId vinculado
-          if (hasRole(UsuarioRol.EMPLEADO)) {
-            return !!usuario?.trabajadorId;
-          }
-          return false;
-        }
-        
-        // Filtrar por roles
-        if (!item.roles) return true;
-        return hasAnyRole(item.roles);
-      });
+          
+          return null;
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      return {
+        ...group,
+        items: filteredItems,
+      };
+    }).filter(group => group.items.length > 0);
   }, [usuario?.empresaId, usuario?.trabajadorId, hasAnyRole, hasRole]);
+
+  // Expandir grupos que tienen items activos al cargar
+  useEffect(() => {
+    const newExpanded = new Set<string>();
+    
+    processedGroups.forEach((group, groupIndex) => {
+      group.items.forEach((item, itemIndex) => {
+        const key = `${groupIndex}-${itemIndex}`;
+        
+        if ('items' in item && Array.isArray(item.items)) {
+          // Si algún hijo está activo, expandir el padre
+          if (hasActiveChild(item.items)) {
+            newExpanded.add(key);
+          }
+        }
+      });
+    });
+    
+    setExpandedGroups(newExpanded);
+  }, [pathname, processedGroups]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(key)) {
+        newSet.delete(key);
+      } else {
+        newSet.add(key);
+      }
+      return newSet;
+    });
+  };
+
+  const renderItem = (item: SidebarItem, level: number = 0) => {
+    const Icon = item.icon;
+    const isActive = isItemActive(item);
+    const paddingLeft = level > 0 ? 'pl-8' : 'pl-4';
+
+    // Resolver href dinámico si existe
+    let href = item.href;
+    if (item.dynamicHref) {
+      const dynamicHref = item.dynamicHref(usuario?.empresaId || null);
+      if (dynamicHref) {
+        href = dynamicHref;
+      }
+    }
+
+    return (
+      <Link
+        key={item.href || item.label}
+        href={href || '#'}
+        prefetch={true}
+        onClick={() => setIsMobileOpen(false)}
+        className={`
+          flex items-center gap-3 ${paddingLeft} py-2.5 rounded-md transition-colors duration-200 text-sm
+          ${
+            isActive
+              ? 'bg-primary text-white shadow-sm font-medium'
+              : 'text-slate-700 hover:bg-primary/10 hover:text-primary'
+          }
+        `}
+      >
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1">{item.label}</span>
+      </Link>
+    );
+  };
+
+  const renderGroupItem = (
+    item: SidebarItem | { label: string; icon: React.ElementType; items: SidebarItem[] },
+    groupIndex: number,
+    itemIndex: number
+  ) => {
+    const key = `${groupIndex}-${itemIndex}`;
+    const isExpanded = expandedGroups.has(key);
+    
+    // Si tiene subitems
+    if ('items' in item && Array.isArray(item.items) && !('href' in item)) {
+      const Icon = item.icon;
+      const hasActive = hasActiveChild(item.items);
+      const isParentActive = hasActive;
+
+      return (
+        <div key={key} className="space-y-1">
+          <button
+            onClick={() => toggleGroup(key)}
+            className={`
+              w-full flex items-center gap-3 px-4 py-2.5 rounded-md transition-colors duration-200 text-sm
+              ${
+                isParentActive
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-slate-700 hover:bg-slate-50'
+              }
+            `}
+          >
+            <Icon className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1 text-left">{item.label}</span>
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <ChevronRight className="w-4 h-4 flex-shrink-0" />
+            )}
+          </button>
+          {isExpanded && (
+            <div className="space-y-0.5 ml-2 border-l-2 border-slate-200 pl-2">
+              {item.items.map((subItem, subIndex) => (
+                <div key={subIndex}>
+                  {renderItem(subItem, 1)}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Si es un item simple
+    if ('href' in item) {
+      return <div key={key}>{renderItem(item, 0)}</div>;
+    }
+
+    return null;
+  };
 
   return (
     <>
@@ -214,6 +298,7 @@ function SidebarComponent() {
           w-64 min-w-[16rem] flex flex-col flex-shrink-0
         `}
       >
+        {/* Header */}
         <div className="p-6 border-b border-slate-200">
           <h2 className="text-xl font-bold text-slate-900">SST</h2>
           <p className="text-sm text-slate-600 mt-1">
@@ -234,7 +319,6 @@ function SidebarComponent() {
                       alt={empresa.nombre}
                       className="w-full h-full object-contain"
                       onError={(e) => {
-                        // Si la imagen falla, mostrar placeholder
                         const target = e.target as HTMLImageElement;
                         target.style.display = 'none';
                         const parent = target.parentElement;
@@ -254,77 +338,26 @@ function SidebarComponent() {
           )}
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          {filteredNavItems.map((item) => {
-            const Icon = item.icon;
-            
-            // Lógica mejorada de detección de ruta activa
-            let isActive = false;
-            
-            // Prioridad: Primero verificar rutas específicas que pueden tener subrutas
-            // IMPORTANTE: Verificar Gestión de Áreas ANTES que Empresas para evitar conflictos
-            if (item.href && item.href.includes('/areas')) {
-              // "Gestión de Áreas" solo activo si la ruta contiene /areas
-              isActive = pathname.includes('/areas');
-            } else if (item.href === '/empresas') {
-              // "Empresas" solo activo si es exactamente /empresas o /empresas/[id] pero NO si contiene /areas
-              // Esta verificación debe ser explícita para evitar que se active cuando estamos en /areas
-              isActive = (pathname === '/empresas' || pathname.startsWith('/empresas/')) && !pathname.includes('/areas');
-            } else if (item.href === '/ats') {
-              // Caso especial: si estamos en /ats/nuevo o /ats/[id], resaltar ATS
-              isActive = pathname === '/ats' || pathname.startsWith('/ats/');
-            } else if (item.href === '/mis-examenes') {
-              // "Mi Salud" activo si estamos en /mis-examenes o sus subrutas como /mis-examenes/citas
-              isActive = pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
-            } else if (item.href === '/riesgos/petar') {
-              // "Permisos de Alto Riesgo (PETAR)" activo si estamos en /riesgos/petar o cualquier sub-ruta (como /riesgos/petar/[id])
-              isActive = pathname === '/riesgos/petar' || pathname.startsWith('/riesgos/petar/');
-            } else if (item.href === '/riesgos/pets') {
-              // "Procedimientos (PETS)" activo si estamos en /riesgos/pets o cualquier sub-ruta (como /riesgos/pets/[id])
-              isActive = pathname === '/riesgos/pets' || pathname.startsWith('/riesgos/pets/');
-            } else if (item.href === '/riesgos/iperc') {
-              // "Matriz IPERC" activo si estamos en /riesgos/iperc o cualquier sub-ruta (como /riesgos/iperc/[id])
-              isActive = pathname === '/riesgos/iperc' || pathname.startsWith('/riesgos/iperc/');
-            } else if (item.href === '/riesgos') {
-              // "Gestión de Riesgos" activo si estamos en /riesgos exacto o sub-rutas que NO sean /riesgos/petar, /riesgos/pets ni /riesgos/iperc
-              isActive = pathname === '/riesgos' || (pathname.startsWith('/riesgos/') && !pathname.startsWith('/riesgos/petar') && !pathname.startsWith('/riesgos/pets') && !pathname.startsWith('/riesgos/iperc'));
-            } else if (item.href === '/evaluacion-riesgos') {
-              // "Evaluación de Riesgos" activo si estamos en /evaluacion-riesgos o cualquier sub-ruta
-              isActive = pathname === '/evaluacion-riesgos' || pathname.startsWith('/evaluacion-riesgos/');
-            } else if (item.href === '/gestion-usuarios') {
-              // "Gestión de Usuarios" activo si estamos en /gestion-usuarios o cualquier sub-ruta
-              isActive = pathname === '/gestion-usuarios' || pathname.startsWith('/gestion-usuarios/');
-            } else if (item.href === '/configuracion') {
-              // "Configuración" activo si estamos en /configuracion o cualquier sub-ruta
-              isActive = pathname === '/configuracion' || pathname.startsWith('/configuracion/');
-            } else {
-              // Para otras rutas: exacta o que empiece con la ruta + /
-              isActive = pathname === item.href || 
-                        (item.href !== '/' && pathname.startsWith(item.href + '/'));
-            }
-            
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={true}
-                onClick={() => setIsMobileOpen(false)}
-                className={`
-                  flex items-center gap-3 px-4 py-3 rounded-md transition-colors duration-200
-                  ${
-                    isActive
-                      ? 'bg-primary text-white shadow-sm'
-                      : 'text-slate-700 hover:bg-primary/10 hover:text-primary'
-                  }
-                `}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
-              </Link>
-            );
-          })}
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+          {processedGroups.map((group, groupIndex) => (
+            <div key={group.title} className="space-y-2">
+              {/* Group Header */}
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-4">
+                {group.title}
+              </h3>
+              
+              {/* Group Items */}
+              <div className="space-y-1">
+                {group.items.map((item, itemIndex) =>
+                  renderGroupItem(item, groupIndex, itemIndex)
+                )}
+              </div>
+            </div>
+          ))}
         </nav>
 
+        {/* Footer */}
         <div className="p-4 border-t border-slate-200 space-y-2">
           <Link
             href="/configuracion"
