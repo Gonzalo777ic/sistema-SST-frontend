@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { MainLayout } from '@/components/layout/MainLayout';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   trabajadoresService,
@@ -274,7 +273,6 @@ export default function TrabajadoresPage() {
         UsuarioRol.INGENIERO_SST,
       ]}
     >
-      <MainLayout>
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -583,7 +581,6 @@ export default function TrabajadoresPage() {
           </form>
         </Modal>
       </div>
-    </MainLayout>
     </ProtectedRoute>
   );
 }
