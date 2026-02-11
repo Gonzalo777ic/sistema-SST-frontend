@@ -59,13 +59,13 @@ export default function AccionesCorrectivasPage() {
       const empresaId = usuario?.empresaId;
 
       const [accionesData, kpisData, areasData] = await Promise.all([
-        accionesCorrectivasService.findAll(empresaId).catch(() => ({
+        accionesCorrectivasService.findAll(empresaId ?? undefined).catch(() => ({
           data: [],
           total: 0,
           page: 1,
           limit: 50,
         })),
-        accionesCorrectivasService.getKPIs(empresaId).catch(() => ({
+        accionesCorrectivasService.getKPIs(empresaId ?? undefined).catch(() => ({
           aprobados: 0,
           pendientes: 0,
           total: 0,

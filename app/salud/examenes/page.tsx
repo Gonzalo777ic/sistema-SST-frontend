@@ -185,7 +185,7 @@ export default function ExamenesMedicosPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Centro Médico
+                  
                 </label>
                 <Select>
                   <option value="">Todos</option>

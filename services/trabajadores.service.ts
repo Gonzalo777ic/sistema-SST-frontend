@@ -7,6 +7,12 @@ export enum EstadoTrabajador {
   Licencia = 'Licencia',
 }
 
+export enum TipoDocumento {
+  DNI = 'DNI',
+  CARNE_EXTRANJERIA = 'CARNE_EXTRANJERIA',
+  PASAPORTE = 'PASAPORTE',
+}
+
 export enum GrupoSanguineo {
   'A+' = 'A+',
   'A-' = 'A-',
@@ -20,66 +26,91 @@ export enum GrupoSanguineo {
 
 export interface Trabajador {
   id: string;
+  nombres: string | null;
+  apellido_paterno: string | null;
+  apellido_materno: string | null;
   nombre_completo: string;
+  tipo_documento: TipoDocumento | null;
+  numero_documento: string | null;
   documento_identidad: string;
   cargo: string;
+  puesto?: string | null;
   area_id: string | null;
-  area_nombre?: string;
+  area_nombre?: string | null;
   telefono: string | null;
   email_personal: string | null;
+  email_corporativo?: string | null;
   fecha_ingreso: string;
   estado: EstadoTrabajador;
   grupo_sanguineo: GrupoSanguineo | null;
   contacto_emergencia_nombre: string | null;
   contacto_emergencia_telefono: string | null;
   foto_url: string | null;
+  firma_digital_url?: string | null;
   empresa_id: string;
-  empresa_nombre?: string;
+  empresa_nombre?: string | null;
   usuario_id: string | null;
-  // Campos adicionales para búsqueda detallada
-  fecha_nacimiento?: string;
-  sexo?: string;
-  pais?: string;
-  departamento?: string;
-  provincia?: string;
-  distrito?: string;
-  unidad?: string;
-  sede?: string;
-  puesto?: string;
-  centro_costos?: string;
-  jefe_directo?: string;
+  sede?: string | null;
+  unidad?: string | null;
+  jefe_directo?: string | null;
+  centro_costos?: string | null;
+  nivel_exposicion?: string | null;
+  tipo_usuario?: string | null;
+  seguro_atencion_medica?: string | null;
+  fecha_nacimiento?: string | null;
+  sexo?: string | null;
+  pais?: string | null;
+  departamento?: string | null;
+  provincia?: string | null;
+  distrito?: string | null;
+  direccion?: string | null;
+  modalidad_contrato?: string | null;
+  gerencia?: string | null;
+  puesto_capacitacion?: string | null;
+  protocolos_emo?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface CreateTrabajadorDto {
-  nombre_completo: string;
-  documento_identidad: string;
+  nombres: string;
+  apellido_paterno: string;
+  apellido_materno: string;
+  tipo_documento: TipoDocumento;
+  numero_documento: string;
   cargo: string;
   area_id?: string;
   telefono?: string;
   email?: string;
+  email_corporativo?: string;
   fecha_ingreso: string;
   estado?: EstadoTrabajador;
   grupo_sanguineo?: GrupoSanguineo;
-  contacto_emergencia?: string;
+  contacto_emergencia_nombre?: string;
+  contacto_emergencia_telefono?: string;
   foto_url?: string;
+  sede?: string;
+  unidad?: string;
   empresa_id: string;
 }
 
 export interface UpdateTrabajadorDto {
-  nombre_completo?: string;
-  documento_identidad?: string;
+  nombres?: string;
+  apellido_paterno?: string;
+  apellido_materno?: string;
   cargo?: string;
   area_id?: string;
   telefono?: string;
   email?: string;
+  email_corporativo?: string;
   fecha_ingreso?: string;
   estado?: EstadoTrabajador;
   grupo_sanguineo?: GrupoSanguineo;
   contacto_emergencia_nombre?: string;
   contacto_emergencia_telefono?: string;
   foto_url?: string;
+  sede?: string;
+  unidad?: string;
   talla_casco?: string;
   talla_camisa?: string;
   talla_pantalon?: string;
@@ -122,6 +153,14 @@ export const trabajadoresService = {
 
   async remove(id: string): Promise<void> {
     await apiClient.delete(`/trabajadores/${id}`);
+  },
+
+  async desactivar(id: string): Promise<Trabajador> {
+    const response = await apiClient.patch<Trabajador>(
+      `/trabajadores/${id}`,
+      { estado: EstadoTrabajador.Inactivo }
+    );
+    return response.data;
   },
 
   async updatePersonalData(id: string, data: UpdatePersonalDataDto): Promise<Trabajador> {

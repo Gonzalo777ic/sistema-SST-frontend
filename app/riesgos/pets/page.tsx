@@ -344,7 +344,7 @@ export default function PetsPage() {
   };
 
   const handleConfirmarLectura = async (petsId: string) => {
-    if (!usuario?.id || !usuario?.nombreCompleto) {
+    if (!usuario?.id) {
       toast.error('Error', {
         description: 'No se pudo identificar al usuario',
       });
@@ -354,7 +354,7 @@ export default function PetsPage() {
     try {
       await petsService.registrarLectura(petsId, {
         usuario_id: usuario.id,
-        usuario_nombre: usuario.nombreCompleto || usuario.dni || 'Usuario',
+        usuario_nombre: usuario.dni || 'Usuario',
       });
       toast.success('Lectura confirmada', {
         description: 'Has confirmado la lectura del procedimiento',

@@ -56,8 +56,8 @@ export default function DifusionPage() {
       const empresaId = usuario?.empresaId;
 
       const [difusionesData, documentosData, empresasData] = await Promise.all([
-        difusionesService.findAll(empresaId).catch(() => []),
-        documentosSstService.findAll(empresaId, true).catch(() => []),
+        difusionesService.findAll(empresaId ?? undefined).catch(() => []),
+        documentosSstService.findAll(empresaId ?? undefined, true).catch(() => []),
         empresasService.findAll().catch(() => []),
       ]);
 

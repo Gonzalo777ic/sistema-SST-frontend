@@ -12,6 +12,7 @@ export enum UsuarioRol {
   MEDICO = 'MEDICO',
   EMPLEADO = 'EMPLEADO',
   AUDITOR = 'AUDITOR',
+  CENTRO_MEDICO = 'CENTRO_MEDICO',
 }
 
 export interface Usuario {
@@ -171,6 +172,7 @@ export interface IAcuerdo {
     puesto?: string;
     area?: string;
   }>;
+  responsable_nombre?: string;
   observaciones: string | null;
   createdAt: Date;
   updatedAt: Date;

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { comitesService, IComite } from '@/services/comites.service';
+import { comitesService } from '@/services/comites.service';
+import { IComite } from '@/types';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';

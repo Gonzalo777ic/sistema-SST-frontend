@@ -438,6 +438,10 @@ export default function GestionUsuariosPage() {
         return 'bg-orange-100 text-orange-800 border-orange-300';
       case UsuarioRol.MEDICO:
         return 'bg-green-100 text-green-800 border-green-300';
+      case UsuarioRol.CENTRO_MEDICO:
+        return 'bg-teal-100 text-teal-800 border-teal-300';
+      case UsuarioRol.AUDITOR:
+        return 'bg-amber-100 text-amber-800 border-amber-300';
       default:
         return 'bg-slate-100 text-slate-800 border-slate-300';
     }
@@ -981,6 +985,7 @@ export default function GestionUsuariosPage() {
                       UsuarioRol.MEDICO,
                       UsuarioRol.EMPLEADO,
                       UsuarioRol.AUDITOR,
+                      UsuarioRol.CENTRO_MEDICO,
                     ].includes(rol)
                   );
                 } else {

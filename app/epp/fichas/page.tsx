@@ -61,7 +61,7 @@ export default function FichasEPPPage() {
   const loadEpps = async () => {
     try {
       setIsLoading(true);
-      const empresaId = isSuperAdmin ? undefined : usuario?.empresaId;
+      const empresaId = isSuperAdmin ? undefined : (usuario?.empresaId ?? undefined);
       const eppsData = await eppService.findAllEpp(empresaId);
       setEpps(eppsData);
     } catch (error: any) {
