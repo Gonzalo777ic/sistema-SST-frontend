@@ -56,7 +56,7 @@ export default function ExamenesMedicosPage() {
   const datosMock: IExamenMedicoTable[] = [
     {
       id: '1',
-      nombres: 'Juan Pérez García',
+      nombres: ' García',
       documento: '12345678',
       centro_medico: 'Clínica San José',
       proyecto: 'Proyecto A',
