@@ -163,6 +163,14 @@ export const trabajadoresService = {
     return response.data;
   },
 
+  async activar(id: string): Promise<Trabajador> {
+    const response = await apiClient.patch<Trabajador>(
+      `/trabajadores/${id}`,
+      { estado: EstadoTrabajador.Activo }
+    );
+    return response.data;
+  },
+
   async updatePersonalData(id: string, data: UpdatePersonalDataDto): Promise<Trabajador> {
     const response = await apiClient.patch<Trabajador>(
       `/trabajadores/${id}/personal-data`,
@@ -183,5 +191,14 @@ export const trabajadoresService = {
       }
       throw error;
     }
+  },
+
+  async buscar(empresaId?: string, q?: string): Promise<Trabajador[]> {
+    const params: Record<string, string> = { q: (q || '').trim() };
+    if (empresaId) params.empresa_id = empresaId;
+    const response = await apiClient.get<Trabajador[]>(`/trabajadores/search`, {
+      params,
+    });
+    return response.data;
   },
 };

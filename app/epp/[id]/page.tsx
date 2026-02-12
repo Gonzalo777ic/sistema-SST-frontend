@@ -18,10 +18,19 @@ import {
   Package,
   Save,
   Edit,
+  EyeOff,
+  Eye,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
+
+const LABEL_SEXO: Record<string, string> = {
+  MASCULINO: 'Masculino',
+  FEMENINO: 'Femenino',
+  OTRO: 'Otro',
+};
 
 const getEstadoColor = (estado: EstadoSolicitudEPP) => {
   switch (estado) {
@@ -30,12 +39,30 @@ const getEstadoColor = (estado: EstadoSolicitudEPP) => {
     case EstadoSolicitudEPP.Entregada:
       return 'text-blue-700 bg-blue-50 border-blue-200';
     case EstadoSolicitudEPP.Observada:
+      return 'text-amber-700 bg-amber-50 border-amber-200';
+    case EstadoSolicitudEPP.Rechazada:
       return 'text-red-700 bg-red-50 border-red-200';
     case EstadoSolicitudEPP.Pendiente:
       return 'text-yellow-700 bg-yellow-50 border-yellow-200';
     default:
       return 'text-gray-700 bg-gray-50 border-gray-200';
   }
+};
+
+const ESTADOS_SIGUIENTES: Record<EstadoSolicitudEPP, EstadoSolicitudEPP[]> = {
+  [EstadoSolicitudEPP.Pendiente]: [
+    EstadoSolicitudEPP.Observada,
+    EstadoSolicitudEPP.Aprobada,
+    EstadoSolicitudEPP.Rechazada,
+  ],
+  [EstadoSolicitudEPP.Observada]: [
+    EstadoSolicitudEPP.Pendiente,
+    EstadoSolicitudEPP.Aprobada,
+    EstadoSolicitudEPP.Rechazada,
+  ],
+  [EstadoSolicitudEPP.Aprobada]: [EstadoSolicitudEPP.Entregada],
+  [EstadoSolicitudEPP.Entregada]: [],
+  [EstadoSolicitudEPP.Rechazada]: [],
 };
 
 export default function DetalleSolicitudEPPPage() {
@@ -48,8 +75,9 @@ export default function DetalleSolicitudEPPPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [rechazarModal, setRechazarModal] = useState(false);
+  const [comentariosRechazo, setComentariosRechazo] = useState('');
 
-  // Campos editables
   const [observaciones, setObservaciones] = useState('');
   const [comentarios, setComentarios] = useState('');
 
@@ -59,6 +87,13 @@ export default function DetalleSolicitudEPPPage() {
     UsuarioRol.INGENIERO_SST,
     UsuarioRol.SUPERVISOR,
   ]);
+
+  const esObservada = solicitud?.estado === EstadoSolicitudEPP.Observada;
+  const esInmutable =
+    solicitud?.estado === EstadoSolicitudEPP.Aprobada ||
+    solicitud?.estado === EstadoSolicitudEPP.Entregada ||
+    solicitud?.estado === EstadoSolicitudEPP.Rechazada;
+  const puedeExceptuar = canEdit && esObservada;
 
   useEffect(() => {
     if (solicitudId) {
@@ -120,6 +155,39 @@ export default function DetalleSolicitudEPPPage() {
     }
   };
 
+  const handleRechazar = async () => {
+    if (!solicitud) return;
+
+    try {
+      await eppService.updateEstado(solicitud.id, {
+        estado: EstadoSolicitudEPP.Rechazada,
+        comentarios_aprobacion: comentariosRechazo || undefined,
+      });
+      toast.success('Solicitud rechazada');
+      setRechazarModal(false);
+      setComentariosRechazo('');
+      loadSolicitud();
+    } catch (error: any) {
+      toast.error('Error al rechazar', {
+        description: error.response?.data?.message || 'No se pudo rechazar la solicitud',
+      });
+    }
+  };
+
+  const handleToggleExceptuar = async (detalleId: string) => {
+    if (!solicitud) return;
+
+    try {
+      const updated = await eppService.toggleExceptuar(solicitud.id, detalleId);
+      setSolicitud(updated);
+      toast.success('Item actualizado');
+    } catch (error: any) {
+      toast.error('Error al exceptuar item', {
+        description: error.response?.data?.message,
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -141,10 +209,12 @@ export default function DetalleSolicitudEPPPage() {
     );
   }
 
+  const estadosDisponibles = ESTADOS_SIGUIENTES[solicitud.estado] || [];
+
   return (
     <div className="space-y-6">
       {/* Cabecera */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link href="/epp">
             <Button variant="ghost" size="sm">
@@ -154,10 +224,11 @@ export default function DetalleSolicitudEPPPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Solicitud EPP: {solicitud.codigo_correlativo || 'Sin código'}
+              Detalle solicitud de EPP
             </h1>
             <p className="text-sm text-gray-600">
-              Fecha: {new Date(solicitud.fecha_solicitud).toLocaleDateString('es-PE', {
+              {solicitud.codigo_correlativo || 'Sin código'} •{' '}
+              {new Date(solicitud.fecha_solicitud).toLocaleDateString('es-PE', {
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric',
@@ -167,23 +238,39 @@ export default function DetalleSolicitudEPPPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Select
-            value={solicitud.estado}
-            onChange={(e) =>
-              handleUpdateEstado(e.target.value as EstadoSolicitudEPP)
-            }
-            className={`border-2 rounded-md font-medium ${getEstadoColor(solicitud.estado)}`}
-          >
-            <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
-            <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
-            <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
-            <option value={EstadoSolicitudEPP.Entregada}>ENTREGADA</option>
-          </Select>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-medium text-gray-700">Estado:</span>
+            <Select
+              value={solicitud.estado}
+              onChange={(e) =>
+                handleUpdateEstado(e.target.value as EstadoSolicitudEPP)
+              }
+              disabled={estadosDisponibles.length === 0}
+              className={`border-2 rounded-md font-medium min-w-[140px] ${getEstadoColor(solicitud.estado)}`}
+            >
+              <option value={solicitud.estado}>{solicitud.estado}</option>
+              {estadosDisponibles.map((est) => (
+                <option key={est} value={est}>
+                  {est}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {canEdit && !esInmutable && (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || !isEditing}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              Guardar
+            </Button>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Información Principal */}
+        {/* Contenido principal */}
         <div className="lg:col-span-2 space-y-6">
           {/* Datos del Solicitante */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -192,12 +279,24 @@ export default function DetalleSolicitudEPPPage() {
             </h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <span className="text-sm font-medium text-gray-700">Nombre:</span>
+                <span className="text-sm font-medium text-gray-700">Nombres y apellidos:</span>
                 <p className="text-gray-900">{solicitud.solicitante_nombre || '-'}</p>
               </div>
               <div>
-                <span className="text-sm font-medium text-gray-700">DNI:</span>
+                <span className="text-sm font-medium text-gray-700">Sexo:</span>
+                <p className="text-gray-900">
+                  {solicitud.solicitante_sexo
+                    ? LABEL_SEXO[solicitud.solicitante_sexo] || solicitud.solicitante_sexo
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Documento:</span>
                 <p className="text-gray-900">{solicitud.solicitante_documento || '-'}</p>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-700">Razón social:</span>
+                <p className="text-gray-900">{solicitud.empresa_nombre || '-'}</p>
               </div>
               <div>
                 <span className="text-sm font-medium text-gray-700">Área:</span>
@@ -208,12 +307,16 @@ export default function DetalleSolicitudEPPPage() {
                 <p className="text-gray-900">{solicitud.sede || '-'}</p>
               </div>
               <div>
-                <span className="text-sm font-medium text-gray-700">Unidad:</span>
-                <p className="text-gray-900">{solicitud.unidad || '-'}</p>
+                <span className="text-sm font-medium text-gray-700">Puesto:</span>
+                <p className="text-gray-900">{solicitud.solicitante_puesto || '-'}</p>
               </div>
               <div>
-                <span className="text-sm font-medium text-gray-700">Empresa:</span>
-                <p className="text-gray-900">{solicitud.empresa_nombre || '-'}</p>
+                <span className="text-sm font-medium text-gray-700">Centro de costos:</span>
+                <p className="text-gray-900">{solicitud.solicitante_centro_costos || solicitud.centro_costos || '-'}</p>
+              </div>
+              <div className="col-span-2">
+                <span className="text-sm font-medium text-gray-700">Jefe directo:</span>
+                <p className="text-gray-900">{solicitud.solicitante_jefe_directo || '-'}</p>
               </div>
             </div>
           </div>
@@ -222,9 +325,9 @@ export default function DetalleSolicitudEPPPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                Datos de la Solicitud
+                Datos de la solicitud
               </h2>
-              {canEdit && (
+              {canEdit && esObservada && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -238,8 +341,21 @@ export default function DetalleSolicitudEPPPage() {
 
             <div className="space-y-4">
               <div>
-                <span className="text-sm font-medium text-gray-700">Usuario EPP:</span>
+                <span className="text-sm font-medium text-gray-700">Quien registró:</span>
                 <p className="text-gray-900">{solicitud.usuario_epp_nombre || '-'}</p>
+                <p className="text-xs text-gray-500">Usuario que creó el registro (puede ser distinto al solicitante)</p>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-gray-700">Solicitante:</span>
+                <p className="text-gray-900">{solicitud.solicitante_nombre || '-'}</p>
+              </div>
+
+              <div>
+                <span className="text-sm font-medium text-gray-700">Fecha de solicitud:</span>
+                <p className="text-gray-900">
+                  {new Date(solicitud.fecha_solicitud).toLocaleDateString('es-PE')}
+                </p>
               </div>
 
               <div>
@@ -248,15 +364,10 @@ export default function DetalleSolicitudEPPPage() {
               </div>
 
               <div>
-                <span className="text-sm font-medium text-gray-700">Centro de Costos:</span>
-                <p className="text-gray-900">{solicitud.centro_costos || '-'}</p>
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Comentarios
                 </label>
-                {isEditing ? (
+                {isEditing && esObservada ? (
                   <textarea
                     value={comentarios}
                     onChange={(e) => setComentarios(e.target.value)}
@@ -272,7 +383,7 @@ export default function DetalleSolicitudEPPPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Observaciones
                 </label>
-                {isEditing ? (
+                {isEditing && esObservada ? (
                   <textarea
                     value={observaciones}
                     onChange={(e) => setObservaciones(e.target.value)}
@@ -284,61 +395,142 @@ export default function DetalleSolicitudEPPPage() {
                 )}
               </div>
 
-              {isEditing && (
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Guardar Cambios
-                  </Button>
-                </div>
+              {isEditing && esObservada && (
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Guardar cambios
+                </Button>
               )}
             </div>
           </div>
 
-          {/* Items de EPP */}
+          {/* Tabla EPPs solicitados */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Items de EPP</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              EPPs solicitados
+            </h2>
             {solicitud.detalles.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>No hay items</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {solicitud.detalles.map((detalle) => (
-                  <div
-                    key={detalle.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex items-start gap-4">
-                      {detalle.epp_imagen_url && (
-                        <img
-                          src={detalle.epp_imagen_url}
-                          alt={detalle.epp_nombre}
-                          className="w-20 h-20 object-cover rounded"
-                        />
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-blue-50 border-b border-blue-100">
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">N°</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Nombre</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Tipo de protección</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Descripción</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Tiempo de vida</th>
+                      <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Cantidad</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Imagen</th>
+                      {puedeExceptuar && (
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16">Exceptuar</th>
                       )}
-                      <div className="flex-1">
-                        <h3 className="font-medium text-gray-900">{detalle.epp_nombre}</h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Cantidad: <span className="font-medium">{detalle.cantidad}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {solicitud.detalles.map((detalle, idx) => (
+                      <tr
+                        key={detalle.id}
+                        className={`border-b border-gray-100 ${
+                          detalle.exceptuado ? 'bg-gray-50 opacity-75' : ''
+                        }`}
+                      >
+                        <td className="px-3 py-3 text-sm text-gray-900">{idx + 1}</td>
+                        <td className="px-3 py-3 text-sm">
+                          <span className={detalle.exceptuado ? 'line-through text-gray-500' : 'font-medium text-gray-900'}>
+                            {detalle.epp_nombre}
+                          </span>
+                          {detalle.exceptuado && (
+                            <span className="ml-2 text-xs text-amber-600 font-medium">(exceptuado)</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_tipo_proteccion || '-'}</td>
+                        <td className="px-3 py-3 text-sm text-gray-600 max-w-xs truncate">
+                          {detalle.epp_descripcion || '-'}
+                        </td>
+                        <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_vigencia || '-'}</td>
+                        <td className="px-3 py-3 text-sm text-center text-gray-900">{detalle.cantidad}</td>
+                        <td className="px-3 py-3">
+                          {detalle.epp_imagen_url ? (
+                            <img
+                              src={detalle.epp_imagen_url}
+                              alt={detalle.epp_nombre}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
+                        {puedeExceptuar && (
+                          <td className="px-3 py-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleExceptuar(detalle.id)}
+                              className="p-1.5 rounded hover:bg-amber-100 text-amber-600"
+                              title={detalle.exceptuado ? 'Incluir en aprobación' : 'Exceptuar de la solicitud'}
+                            >
+                              {detalle.exceptuado ? (
+                                <Eye className="w-4 h-4" />
+                              ) : (
+                                <EyeOff className="w-4 h-4" />
+                              )}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+
+          {/* Comentarios y Observaciones (reiterados debajo) */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Comentarios y Observaciones
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Comentarios</label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded">{solicitud.comentarios || '-'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+                <p className="text-gray-900 bg-gray-50 p-3 rounded">{solicitud.observaciones || '-'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Rechazar solicitud */}
+          {!esInmutable && canEdit && (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <p className="text-sm text-gray-600 mb-2">
+                ¿Deseas rechazar esta solicitud? La solicitud quedará en estado RECHAZADA para auditoría.
+              </p>
+              <Button
+                variant="outline"
+                className="border-red-300 text-red-700 hover:bg-red-50"
+                onClick={() => setRechazarModal(true)}
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Rechazar solicitud
+              </Button>
+            </div>
+          )}
         </div>
 
-        {/* Panel Lateral */}
+        {/* Panel lateral */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-4 sticky top-4">
             <h3 className="font-semibold text-gray-900">Información de Estado</h3>
 
             {solicitud.fecha_aprobacion && (
@@ -389,18 +581,64 @@ export default function DetalleSolicitudEPPPage() {
 
             <div className="pt-4 border-t border-gray-200">
               <p className="text-sm text-gray-600">
-                Total Items: <span className="font-medium">{solicitud.detalles.length}</span>
+                Items aprobados:{' '}
+                <span className="font-medium">
+                  {solicitud.detalles.filter((d) => !d.exceptuado).length}
+                </span>
               </p>
               <p className="text-sm text-gray-600">
-                Cantidad Total:{' '}
+                Items exceptuados:{' '}
                 <span className="font-medium">
-                  {solicitud.detalles.reduce((sum, d) => sum + d.cantidad, 0)}
+                  {solicitud.detalles.filter((d) => d.exceptuado).length}
+                </span>
+              </p>
+              <p className="text-sm text-gray-600">
+                Cantidad total aprobada:{' '}
+                <span className="font-medium">
+                  {solicitud.detalles
+                    .filter((d) => !d.exceptuado)
+                    .reduce((sum, d) => sum + d.cantidad, 0)}
                 </span>
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Modal Rechazar */}
+      {rechazarModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Rechazar solicitud
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              La solicitud quedará en estado RECHAZADA. No se podrá modificar. (Auditoría)
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Comentario de rechazo (opcional)
+            </label>
+            <textarea
+              value={comentariosRechazo}
+              onChange={(e) => setComentariosRechazo(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              rows={3}
+              placeholder="Indique el motivo del rechazo..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setRechazarModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleRechazar}
+              >
+                Rechazar solicitud
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

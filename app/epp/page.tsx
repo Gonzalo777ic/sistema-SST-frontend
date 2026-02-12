@@ -38,6 +38,8 @@ const getEstadoColor = (estado: EstadoSolicitudEPP) => {
     case EstadoSolicitudEPP.Entregada:
       return 'text-blue-700 bg-blue-50 border-blue-200';
     case EstadoSolicitudEPP.Observada:
+      return 'text-amber-700 bg-amber-50 border-amber-200';
+    case EstadoSolicitudEPP.Rechazada:
       return 'text-red-700 bg-red-50 border-red-200';
     case EstadoSolicitudEPP.Pendiente:
       return 'text-yellow-700 bg-yellow-50 border-yellow-200';
@@ -77,9 +79,11 @@ export default function EPPPage() {
     UsuarioRol.EMPLEADO,
   ]);
 
+  const esAdmin = hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]);
+
   useEffect(() => {
     loadData();
-  }, [usuario?.empresaId]);
+  }, [usuario?.empresaId, esAdmin]);
 
   useEffect(() => {
     if (usuario?.empresaId) {
@@ -89,12 +93,13 @@ export default function EPPPage() {
   }, [usuario?.empresaId]);
 
   const loadData = async () => {
-    if (!usuario?.empresaId) return;
+    if (!usuario) return;
 
     try {
       setIsLoading(true);
+      const empresaIdFilter = esAdmin ? undefined : (usuario.empresaId ?? undefined);
       const [solicitudesData, empresasData] = await Promise.all([
-        eppService.findAll(usuario.empresaId).catch(() => []),
+        eppService.findAll(empresaIdFilter).catch(() => []),
         empresasService.findAll().catch(() => []),
       ]);
 
@@ -325,10 +330,11 @@ export default function EPPPage() {
                   }
                 >
                   <option value="">Todos</option>
+                  <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
+                  <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
                   <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
                   <option value={EstadoSolicitudEPP.Entregada}>ENTREGADA</option>
-                  <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
-                  <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
+                  <option value={EstadoSolicitudEPP.Rechazada}>RECHAZADA</option>
                 </Select>
               </div>
 
@@ -484,9 +490,10 @@ export default function EPPPage() {
                         }}
                       >
                         <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
-                        <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
                         <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
+                        <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
                         <option value={EstadoSolicitudEPP.Entregada}>ENTREGADA</option>
+                        <option value={EstadoSolicitudEPP.Rechazada}>RECHAZADA</option>
                       </Select>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">

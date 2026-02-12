@@ -2,9 +2,18 @@ import apiClient from '@/lib/axios';
 
 export enum EstadoSolicitudEPP {
   Pendiente = 'PENDIENTE',
+  Observada = 'OBSERVADA',
   Aprobada = 'APROBADA',
   Entregada = 'ENTREGADA',
-  Observada = 'OBSERVADA',
+  Rechazada = 'RECHAZADA',
+}
+
+export enum MotivoSolicitudEPP {
+  Perdida = 'PÉRDIDA',
+  Caduco = 'CADUCÓ',
+  Averia = 'AVERÍA',
+  NuevoPersonal = 'NUEVO_PERSONAL',
+  Otro = 'OTRO',
 }
 
 export enum TipoProteccionEPP {
@@ -58,8 +67,12 @@ export interface ISolicitudEPPDetalle {
   id: string;
   epp_id: string;
   epp_nombre: string;
+  epp_tipo_proteccion: string;
+  epp_descripcion: string | null;
+  epp_vigencia: string | null;
   epp_imagen_url: string | null;
   cantidad: number;
+  exceptuado: boolean;
 }
 
 export interface SolicitudEPP {
@@ -71,6 +84,10 @@ export interface SolicitudEPP {
   solicitante_id: string;
   solicitante_nombre: string | null;
   solicitante_documento: string | null;
+  solicitante_sexo: string | null;
+  solicitante_puesto: string | null;
+  solicitante_centro_costos: string | null;
+  solicitante_jefe_directo: string | null;
   motivo: string | null;
   centro_costos: string | null;
   comentarios: string | null;
@@ -162,9 +179,13 @@ export interface UpdateEppDto {
 export const eppService = {
   // ========== CRUD EPP (Catálogo) ==========
 
-  async findAllEpp(empresaId?: string): Promise<IEPP[]> {
-    const params: any = {};
-    if (empresaId) params.empresa_id = empresaId;
+  async findAllEpp(empresaId?: string, empresaIds?: string[]): Promise<IEPP[]> {
+    const params: Record<string, string> = {};
+    if (empresaIds && empresaIds.length > 0) {
+      params.empresa_ids = empresaIds.join(',');
+    } else if (empresaId) {
+      params.empresa_id = empresaId;
+    }
     const response = await apiClient.get<IEPP[]>('/epp/catalogo', { params });
     return response.data;
   },
@@ -223,6 +244,13 @@ export const eppService = {
 
   async updateEstado(id: string, data: UpdateEstadoDto): Promise<SolicitudEPP> {
     const response = await apiClient.patch<SolicitudEPP>(`/epp/solicitudes/${id}/estado`, data);
+    return response.data;
+  },
+
+  async toggleExceptuar(solicitudId: string, detalleId: string): Promise<SolicitudEPP> {
+    const response = await apiClient.patch<SolicitudEPP>(
+      `/epp/solicitudes/${solicitudId}/detalle/${detalleId}/exceptuar`
+    );
     return response.data;
   },
 

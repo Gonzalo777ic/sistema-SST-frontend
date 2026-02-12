@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Eye, UserX, Users, Filter } from 'lucide-react';
+import { Plus, Eye, UserX, UserCheck, Users, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -330,6 +330,19 @@ export default function TrabajadoresPage() {
     }
   };
 
+  const handleActivar = async (id: string) => {
+    if (!confirm('¿Activar este trabajador? Se restaurará su acceso al sistema si tenía usuario vinculado.')) return;
+    try {
+      await trabajadoresService.activar(id);
+      toast.success('Trabajador activado');
+      loadTrabajadores(selectedEmpresaFilter || undefined);
+    } catch (error: any) {
+      toast.error('Error al activar', {
+        description: error.response?.data?.message,
+      });
+    }
+  };
+
   const handleFilterChange = (empresaId: string) => {
     setSelectedEmpresaFilter(empresaId);
     loadTrabajadores(empresaId || undefined);
@@ -439,26 +452,39 @@ export default function TrabajadoresPage() {
                                 Detalle
                               </Button>
                             </Link>
-                            {canEdit && trabajador.estado === EstadoTrabajador.Activo && (
+                            {canEdit && (
                               <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setEditingTrabajador(trabajador);
-                                    setIsModalOpen(true);
-                                  }}
-                                >
-                                  Editar
-                                </Button>
-                                <Button
-                                  variant="danger"
-                                  size="sm"
-                                  onClick={() => handleDesactivar(trabajador.id)}
-                                >
-                                  <UserX className="w-4 h-4 mr-1" />
-                                  Desactivar
-                                </Button>
+                                {trabajador.estado === EstadoTrabajador.Activo ? (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setEditingTrabajador(trabajador);
+                                        setIsModalOpen(true);
+                                      }}
+                                    >
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      variant="danger"
+                                      size="sm"
+                                      onClick={() => handleDesactivar(trabajador.id)}
+                                    >
+                                      <UserX className="w-4 h-4 mr-1" />
+                                      Desactivar
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleActivar(trabajador.id)}
+                                  >
+                                    <UserCheck className="w-4 h-4 mr-1" />
+                                    Activar
+                                  </Button>
+                                )}
                               </>
                             )}
                           </div>
