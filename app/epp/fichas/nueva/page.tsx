@@ -9,7 +9,9 @@ import {
   TipoProteccionEPP,
   CategoriaEPP,
   VigenciaEPP,
+  CategoriaCriticidadEPP,
 } from '@/services/epp.service';
+import { configEppService, RecomendacionCriticidad } from '@/services/config-epp.service';
 import { empresasService } from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +23,7 @@ import {
   Upload,
   Image as ImageIcon,
   FileText,
+  Lightbulb,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -43,11 +46,37 @@ export default function NuevaFichaEPPPage() {
     tipo_proteccion: TipoProteccionEPP.Otros,
     categoria: CategoriaEPP.EPP,
     vigencia: '' as VigenciaEPP | '',
+    costo: '' as string,
+    categoria_criticidad: '' as CategoriaCriticidadEPP | '',
     descripcion: '',
     imagen_url: '',
     adjunto_pdf_url: '',
     empresa_id: '' as string,
   });
+
+  const [recomendacion, setRecomendacion] = useState<RecomendacionCriticidad | null>(null);
+  const [recomendacionLoading, setRecomendacionLoading] = useState(false);
+
+  const vigenciaToMonths: Record<string, number> = {
+    '1 mes': 1, '2 meses': 2, '3 meses': 3, '4 meses': 4, '5 meses': 5,
+    '6 meses': 6, '7 meses': 7, '8 meses': 8, '9 meses': 9, '10 meses': 10,
+    '11 meses': 11, '1 año': 12, '2 años': 24,
+  };
+
+  useEffect(() => {
+    const vigenciaMeses = formData.vigencia ? (vigenciaToMonths[formData.vigencia] ?? 0) : 0;
+    const costo = parseFloat(String(formData.costo)) || 0;
+    if (vigenciaMeses > 0 || costo > 0) {
+      setRecomendacionLoading(true);
+      configEppService
+        .getRecomendacion(vigenciaMeses, costo)
+        .then(setRecomendacion)
+        .catch(() => setRecomendacion(null))
+        .finally(() => setRecomendacionLoading(false));
+    } else {
+      setRecomendacion(null);
+    }
+  }, [formData.vigencia, formData.costo]);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -127,6 +156,8 @@ export default function NuevaFichaEPPPage() {
         tipo_proteccion: formData.tipo_proteccion,
         categoria: formData.categoria,
         vigencia: formData.vigencia || undefined,
+        costo: formData.costo ? parseFloat(formData.costo) : undefined,
+        categoria_criticidad: formData.categoria_criticidad || undefined,
         descripcion: formData.descripcion || undefined,
         imagen_url: formData.imagen_url || undefined,
         adjunto_pdf_url: formData.adjunto_pdf_url || undefined,
@@ -162,8 +193,8 @@ export default function NuevaFichaEPPPage() {
       </div>
 
       {/* Formulario */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="space-y-6">
+      <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
           {/* Empresa: solo para SUPER_ADMIN (gestión a nivel proyecto) */}
           {isSuperAdmin && (
             <div>
@@ -254,27 +285,65 @@ export default function NuevaFichaEPPPage() {
             />
           </div>
 
-          {/* Fila 3: Vigencia */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Vigencia
-            </label>
-            <Select
-              value={formData.vigencia}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  vigencia: e.target.value as VigenciaEPP | '',
-                })
-              }
-            >
-              <option value="">Seleccione una vigencia</option>
-              {Object.values(VigenciaEPP).map((vig) => (
-                <option key={vig} value={vig}>
-                  {vig}
-                </option>
-              ))}
-            </Select>
+          {/* Fila 3: Vigencia, Costo y Categoría criticidad */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Vigencia
+              </label>
+              <Select
+                value={formData.vigencia}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    vigencia: e.target.value as VigenciaEPP | '',
+                  })
+                }
+              >
+                <option value="">Seleccione</option>
+                {Object.values(VigenciaEPP).map((vig) => (
+                  <option key={vig} value={vig}>
+                    {vig}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Costo (S/.)
+              </label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={formData.costo}
+                onChange={(e) =>
+                  setFormData({ ...formData, costo: e.target.value })
+                }
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Categoría criticidad
+              </label>
+              <Select
+                value={formData.categoria_criticidad}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    categoria_criticidad: e.target.value as CategoriaCriticidadEPP | '',
+                  })
+                }
+              >
+                <option value="">Seleccione</option>
+                <option value={CategoriaCriticidadEPP.Core}>Core</option>
+                <option value={CategoriaCriticidadEPP.Recurrente}>Recurrente</option>
+              </Select>
+              <p className="mt-1 text-xs text-gray-500">
+                Core: EPP crítico (ej. casco). Recurrente: menor criticidad (ej. mascarilla).
+              </p>
+            </div>
           </div>
 
           {/* Fila 4: Descripción */}
@@ -427,6 +496,39 @@ export default function NuevaFichaEPPPage() {
               <Save className="w-4 h-4 mr-2" />
               {isSaving ? 'Guardando...' : 'Guardar Ficha'}
             </Button>
+          </div>
+        </div>
+
+        {/* Panel de recomendación */}
+        <div className="lg:w-80 shrink-0">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 sticky top-4">
+            <h3 className="font-semibold text-amber-900 flex items-center gap-2 mb-2">
+              <Lightbulb className="w-5 h-5" />
+              Recomendación
+            </h3>
+            {recomendacionLoading ? (
+              <p className="text-sm text-amber-800">Calculando...</p>
+            ) : recomendacion ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-amber-900">
+                  {recomendacion === 'Core' && 'Se recomienda Core'}
+                  {recomendacion === 'Recurrente' && 'Se recomienda Recurrente'}
+                  {recomendacion === 'Indeterminado' && 'Indeterminado'}
+                </p>
+                <p className="text-xs text-amber-800">
+                  {recomendacion === 'Core' &&
+                    'Vigencia y costo superan los umbrales. EPP de alta criticidad.'}
+                  {recomendacion === 'Recurrente' &&
+                    'Vigencia y costo por debajo de umbrales. EPP de menor criticidad.'}
+                  {recomendacion === 'Indeterminado' &&
+                    'Se recomienda determinar bajo su criterio.'}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-amber-700">
+                Ingrese vigencia y costo para ver la recomendación según los umbrales configurados.
+              </p>
+            )}
           </div>
         </div>
       </form>

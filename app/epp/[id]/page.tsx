@@ -24,6 +24,7 @@ import {
   Eye,
   XCircle,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -86,10 +87,12 @@ export default function DetalleSolicitudEPPPage() {
   }>({ open: false, targetState: null });
   const [agregarEppModal, setAgregarEppModal] = useState(false);
   const [epps, setEpps] = useState<IEPP[]>([]);
-  const [agregandoEpp, setAgregandoEpp] = useState(false);
 
   const [observaciones, setObservaciones] = useState('');
   const [comentarios, setComentarios] = useState('');
+
+  const [pendingAgregados, setPendingAgregados] = useState<Array<{ epp: IEPP; cantidad: number }>>([]);
+  const [exceptuadosOverrides, setExceptuadosOverrides] = useState<Record<string, boolean>>({});
 
   const canEdit = hasAnyRole([
     UsuarioRol.SUPER_ADMIN,
@@ -125,6 +128,8 @@ export default function DetalleSolicitudEPPPage() {
       setSolicitud(data);
       setObservaciones(data.observaciones || '');
       setComentarios(data.comentarios || '');
+      setPendingAgregados([]);
+      setExceptuadosOverrides({});
     } catch (error: any) {
       toast.error('Error al cargar solicitud', {
         description: error.response?.data?.message || 'No se pudo cargar la solicitud',
@@ -135,18 +140,25 @@ export default function DetalleSolicitudEPPPage() {
     }
   };
 
-  const handleSave = async () => {
-    if (!solicitud) return;
+  const hayCambiosDatos =
+    esObservada &&
+    (comentarios !== (solicitud?.comentarios || '') || observaciones !== (solicitud?.observaciones || ''));
+
+  const hayCambiosEPPs =
+    pendingAgregados.length > 0 || Object.keys(exceptuadosOverrides).length > 0;
+
+  const hayCambiosPendientes = hayCambiosDatos || hayCambiosEPPs;
+
+  const handleSaveDatos = async () => {
+    if (!solicitud || !hayCambiosDatos) return;
 
     try {
       setIsSaving(true);
-      const payload: UpdateSolicitudEppDto = {
+      await eppService.update(solicitud.id, {
         observaciones: observaciones || undefined,
         comentarios: comentarios || undefined,
-      };
-
-      await eppService.update(solicitud.id, payload);
-      toast.success('Cambios guardados');
+      });
+      toast.success('Comentarios y observaciones guardados');
       setIsEditing(false);
       loadSolicitud();
     } catch (error: any) {
@@ -156,6 +168,49 @@ export default function DetalleSolicitudEPPPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCancelarDatos = () => {
+    setComentarios(solicitud?.comentarios || '');
+    setObservaciones(solicitud?.observaciones || '');
+    setIsEditing(false);
+    toast.info('Cambios descartados');
+  };
+
+  const handleSaveEPPs = async () => {
+    if (!solicitud || !hayCambiosEPPs) return;
+
+    try {
+      setIsSaving(true);
+
+      for (const detalle of solicitud.detalles) {
+        const desiredExceptuado = exceptuadosOverrides[detalle.id] ?? detalle.exceptuado;
+        if (desiredExceptuado !== detalle.exceptuado) {
+          await eppService.toggleExceptuar(solicitud.id, detalle.id);
+        }
+      }
+
+      for (const item of pendingAgregados) {
+        await eppService.agregarDetalle(solicitud.id, item.epp.id, item.cantidad);
+      }
+
+      toast.success('Cambios en EPPs guardados');
+      setPendingAgregados([]);
+      setExceptuadosOverrides({});
+      loadSolicitud();
+    } catch (error: any) {
+      toast.error('Error al guardar', {
+        description: error.response?.data?.message || 'No se pudieron guardar los cambios',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelarEPPs = () => {
+    setPendingAgregados([]);
+    setExceptuadosOverrides({});
+    toast.info('Cambios en EPPs descartados');
   };
 
   const handleUpdateEstado = async (nuevoEstado: EstadoSolicitudEPP) => {
@@ -185,22 +240,15 @@ export default function DetalleSolicitudEPPPage() {
     handleUpdateEstado(nuevoEstado);
   };
 
-  const handleAgregarEPP = async (epp: IEPP, cantidad: number = 1) => {
+  const handleAgregarEPP = (epp: IEPP, cantidad: number = 1) => {
     if (!solicitud) return;
+    setPendingAgregados((prev) => [...prev, { epp, cantidad }]);
+    setAgregarEppModal(false);
+    toast.success('Item agregado. Use Guardar o Cancelar a la derecha.');
+  };
 
-    try {
-      setAgregandoEpp(true);
-      const updated = await eppService.agregarDetalle(solicitud.id, epp.id, cantidad);
-      setSolicitud(updated);
-      setAgregarEppModal(false);
-      toast.success('Item agregado correctamente');
-    } catch (error: any) {
-      toast.error('Error al agregar item', {
-        description: error.response?.data?.message,
-      });
-    } finally {
-      setAgregandoEpp(false);
-    }
+  const handleQuitarPendingAgregado = (index: number) => {
+    setPendingAgregados((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRechazar = async () => {
@@ -222,19 +270,16 @@ export default function DetalleSolicitudEPPPage() {
     }
   };
 
-  const handleToggleExceptuar = async (detalleId: string) => {
-    if (!solicitud) return;
-
-    try {
-      const updated = await eppService.toggleExceptuar(solicitud.id, detalleId);
-      setSolicitud(updated);
-      toast.success('Item actualizado');
-    } catch (error: any) {
-      toast.error('Error al exceptuar item', {
-        description: error.response?.data?.message,
-      });
-    }
+  const handleToggleExceptuar = (detalleId: string) => {
+    const detalle = solicitud?.detalles.find((d) => d.id === detalleId);
+    if (!detalle) return;
+    const currentValue = exceptuadosOverrides[detalleId] ?? detalle.exceptuado;
+    setExceptuadosOverrides((prev) => ({ ...prev, [detalleId]: !currentValue }));
+    toast.success('Cambio registrado. Use Guardar o Cancelar a la derecha.');
   };
+
+  const getEffectiveExceptuado = (detalle: { id: string; exceptuado: boolean }) =>
+    exceptuadosOverrides[detalle.id] ?? detalle.exceptuado;
 
   if (isLoading) {
     return (
@@ -304,16 +349,6 @@ export default function DetalleSolicitudEPPPage() {
               ))}
             </Select>
           </div>
-          {canEdit && esObservada && (
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || !isEditing}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              Guardar
-            </Button>
-          )}
         </div>
       </div>
 
@@ -371,20 +406,43 @@ export default function DetalleSolicitudEPPPage() {
 
           {/* Datos de la Solicitud */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-gray-900">
                 Datos de la solicitud
               </h2>
-              {canEdit && esObservada && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsEditing(!isEditing)}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  {isEditing ? 'Cancelar' : 'Editar'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {canEdit && esObservada && !isEditing && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Editar comentarios/observaciones
+                  </Button>
+                )}
+                {canEdit && esObservada && isEditing && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCancelarDatos}
+                      disabled={isSaving}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveDatos}
+                      disabled={isSaving || !hayCambiosDatos}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Guardar
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -443,34 +501,47 @@ export default function DetalleSolicitudEPPPage() {
                 )}
               </div>
 
-              {isEditing && esObservada && (
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Guardar cambios
-                </Button>
-              )}
             </div>
           </div>
 
           {/* Tabla EPPs solicitados */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-gray-900">
                 EPPs solicitados
               </h2>
-              {puedeAgregarItem && (
-                <Button
-                  onClick={() => setAgregarEppModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar EPP
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {puedeAgregarItem && (
+                  <Button
+                    onClick={() => setAgregarEppModal(true)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Agregar EPP
+                  </Button>
+                )}
+                {canEdit && hayCambiosEPPs && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCancelarEPPs}
+                      disabled={isSaving}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveEPPs}
+                      disabled={isSaving}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Guardar
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
             {solicitud.detalles.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -490,70 +561,120 @@ export default function DetalleSolicitudEPPPage() {
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Cantidad</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Imagen</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Auditoría</th>
-                      {puedeExceptuar && (
-                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16">Exceptuar</th>
+                      {(puedeExceptuar || (puedeAgregarItem && pendingAgregados.length > 0)) && (
+                        <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16">
+                          {puedeExceptuar ? 'Exceptuar' : 'Quitar'}
+                        </th>
                       )}
                     </tr>
                   </thead>
                   <tbody>
-                    {solicitud.detalles.map((detalle, idx) => (
-                      <tr
-                        key={detalle.id}
-                        className={`border-b border-gray-100 ${
-                          detalle.exceptuado ? 'bg-gray-50 opacity-75' : ''
-                        }`}
-                      >
-                        <td className="px-3 py-3 text-sm text-gray-900">{idx + 1}</td>
+                    {solicitud.detalles.map((detalle, idx) => {
+                      const efectivoExceptuado = getEffectiveExceptuado(detalle);
+                      return (
+                        <tr
+                          key={detalle.id}
+                          className={`border-b border-gray-100 ${
+                            efectivoExceptuado ? 'bg-gray-50 opacity-75' : ''
+                          }`}
+                        >
+                          <td className="px-3 py-3 text-sm text-gray-900">{idx + 1}</td>
+                          <td className="px-3 py-3 text-sm">
+                            <span className={efectivoExceptuado ? 'line-through text-gray-500' : 'font-medium text-gray-900'}>
+                              {detalle.epp_nombre}
+                            </span>
+                            {efectivoExceptuado && (
+                              <span className="ml-2 text-xs text-amber-600 font-medium">(exceptuado)</span>
+                            )}
+                            {detalle.agregado && (
+                              <span className="ml-2 text-xs text-blue-600 font-medium">(agregado)</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_tipo_proteccion || '-'}</td>
+                          <td className="px-3 py-3 text-sm text-gray-600 max-w-xs truncate">
+                            {detalle.epp_descripcion || '-'}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_vigencia || '-'}</td>
+                          <td className="px-3 py-3 text-sm text-center text-gray-900">{detalle.cantidad}</td>
+                          <td className="px-3 py-3">
+                            {detalle.epp_imagen_url ? (
+                              <img
+                                src={detalle.epp_imagen_url}
+                                alt={detalle.epp_nombre}
+                                className="w-12 h-12 object-cover rounded"
+                              />
+                            ) : (
+                              <span className="text-gray-400 text-xs">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-xs text-gray-600">
+                            {efectivoExceptuado && (
+                              <div>
+                                {exceptuadosOverrides[detalle.id] !== undefined
+                                  ? 'Pendiente de guardar'
+                                  : detalle.exceptuado_por_nombre
+                                    ? `Exceptuado por: ${detalle.exceptuado_por_nombre}`
+                                    : '-'}
+                              </div>
+                            )}
+                            {detalle.agregado && detalle.agregado_por_nombre && (
+                              <div>Agregado por: {detalle.agregado_por_nombre}</div>
+                            )}
+                            {!efectivoExceptuado && !detalle.agregado && '-'}
+                          </td>
+                          {(puedeExceptuar || (puedeAgregarItem && pendingAgregados.length > 0)) && (
+                            <td className="px-3 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleExceptuar(detalle.id)}
+                                className="p-1.5 rounded hover:bg-amber-100 text-amber-600"
+                                title={efectivoExceptuado ? 'Incluir en aprobación' : 'Exceptuar de la solicitud'}
+                              >
+                                {efectivoExceptuado ? (
+                                  <Eye className="w-4 h-4" />
+                                ) : (
+                                  <EyeOff className="w-4 h-4" />
+                                )}
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                    {pendingAgregados.map((item, idx) => (
+                      <tr key={`pending-${idx}`} className="border-b border-gray-100 bg-blue-50/50">
+                        <td className="px-3 py-3 text-sm text-gray-900">{solicitud.detalles.length + idx + 1}</td>
                         <td className="px-3 py-3 text-sm">
-                          <span className={detalle.exceptuado ? 'line-through text-gray-500' : 'font-medium text-gray-900'}>
-                            {detalle.epp_nombre}
-                          </span>
-                          {detalle.exceptuado && (
-                            <span className="ml-2 text-xs text-amber-600 font-medium">(exceptuado)</span>
-                          )}
-                          {detalle.agregado && (
-                            <span className="ml-2 text-xs text-blue-600 font-medium">(agregado)</span>
-                          )}
+                          <span className="font-medium text-gray-900">{item.epp.nombre}</span>
+                          <span className="ml-2 text-xs text-blue-600 font-medium">(pendiente de guardar)</span>
                         </td>
-                        <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_tipo_proteccion || '-'}</td>
+                        <td className="px-3 py-3 text-sm text-gray-600">{item.epp.tipo_proteccion || '-'}</td>
                         <td className="px-3 py-3 text-sm text-gray-600 max-w-xs truncate">
-                          {detalle.epp_descripcion || '-'}
+                          {item.epp.descripcion || '-'}
                         </td>
-                        <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_vigencia || '-'}</td>
-                        <td className="px-3 py-3 text-sm text-center text-gray-900">{detalle.cantidad}</td>
+                        <td className="px-3 py-3 text-sm text-gray-600">{item.epp.vigencia || '-'}</td>
+                        <td className="px-3 py-3 text-sm text-center text-gray-900">{item.cantidad}</td>
                         <td className="px-3 py-3">
-                          {detalle.epp_imagen_url ? (
+                          {item.epp.imagen_url ? (
                             <img
-                              src={detalle.epp_imagen_url}
-                              alt={detalle.epp_nombre}
+                              src={item.epp.imagen_url}
+                              alt={item.epp.nombre}
                               className="w-12 h-12 object-cover rounded"
                             />
                           ) : (
                             <span className="text-gray-400 text-xs">-</span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-xs text-gray-600">
-                          {detalle.exceptuado && detalle.exceptuado_por_nombre && (
-                            <div>Exceptuado por: {detalle.exceptuado_por_nombre}</div>
-                          )}
-                          {detalle.agregado && detalle.agregado_por_nombre && (
-                            <div>Agregado por: {detalle.agregado_por_nombre}</div>
-                          )}
-                          {!detalle.exceptuado && !detalle.agregado && '-'}
-                        </td>
-                        {puedeExceptuar && (
+                        <td className="px-3 py-3 text-xs text-gray-500">Pendiente</td>
+                        {(puedeExceptuar || (puedeAgregarItem && pendingAgregados.length > 0)) && (
                           <td className="px-3 py-3 text-center">
                             <button
                               type="button"
-                              onClick={() => handleToggleExceptuar(detalle.id)}
-                              className="p-1.5 rounded hover:bg-amber-100 text-amber-600"
-                              title={detalle.exceptuado ? 'Incluir en aprobación' : 'Exceptuar de la solicitud'}
+                              onClick={() => handleQuitarPendingAgregado(idx)}
+                              className="p-1.5 rounded hover:bg-red-100 text-red-600"
+                              title="Quitar de la lista"
                             >
-                              {detalle.exceptuado ? (
-                                <Eye className="w-4 h-4" />
-                              ) : (
-                                <EyeOff className="w-4 h-4" />
-                              )}
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </td>
                         )}
@@ -655,27 +776,32 @@ export default function DetalleSolicitudEPPPage() {
               <p className="text-sm text-gray-600">
                 Items aprobados:{' '}
                 <span className="font-medium">
-                  {solicitud.detalles.filter((d) => !d.exceptuado).length}
+                  {solicitud.detalles.filter((d) => !getEffectiveExceptuado(d)).length + pendingAgregados.length}
                 </span>
+                {pendingAgregados.length > 0 && (
+                  <span className="text-amber-600"> ({pendingAgregados.length} pendiente(s))</span>
+                )}
               </p>
               <p className="text-sm text-gray-600">
                 Items exceptuados:{' '}
                 <span className="font-medium">
-                  {solicitud.detalles.filter((d) => d.exceptuado).length}
+                  {solicitud.detalles.filter((d) => getEffectiveExceptuado(d)).length}
                 </span>
               </p>
               <p className="text-sm text-gray-600">
                 Items agregados:{' '}
                 <span className="font-medium">
                   {solicitud.detalles.filter((d) => d.agregado).length}
+                  {pendingAgregados.length > 0 && ` + ${pendingAgregados.length} pendiente(s)`}
                 </span>
               </p>
               <p className="text-sm text-gray-600">
                 Cantidad total aprobada:{' '}
                 <span className="font-medium">
                   {solicitud.detalles
-                    .filter((d) => !d.exceptuado)
-                    .reduce((sum, d) => sum + d.cantidad, 0)}
+                    .filter((d) => !getEffectiveExceptuado(d))
+                    .reduce((sum, d) => sum + d.cantidad, 0) +
+                    pendingAgregados.reduce((s, p) => s + p.cantidad, 0)}
                 </span>
               </p>
             </div>
@@ -693,6 +819,11 @@ export default function DetalleSolicitudEPPPage() {
             <p className="text-sm text-gray-600 mb-4">
               Si lo hace no podrá revertirlo. La solicitud pasará a estado APROBADA y solo podrá avanzar a ENTREGADA.
             </p>
+            {hayCambiosPendientes && (
+              <p className="text-sm text-amber-600 mb-4">
+                Tiene cambios sin guardar (agregados o exceptuados). Si aprueba sin guardar primero, perderá esos cambios.
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
               <Button
                 variant="outline"
@@ -702,7 +833,13 @@ export default function DetalleSolicitudEPPPage() {
               </Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => confirmEstadoModal.targetState && handleUpdateEstado(confirmEstadoModal.targetState)}
+                onClick={() => {
+                  if (confirmEstadoModal.targetState) {
+                    setPendingAgregados([]);
+                    setExceptuadosOverrides({});
+                    handleUpdateEstado(confirmEstadoModal.targetState);
+                  }
+                }}
               >
                 Aprobar
               </Button>
@@ -763,7 +900,6 @@ export default function DetalleSolicitudEPPPage() {
                 key={epp.id}
                 type="button"
                 onClick={() => handleAgregarEPP(epp)}
-                disabled={agregandoEpp}
                 className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left disabled:opacity-50"
               >
                 <div className="flex items-start gap-3">

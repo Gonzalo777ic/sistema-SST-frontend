@@ -265,6 +265,11 @@ export const sidebarConfig: SidebarGroup[] = [
         href: '/dashboard/config/importacion',
         icon: Database,
       },
+      {
+        label: 'Configuración EPP',
+        href: '/configuracion/epp',
+        icon: Settings,
+      },
     ],
   },
 ];

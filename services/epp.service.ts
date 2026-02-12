@@ -32,6 +32,18 @@ export enum CategoriaEPP {
   Uniforme = 'Uniforme',
 }
 
+export enum CategoriaCriticidadEPP {
+  Core = 'Core',
+  Recurrente = 'Recurrente',
+}
+
+export enum EstadoVigenciaKardex {
+  Vigente = 'Vigente',
+  Vencido = 'Vencido',
+  VencimientoMenor = 'Vencimiento menor',
+  SinRegistro = 'Sin registro',
+}
+
 export enum VigenciaEPP {
   UnMes = '1 mes',
   DosMeses = '2 meses',
@@ -56,11 +68,25 @@ export interface IEPP {
   descripcion: string | null;
   imagen_url: string | null;
   vigencia: VigenciaEPP | null;
+  costo: number | null;
+  categoria_criticidad: CategoriaCriticidadEPP | null;
   adjunto_pdf_url: string | null;
   stock: number;
   empresa_id: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IKardexListItem {
+  trabajador_id: string;
+  trabajador_nombre: string;
+  razon_social: string | null;
+  unidad: string | null;
+  area: string | null;
+  sede: string | null;
+  fecha_entrega: string | null;
+  estado: EstadoVigenciaKardex;
+  categoria_filtro: string | null;
 }
 
 export interface ISolicitudEPPDetalle {
@@ -165,6 +191,8 @@ export interface CreateEppDto {
   descripcion?: string;
   imagen_url?: string;
   vigencia?: VigenciaEPP;
+  costo?: number;
+  categoria_criticidad?: CategoriaCriticidadEPP;
   adjunto_pdf_url?: string;
   stock?: number;
   empresa_id: string;
@@ -177,6 +205,8 @@ export interface UpdateEppDto {
   descripcion?: string;
   imagen_url?: string;
   vigencia?: VigenciaEPP;
+  costo?: number;
+  categoria_criticidad?: CategoriaCriticidadEPP;
   adjunto_pdf_url?: string;
   stock?: number;
 }
@@ -279,6 +309,31 @@ export const eppService = {
 
   async getKardexPorTrabajador(trabajadorId: string): Promise<IKardex> {
     const response = await apiClient.get<IKardex>(`/epp/kardex/${trabajadorId}`);
+    return response.data;
+  },
+
+  async getKardexList(params?: {
+    empresa_ids?: string[];
+    nombre?: string;
+    estado?: EstadoVigenciaKardex;
+    categoria?: string;
+    unidad?: string;
+    sede?: string;
+    area_id?: string;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+  }): Promise<IKardexListItem[]> {
+    const searchParams: Record<string, string> = {};
+    if (params?.empresa_ids?.length) searchParams.empresa_ids = params.empresa_ids.join(',');
+    if (params?.nombre) searchParams.nombre = params.nombre;
+    if (params?.estado) searchParams.estado = params.estado;
+    if (params?.categoria) searchParams.categoria = params.categoria;
+    if (params?.unidad) searchParams.unidad = params.unidad;
+    if (params?.sede) searchParams.sede = params.sede;
+    if (params?.area_id) searchParams.area_id = params.area_id;
+    if (params?.fecha_desde) searchParams.fecha_desde = params.fecha_desde;
+    if (params?.fecha_hasta) searchParams.fecha_hasta = params.fecha_hasta;
+    const response = await apiClient.get<IKardexListItem[]>('/epp/kardex-list', { params: searchParams });
     return response.data;
   },
 };

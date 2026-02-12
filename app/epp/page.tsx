@@ -14,7 +14,6 @@ import { areasService, Area } from '@/services/areas.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Modal } from '@/components/ui/modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Plus,
@@ -25,7 +24,6 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
-  Search,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -56,11 +54,6 @@ export default function EPPPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
-  const [showKardexModal, setShowKardexModal] = useState(false);
-  const [kardexDni, setKardexDni] = useState('');
-  const [kardexData, setKardexData] = useState<any>(null);
-  const [isLoadingKardex, setIsLoadingKardex] = useState(false);
-
   // Estados de filtros
   const [filtroUsuarioEPP, setFiltroUsuarioEPP] = useState('');
   const [filtroSolicitante, setFiltroSolicitante] = useState('');
@@ -142,31 +135,6 @@ export default function EPPPage() {
       toast.error('Error al actualizar estado', {
         description: error.response?.data?.message || 'No se pudo actualizar el estado',
       });
-    }
-  };
-
-  const handleBuscarKardex = async () => {
-    if (!kardexDni.trim()) {
-      toast.error('Ingrese un DNI');
-      return;
-    }
-
-    try {
-      setIsLoadingKardex(true);
-      const trabajador = await trabajadoresService.buscarPorDni(kardexDni);
-      if (!trabajador) {
-        toast.error('Trabajador no encontrado');
-        return;
-      }
-
-      const kardex = await eppService.getKardexPorTrabajador(trabajador.id);
-      setKardexData(kardex);
-    } catch (error: any) {
-      toast.error('Error al buscar kardex', {
-        description: error.response?.data?.message || 'No se pudo cargar el kardex',
-      });
-    } finally {
-      setIsLoadingKardex(false);
     }
   };
 
@@ -367,13 +335,12 @@ export default function EPPPage() {
               Fichas EPP
             </Button>
           </Link>
-          <Button
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => setShowKardexModal(true)}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Kardex Por Trabajador
-          </Button>
+          <Link href="/epp/kardex">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Eye className="w-4 h-4 mr-2" />
+              Kardex Por Trabajador
+            </Button>
+          </Link>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Upload className="w-4 h-4 mr-2" />
             Importar Solicitudes
@@ -515,87 +482,6 @@ export default function EPPPage() {
         </div>
       </div>
 
-      {/* Modal Kardex */}
-      <Modal
-        isOpen={showKardexModal}
-        onClose={() => {
-          setShowKardexModal(false);
-          setKardexDni('');
-          setKardexData(null);
-        }}
-        title="Kardex Por Trabajador"
-      >
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              value={kardexDni}
-              onChange={(e) => setKardexDni(e.target.value)}
-              placeholder="Ingrese DNI del trabajador"
-              className="flex-1"
-            />
-            <Button
-              onClick={handleBuscarKardex}
-              disabled={isLoadingKardex}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Search className="w-4 h-4 mr-2" />
-              Buscar
-            </Button>
-          </div>
-
-          {isLoadingKardex && (
-            <div className="text-center py-8">
-              <Skeleton className="h-32 w-full" />
-            </div>
-          )}
-
-          {kardexData && (
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-gray-900">
-                  {kardexData.trabajador_nombre}
-                </h3>
-                <p className="text-sm text-gray-600">
-                  DNI: {kardexData.trabajador_documento}
-                </p>
-              </div>
-
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Código</th>
-                      <th className="px-3 py-2 text-left">Fecha</th>
-                      <th className="px-3 py-2 text-left">Items</th>
-                      <th className="px-3 py-2 text-left">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {kardexData.historial.map((sol: SolicitudEPP) => (
-                      <tr key={sol.id}>
-                        <td className="px-3 py-2">{sol.codigo_correlativo}</td>
-                        <td className="px-3 py-2">
-                          {new Date(sol.fecha_solicitud).toLocaleDateString('es-PE')}
-                        </td>
-                        <td className="px-3 py-2">
-                          {sol.detalles.length} item(s)
-                        </td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${getEstadoColor(sol.estado)}`}
-                          >
-                            {sol.estado}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }
