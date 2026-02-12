@@ -6,6 +6,7 @@ export interface Empresa {
   ruc: string;
   logoUrl: string | null;
   activo: boolean;
+  areas?: { id: string; nombre: string }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +35,14 @@ export interface CreateAreaDto {
 }
 
 export const empresasService = {
+  async uploadLogo(ruc: string, file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('ruc', ruc);
+    const response = await apiClient.post<{ url: string }>('/empresas/upload-logo', formData);
+    return response.data;
+  },
+
   async findAll(): Promise<Empresa[]> {
     const response = await apiClient.get<Empresa[]>('/empresas');
     return response.data;

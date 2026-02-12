@@ -18,6 +18,14 @@ export interface UpdateUsuarioDto {
   debe_cambiar_password?: boolean;
 }
 
+export interface UpdatePerfilAdminDto {
+  nombres?: string;
+  apellido_paterno?: string;
+  apellido_materno?: string;
+  dni?: string;
+  firma_base64?: string;
+}
+
 export interface ChangePasswordDto {
   nueva_password: string;
   confirmacion_password: string;
@@ -57,6 +65,11 @@ export const usuariosService = {
 
   async update(id: string, data: UpdateUsuarioDto): Promise<Usuario> {
     const response = await apiClient.patch<Usuario>(`/usuarios/${id}`, data);
+    return response.data;
+  },
+
+  async updatePerfilAdmin(data: UpdatePerfilAdminDto): Promise<Usuario> {
+    const response = await apiClient.patch<Usuario>('/usuarios/me/perfil-admin', data);
     return response.data;
   },
 

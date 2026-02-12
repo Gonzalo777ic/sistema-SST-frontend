@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Building2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,11 +39,14 @@ export default function EmpresasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<EmpresaFormData>({
     resolver: zodResolver(empresaSchema),
@@ -185,9 +188,11 @@ export default function EmpresasPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Imagen</TableHead>
                     <TableHead>Nombre</TableHead>
                     <TableHead>RUC</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead>Áreas</TableHead>
                     <TableHead>Fecha Creación</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
@@ -195,6 +200,27 @@ export default function EmpresasPage() {
                 <TableBody>
                   {empresas.map((empresa) => (
                     <TableRow key={empresa.id}>
+                      <TableCell className="w-14">
+                        <div className="flex items-center justify-center min-h-[2.5rem]">
+                          {empresa.logoUrl ? (
+                            <>
+                              <img
+                                src={empresa.logoUrl}
+                                alt={`Logo ${empresa.nombre}`}
+                                className="h-10 w-10 object-contain rounded border bg-slate-50"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                  const fallback = (e.target as HTMLImageElement).nextElementSibling;
+                                  if (fallback) (fallback as HTMLElement).classList.remove('hidden');
+                                }}
+                              />
+                              <span className="hidden text-slate-400 text-sm">-</span>
+                            </>
+                          ) : (
+                            <span className="text-slate-400 text-sm">-</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">
                         {empresa.nombre}
                       </TableCell>
@@ -209,6 +235,17 @@ export default function EmpresasPage() {
                         >
                           {empresa.activo ? 'Activa' : 'Inactiva'}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        {empresa.areas && empresa.areas.length > 0 ? (
+                          <ul className="list-disc list-inside text-sm text-slate-700 space-y-0.5">
+                            {empresa.areas.map((a) => (
+                              <li key={a.id}>{a.nombre}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(empresa.createdAt).toLocaleDateString('es-PE')}
@@ -288,16 +325,85 @@ export default function EmpresasPage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                URL del Logo
+                Logo de la empresa
               </label>
-              <Input
-                {...register('logoUrl')}
-                type="url"
-                placeholder="https://ejemplo.com/logo.png"
-              />
-              {errors.logoUrl && (
-                <p className="mt-1 text-sm text-danger">{errors.logoUrl.message}</p>
-              )}
+              <p className="text-xs text-slate-500 mb-2">
+                Suba una imagen o ingrese la URL manualmente
+              </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 cursor-pointer">
+                    <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700">
+                      <Upload className="w-4 h-4" />
+                      Subir imagen
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                      className="hidden"
+                      disabled={isUploadingLogo || !watch('ruc')}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !watch('ruc')) return;
+                        const ruc = watch('ruc');
+                        if (ruc.length !== 11 || !/^\d{11}$/.test(ruc)) {
+                          toast.error('Complete el RUC (11 dígitos) antes de subir');
+                          return;
+                        }
+                        try {
+                          setIsUploadingLogo(true);
+                          const { url } = await empresasService.uploadLogo(ruc, file);
+                          setValue('logoUrl', url);
+                          toast.success('Logo subido correctamente');
+                        } catch (err: any) {
+                          toast.error('Error al subir logo', {
+                            description: err.response?.data?.message || 'No se pudo subir la imagen',
+                          });
+                        } finally {
+                          setIsUploadingLogo(false);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </label>
+                  {!watch('ruc') && (
+                    <span className="text-xs text-slate-500">Ingrese RUC primero</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-sm">o</span>
+                </div>
+                <div>
+                  <Input
+                    {...register('logoUrl')}
+                    type="url"
+                    placeholder="https://ejemplo.com/logo.png"
+                  />
+                  {errors.logoUrl && (
+                    <p className="mt-1 text-sm text-danger">{errors.logoUrl.message}</p>
+                  )}
+                </div>
+                {watch('logoUrl') && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <img
+                      src={watch('logoUrl')}
+                      alt="Vista previa logo"
+                      className="h-12 object-contain border rounded bg-slate-50"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setValue('logoUrl', '')}
+                    >
+                      Quitar
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-2">

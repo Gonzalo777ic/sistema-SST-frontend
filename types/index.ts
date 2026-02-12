@@ -18,6 +18,10 @@ export enum UsuarioRol {
 export interface Usuario {
   id: string;
   dni: string;
+  nombres?: string | null;
+  apellido_paterno?: string | null;
+  apellido_materno?: string | null;
+  firma_url?: string | null;
   authProvider: AuthProvider;
   roles: UsuarioRol[];
   activo: boolean;
