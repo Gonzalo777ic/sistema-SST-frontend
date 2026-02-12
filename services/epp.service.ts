@@ -73,6 +73,11 @@ export interface ISolicitudEPPDetalle {
   epp_imagen_url: string | null;
   cantidad: number;
   exceptuado: boolean;
+  exceptuado_por_id: string | null;
+  exceptuado_por_nombre: string | null;
+  agregado: boolean;
+  agregado_por_id: string | null;
+  agregado_por_nombre: string | null;
 }
 
 export interface SolicitudEPP {
@@ -250,6 +255,18 @@ export const eppService = {
   async toggleExceptuar(solicitudId: string, detalleId: string): Promise<SolicitudEPP> {
     const response = await apiClient.patch<SolicitudEPP>(
       `/epp/solicitudes/${solicitudId}/detalle/${detalleId}/exceptuar`
+    );
+    return response.data;
+  },
+
+  async agregarDetalle(
+    solicitudId: string,
+    eppId: string,
+    cantidad: number = 1
+  ): Promise<SolicitudEPP> {
+    const response = await apiClient.post<SolicitudEPP>(
+      `/epp/solicitudes/${solicitudId}/detalle`,
+      { epp_id: eppId, cantidad }
     );
     return response.data;
   },

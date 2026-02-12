@@ -8,11 +8,13 @@ import {
   SolicitudEPP,
   UpdateSolicitudEppDto,
   EstadoSolicitudEPP,
+  IEPP,
 } from '@/services/epp.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Modal } from '@/components/ui/modal';
 import {
   ArrowLeft,
   Package,
@@ -21,6 +23,7 @@ import {
   EyeOff,
   Eye,
   XCircle,
+  Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -77,6 +80,13 @@ export default function DetalleSolicitudEPPPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [rechazarModal, setRechazarModal] = useState(false);
   const [comentariosRechazo, setComentariosRechazo] = useState('');
+  const [confirmEstadoModal, setConfirmEstadoModal] = useState<{
+    open: boolean;
+    targetState: EstadoSolicitudEPP | null;
+  }>({ open: false, targetState: null });
+  const [agregarEppModal, setAgregarEppModal] = useState(false);
+  const [epps, setEpps] = useState<IEPP[]>([]);
+  const [agregandoEpp, setAgregandoEpp] = useState(false);
 
   const [observaciones, setObservaciones] = useState('');
   const [comentarios, setComentarios] = useState('');
@@ -89,17 +99,24 @@ export default function DetalleSolicitudEPPPage() {
   ]);
 
   const esObservada = solicitud?.estado === EstadoSolicitudEPP.Observada;
+  const esAprobada = solicitud?.estado === EstadoSolicitudEPP.Aprobada;
   const esInmutable =
-    solicitud?.estado === EstadoSolicitudEPP.Aprobada ||
     solicitud?.estado === EstadoSolicitudEPP.Entregada ||
     solicitud?.estado === EstadoSolicitudEPP.Rechazada;
   const puedeExceptuar = canEdit && esObservada;
+  const puedeAgregarItem = canEdit && (esObservada || esAprobada);
 
   useEffect(() => {
     if (solicitudId) {
       loadSolicitud();
     }
   }, [solicitudId]);
+
+  useEffect(() => {
+    if (solicitud?.empresa_id && agregarEppModal) {
+      eppService.findAllEpp(solicitud.empresa_id).then(setEpps).catch(() => setEpps([]));
+    }
+  }, [solicitud?.empresa_id, agregarEppModal]);
 
   const loadSolicitud = async () => {
     try {
@@ -147,11 +164,42 @@ export default function DetalleSolicitudEPPPage() {
     try {
       await eppService.updateEstado(solicitud.id, { estado: nuevoEstado });
       toast.success(`Estado actualizado a ${nuevoEstado}`);
+      setConfirmEstadoModal({ open: false, targetState: null });
       loadSolicitud();
     } catch (error: any) {
       toast.error('Error al actualizar estado', {
         description: error.response?.data?.message || 'No se pudo actualizar el estado',
       });
+    }
+  };
+
+  const handleSelectEstado = (nuevoEstado: EstadoSolicitudEPP) => {
+    if (nuevoEstado === EstadoSolicitudEPP.Aprobada) {
+      setConfirmEstadoModal({ open: true, targetState: EstadoSolicitudEPP.Aprobada });
+      return;
+    }
+    if (nuevoEstado === EstadoSolicitudEPP.Rechazada) {
+      setRechazarModal(true);
+      return;
+    }
+    handleUpdateEstado(nuevoEstado);
+  };
+
+  const handleAgregarEPP = async (epp: IEPP, cantidad: number = 1) => {
+    if (!solicitud) return;
+
+    try {
+      setAgregandoEpp(true);
+      const updated = await eppService.agregarDetalle(solicitud.id, epp.id, cantidad);
+      setSolicitud(updated);
+      setAgregarEppModal(false);
+      toast.success('Item agregado correctamente');
+    } catch (error: any) {
+      toast.error('Error al agregar item', {
+        description: error.response?.data?.message,
+      });
+    } finally {
+      setAgregandoEpp(false);
     }
   };
 
@@ -243,7 +291,7 @@ export default function DetalleSolicitudEPPPage() {
             <Select
               value={solicitud.estado}
               onChange={(e) =>
-                handleUpdateEstado(e.target.value as EstadoSolicitudEPP)
+                handleSelectEstado(e.target.value as EstadoSolicitudEPP)
               }
               disabled={estadosDisponibles.length === 0}
               className={`border-2 rounded-md font-medium min-w-[140px] ${getEstadoColor(solicitud.estado)}`}
@@ -256,7 +304,7 @@ export default function DetalleSolicitudEPPPage() {
               ))}
             </Select>
           </div>
-          {canEdit && !esInmutable && (
+          {canEdit && esObservada && (
             <Button
               onClick={handleSave}
               disabled={isSaving || !isEditing}
@@ -410,9 +458,20 @@ export default function DetalleSolicitudEPPPage() {
 
           {/* Tabla EPPs solicitados */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              EPPs solicitados
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                EPPs solicitados
+              </h2>
+              {puedeAgregarItem && (
+                <Button
+                  onClick={() => setAgregarEppModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Agregar EPP
+                </Button>
+              )}
+            </div>
             {solicitud.detalles.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -430,6 +489,7 @@ export default function DetalleSolicitudEPPPage() {
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Tiempo de vida</th>
                       <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700">Cantidad</th>
                       <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Imagen</th>
+                      <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Auditoría</th>
                       {puedeExceptuar && (
                         <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16">Exceptuar</th>
                       )}
@@ -451,6 +511,9 @@ export default function DetalleSolicitudEPPPage() {
                           {detalle.exceptuado && (
                             <span className="ml-2 text-xs text-amber-600 font-medium">(exceptuado)</span>
                           )}
+                          {detalle.agregado && (
+                            <span className="ml-2 text-xs text-blue-600 font-medium">(agregado)</span>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-sm text-gray-600">{detalle.epp_tipo_proteccion || '-'}</td>
                         <td className="px-3 py-3 text-sm text-gray-600 max-w-xs truncate">
@@ -468,6 +531,15 @@ export default function DetalleSolicitudEPPPage() {
                           ) : (
                             <span className="text-gray-400 text-xs">-</span>
                           )}
+                        </td>
+                        <td className="px-3 py-3 text-xs text-gray-600">
+                          {detalle.exceptuado && detalle.exceptuado_por_nombre && (
+                            <div>Exceptuado por: {detalle.exceptuado_por_nombre}</div>
+                          )}
+                          {detalle.agregado && detalle.agregado_por_nombre && (
+                            <div>Agregado por: {detalle.agregado_por_nombre}</div>
+                          )}
+                          {!detalle.exceptuado && !detalle.agregado && '-'}
                         </td>
                         {puedeExceptuar && (
                           <td className="px-3 py-3 text-center">
@@ -593,6 +665,12 @@ export default function DetalleSolicitudEPPPage() {
                 </span>
               </p>
               <p className="text-sm text-gray-600">
+                Items agregados:{' '}
+                <span className="font-medium">
+                  {solicitud.detalles.filter((d) => d.agregado).length}
+                </span>
+              </p>
+              <p className="text-sm text-gray-600">
                 Cantidad total aprobada:{' '}
                 <span className="font-medium">
                   {solicitud.detalles
@@ -605,6 +683,34 @@ export default function DetalleSolicitudEPPPage() {
         </div>
       </div>
 
+      {/* Modal Confirmar Aprobada */}
+      {confirmEstadoModal.open && confirmEstadoModal.targetState === EstadoSolicitudEPP.Aprobada && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              ¿Desea aprobar esta solicitud?
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Si lo hace no podrá revertirlo. La solicitud pasará a estado APROBADA y solo podrá avanzar a ENTREGADA.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmEstadoModal({ open: false, targetState: null })}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => confirmEstadoModal.targetState && handleUpdateEstado(confirmEstadoModal.targetState)}
+              >
+                Aprobar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal Rechazar */}
       {rechazarModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -613,7 +719,7 @@ export default function DetalleSolicitudEPPPage() {
               Rechazar solicitud
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              La solicitud quedará en estado RECHAZADA. No se podrá modificar. (Auditoría)
+              ¿Desea rechazar esta solicitud? Si lo hace no podrá revertirlo. La solicitud quedará en estado RECHAZADA para auditoría.
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Comentario de rechazo (opcional)
@@ -639,6 +745,54 @@ export default function DetalleSolicitudEPPPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Agregar EPP */}
+      <Modal
+        isOpen={agregarEppModal}
+        onClose={() => setAgregarEppModal(false)}
+        title="Agregar EPP a la solicitud"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Seleccione un EPP para agregar. Quedará registrado como item agregado (auditoría).
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+            {epps.map((epp) => (
+              <button
+                key={epp.id}
+                type="button"
+                onClick={() => handleAgregarEPP(epp)}
+                disabled={agregandoEpp}
+                className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left disabled:opacity-50"
+              >
+                <div className="flex items-start gap-3">
+                  {epp.imagen_url && (
+                    <img
+                      src={epp.imagen_url}
+                      alt={epp.nombre}
+                      className="w-16 h-16 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <h3 className="font-medium text-gray-900">{epp.nombre}</h3>
+                    <p className="text-sm text-gray-600">{epp.tipo_proteccion}</p>
+                    {epp.descripcion && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{epp.descripcion}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">
+                      Stock: {epp.stock} | Vigencia: {epp.vigencia || 'N/A'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+          {epps.length === 0 && (
+            <p className="text-center py-8 text-gray-500">No hay EPPs disponibles para esta empresa</p>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }
