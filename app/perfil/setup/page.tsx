@@ -9,6 +9,7 @@ import { trabajadoresService, UpdatePersonalDataDto } from '@/services/trabajado
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { User, CheckCircle2 } from 'lucide-react';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,6 +20,7 @@ const personalDataSchema = z.object({
   talla_camisa: z.string().min(1, 'La talla de camisa es obligatoria'),
   talla_pantalon: z.string().min(1, 'La talla de pantalón es obligatoria'),
   talla_calzado: z.string().min(1, 'La talla de calzado es obligatoria'),
+  firma_digital_url: z.string().optional(),
 });
 
 type PersonalDataFormData = z.infer<typeof personalDataSchema>;
@@ -40,6 +42,7 @@ export default function PerfilSetupPage() {
       talla_camisa: '',
       talla_pantalon: '',
       talla_calzado: '',
+      firma_digital_url: '',
     },
   });
 
@@ -65,6 +68,7 @@ export default function PerfilSetupPage() {
         talla_camisa: data.talla_camisa,
         talla_pantalon: data.talla_pantalon,
         talla_calzado: data.talla_calzado,
+        firma_digital_url: data.firma_digital_url || undefined,
       };
 
       // Actualizar datos personales del trabajador
@@ -184,6 +188,19 @@ export default function PerfilSetupPage() {
                     </p>
                   )}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Firma digital <span className="text-slate-400">(opcional)</span>
+                </label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Dibuje su firma con el mouse o el dedo. Se usará en registros de entrega de EPP.
+                </p>
+                <SignaturePad
+                  value={personalDataForm.watch('firma_digital_url')}
+                  onChange={(url) => personalDataForm.setValue('firma_digital_url', url)}
+                />
               </div>
 
               <div className="flex justify-end pt-4">

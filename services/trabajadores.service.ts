@@ -122,6 +122,7 @@ export interface UpdatePersonalDataDto {
   talla_camisa?: string;
   talla_pantalon?: string;
   talla_calzado?: string;
+  firma_digital_url?: string;
 }
 
 export const trabajadoresService = {

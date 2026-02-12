@@ -312,6 +312,20 @@ export const eppService = {
     return response.data;
   },
 
+  async getUltimoKardexPdf(trabajadorId: string): Promise<{ pdf_url: string | null; solicitud_id: string | null }> {
+    const response = await apiClient.get<{ pdf_url: string | null; solicitud_id: string | null }>(
+      `/epp/ultimo-kardex-pdf/${trabajadorId}`
+    );
+    return response.data;
+  },
+
+  async getRegistroPdfBlob(solicitudId: string): Promise<Blob> {
+    const response = await apiClient.get(`/epp/registro-pdf/${solicitudId}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
   async getKardexList(params?: {
     empresa_ids?: string[];
     nombre?: string;

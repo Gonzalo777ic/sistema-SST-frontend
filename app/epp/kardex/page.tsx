@@ -7,6 +7,8 @@ import {
   eppService,
   EstadoVigenciaKardex,
   IKardexListItem,
+  IKardex,
+  EstadoSolicitudEPP,
 } from '@/services/epp.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { areasService, Area } from '@/services/areas.service';
@@ -21,6 +23,7 @@ import {
   FileDown,
   BookOpen,
 } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
@@ -57,6 +60,11 @@ export default function KardexPage() {
   const [filtroArea, setFiltroArea] = useState('');
   const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
   const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
+
+  const [showKardexModal, setShowKardexModal] = useState(false);
+  const [kardexData, setKardexData] = useState<IKardex | null>(null);
+  const [kardexLoading, setKardexLoading] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
 
   const esAdmin = hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]);
 
@@ -127,22 +135,70 @@ export default function KardexPage() {
 
   const handleVerKardex = async (trabajadorId: string) => {
     try {
+      setKardexLoading(true);
+      setShowKardexModal(true);
+      setKardexData(null);
+
       const kardex = await eppService.getKardexPorTrabajador(trabajadorId);
-      const blob = new Blob(
-        [JSON.stringify(kardex, null, 2)],
-        { type: 'application/json' }
-      );
+      setKardexData(kardex);
+    } catch (error: any) {
+      toast.error('Error al cargar kardex', {
+        description: error.response?.data?.message || 'No se pudo cargar el historial',
+      });
+      setShowKardexModal(false);
+    } finally {
+      setKardexLoading(false);
+    }
+  };
+
+  const handleDescargarPdf = async () => {
+    if (!kardexData?.trabajador_id) return;
+    try {
+      setPdfDownloading(true);
+      const { pdf_url, solicitud_id } = await eppService.getUltimoKardexPdf(kardexData.trabajador_id);
+      if (!solicitud_id || !pdf_url) {
+        toast.info('PDF no disponible', {
+          description: 'El documento se generará al conectar con el almacenamiento en la nube (GCS).',
+        });
+        return;
+      }
+
+      const blob = await eppService.getRegistroPdfBlob(solicitud_id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `kardex-${kardex.trabajador_nombre.replace(/\s+/g, '-')}-${kardex.trabajador_documento}.json`;
+      a.download = `registro-entrega-epp-${kardexData.trabajador_nombre.replace(/\s+/g, '-')}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Kardex descargado');
+      toast.success('PDF descargado');
     } catch (error: any) {
-      toast.error('Error al descargar kardex', {
-        description: error.response?.data?.message || 'No se pudo descargar',
+      toast.info('PDF no disponible', {
+        description: 'El documento se generará al conectar con el almacenamiento en la nube (GCS).',
       });
+    } finally {
+      setPdfDownloading(false);
+    }
+  };
+
+  const closeKardexModal = () => {
+    setKardexData(null);
+    setShowKardexModal(false);
+  };
+
+  const getEstadoColorSolicitud = (estado: EstadoSolicitudEPP) => {
+    switch (estado) {
+      case EstadoSolicitudEPP.Aprobada:
+        return 'text-green-700 bg-green-50 border-green-200';
+      case EstadoSolicitudEPP.Entregada:
+        return 'text-blue-700 bg-blue-50 border-blue-200';
+      case EstadoSolicitudEPP.Observada:
+        return 'text-amber-700 bg-amber-50 border-amber-200';
+      case EstadoSolicitudEPP.Rechazada:
+        return 'text-red-700 bg-red-50 border-red-200';
+      case EstadoSolicitudEPP.Pendiente:
+        return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+      default:
+        return 'text-gray-700 bg-gray-50 border-gray-200';
     }
   };
 
@@ -390,7 +446,7 @@ export default function KardexPage() {
                         onClick={() => handleVerKardex(item.trabajador_id)}
                       >
                         <FileDown className="w-4 h-4 mr-2" />
-                        Ver Kardex
+                        Ver último Kardex
                       </Button>
                     </td>
                   </tr>
@@ -405,6 +461,84 @@ export default function KardexPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Kardex */}
+      <Modal
+        isOpen={showKardexModal}
+        onClose={closeKardexModal}
+        title="Kardex por trabajador"
+      >
+        <div className="min-h-[300px]">
+          {kardexLoading ? (
+            <div className="flex items-center justify-center py-24">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+            </div>
+          ) : kardexData ? (
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold text-gray-900">
+                  {kardexData.trabajador_nombre}
+                </h3>
+                <p className="text-sm text-gray-600">
+                  DNI: {kardexData.trabajador_documento}
+                </p>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto border rounded">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Código</th>
+                      <th className="px-3 py-2 text-left">Fecha</th>
+                      <th className="px-3 py-2 text-left">Items</th>
+                      <th className="px-3 py-2 text-left">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {kardexData.historial.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8 text-center text-gray-500">
+                          Sin entregas registradas
+                        </td>
+                      </tr>
+                    ) : (
+                      kardexData.historial.map((sol) => (
+                        <tr key={sol.id}>
+                          <td className="px-3 py-2">{sol.codigo_correlativo}</td>
+                          <td className="px-3 py-2">
+                            {new Date(sol.fecha_solicitud).toLocaleDateString('es-PE')}
+                          </td>
+                          <td className="px-3 py-2">
+                            {sol.detalles?.length ?? 0} item(s)
+                          </td>
+                          <td className="px-3 py-2">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium border ${getEstadoColorSolicitud(sol.estado)}`}
+                            >
+                              {sol.estado}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={handleDescargarPdf}
+                  disabled={pdfDownloading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  {pdfDownloading ? 'Descargando...' : 'Descargar PDF'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
     </div>
   );
 }
