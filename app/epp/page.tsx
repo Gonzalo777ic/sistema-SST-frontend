@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { SignaturePad } from '@/components/ui/signature-pad';
 import {
   Plus,
   Eye,
@@ -28,6 +27,7 @@ import {
   Package,
   Grid3X3,
 } from 'lucide-react';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
@@ -75,6 +75,8 @@ export default function EPPPage() {
   const [observacionesModal, setObservacionesModal] = useState('');
   const [comentariosRechazoModal, setComentariosRechazoModal] = useState('');
   const [passwordEntregada, setPasswordEntregada] = useState('');
+  const [firmaEntregada, setFirmaEntregada] = useState('');
+  const [entregadaStep, setEntregadaStep] = useState(1);
   const [isSubmittingEstado, setIsSubmittingEstado] = useState(false);
 
   const canCreate = hasAnyRole([
@@ -179,6 +181,8 @@ export default function EPPPage() {
     }
     if (estadoNuevo === 'ENTREGADA') {
       setPasswordEntregada('');
+      setFirmaEntregada('');
+      setEntregadaStep(1);
       setModalEstado({ tipo: 'entregada', solicitud });
       return;
     }
@@ -231,17 +235,33 @@ export default function EPPPage() {
         comentarios_aprobacion: comentariosRechazoModal || undefined,
       });
     } else if (tipo === 'entregada') {
-      try {
-        const { valid } = await authService.verifyPassword(passwordEntregada);
-        if (!valid) {
-          toast.error('Contraseña incorrecta');
+      const esAutoSolicitud = solicitud.es_auto_solicitud === true;
+      if (entregadaStep === 1) {
+        try {
+          const { valid } = await authService.verifyPassword(passwordEntregada);
+          if (!valid) {
+            toast.error('Contraseña incorrecta');
+            return;
+          }
+          if (esAutoSolicitud) {
+            await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Entregada, {
+              password: passwordEntregada,
+            });
+          } else {
+            setEntregadaStep(2);
+          }
+        } catch {
+          toast.error('Error al validar contraseña');
+        }
+      } else {
+        if (!firmaEntregada) {
+          toast.error('Debe ingresar la firma del solicitante');
           return;
         }
         await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Entregada, {
           password: passwordEntregada,
+          firma_recepcion_base64: firmaEntregada,
         });
-      } catch {
-        toast.error('Error al validar contraseña');
       }
     }
   };
@@ -716,7 +736,7 @@ export default function EPPPage() {
               </div>
             )}
 
-            {/* Modal Entregada (2 pasos: password + firma) */}
+            {/* Modal Entregada: auto-solicitud = solo password; admin inició = password + firma trabajador */}
             {modalEstado.tipo === 'entregada' && modalEstado.solicitud && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
@@ -734,11 +754,34 @@ export default function EPPPage() {
               </div>
             )}
             <div className="p-6">
-            {entregadaStep === 1 ? (
+            {modalEstado.solicitud.es_auto_solicitud ? (
               <>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Verificar identidad
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Registrar entrega</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Ingrese su contraseña para confirmar que es usted quien registra la entrega. La firma del solicitante se usa automáticamente (ya la envió al crear la solicitud).
+                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <Input
+                  type="password"
+                  value={passwordEntregada}
+                  onChange={(e) => setPasswordEntregada(e.target.value)}
+                  placeholder="Su contraseña"
+                  className="mb-4"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setModalEstado(null)}>Cancelar</Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleConfirmarModal}
+                    disabled={isSubmittingEstado || !passwordEntregada}
+                  >
+                    {isSubmittingEstado ? 'Registrando...' : 'Registrar entrega'}
+                  </Button>
+                </div>
+              </>
+            ) : entregadaStep === 1 ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Verificar identidad</h3>
                 <p className="text-sm text-gray-600 mb-4">
                   Ingrese su contraseña para confirmar que es usted quien registra la entrega (admin/SST).
                 </p>
@@ -751,9 +794,7 @@ export default function EPPPage() {
                   className="mb-4"
                 />
                 <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setModalEstado(null)}>
-                    Cancelar
-                  </Button>
+                  <Button variant="outline" onClick={() => setModalEstado(null)}>Cancelar</Button>
                   <Button
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleConfirmarModal}
@@ -765,14 +806,12 @@ export default function EPPPage() {
               </>
             ) : (
               <>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Firma del solicitante
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Firma del solicitante</h3>
                 <p className="text-sm text-gray-600 mb-2">
                   Solicitante: <strong>{modalEstado.solicitud.solicitante_nombre}</strong>
                 </p>
                 <p className="text-sm text-gray-600 mb-4">
-                  El solicitante debe firmar para confirmar la recepción del EPP.
+                  El trabajador debe firmar para avalar que estuvo presente en la entrega.
                 </p>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Firma de recepción</label>
                 <SignaturePad
@@ -782,11 +821,7 @@ export default function EPPPage() {
                   height={120}
                 />
                 <div className="flex gap-2 justify-end mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setEntregadaStep(1)}
-                    disabled={isSubmittingEstado}
-                  >
+                  <Button variant="outline" onClick={() => setEntregadaStep(1)} disabled={isSubmittingEstado}>
                     Atrás
                   </Button>
                   <Button

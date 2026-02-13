@@ -111,6 +111,7 @@ export interface SolicitudEPP {
   fecha_solicitud: string;
   usuario_epp_id: string;
   usuario_epp_nombre: string | null;
+  es_auto_solicitud?: boolean; // true si el trabajador creó la solicitud desde su cuenta
   solicitante_id: string;
   solicitante_nombre: string | null;
   solicitante_documento: string | null;
