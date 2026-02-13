@@ -433,10 +433,12 @@ export default function EPPPage() {
       {/* Barra de Herramientas */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            <FileText className="w-4 h-4 mr-2" />
-            Reporte
-          </Button>
+          <Link href="/epp/reportes">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <FileText className="w-4 h-4 mr-2" />
+              Reporte
+            </Button>
+          </Link>
           <Link href="/epp/fichas" className="inline-block">
             <Button className="bg-blue-600 hover:bg-blue-700 text-white">
               <ClipboardList className="w-4 h-4 mr-2" />

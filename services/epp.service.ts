@@ -384,4 +384,101 @@ export const eppService = {
     const response = await apiClient.get<IKardexListItem[]>('/epp/kardex-list', { params: searchParams });
     return response.data;
   },
+
+  // ========== Reportes EPP ==========
+
+  async getReporteEstadosEpp(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/estados-epp', { params });
+    return res.data as { vencido: number; vigente: number; por_vencer: number; total: number };
+  },
+
+  async getReporteEntregasPorEmpresa(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/entregas-por-empresa', { params });
+    return res.data as Array<{
+      empresa_id: string;
+      empresa_nombre: string;
+      total: number;
+      vencido: number;
+      vigente: number;
+      por_vencer: number;
+    }>;
+  },
+
+  async getReporteEntregasPorEmpresaArea(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/entregas-por-empresa-area', { params });
+    return res.data as Array<{
+      empresa_id: string;
+      empresa_nombre: string;
+      area_id: string | null;
+      area_nombre: string | null;
+      total: number;
+      vencido: number;
+      vigente: number;
+      por_vencer: number;
+    }>;
+  },
+
+  async getReporteEntregasPorMes(params?: {
+    empresa_ids?: string[];
+    fecha_desde?: string;
+    fecha_hasta?: string;
+  }) {
+    const searchParams: Record<string, string> = {};
+    if (params?.empresa_ids?.length) searchParams.empresa_ids = params.empresa_ids.join(',');
+    if (params?.fecha_desde) searchParams.fecha_desde = params.fecha_desde;
+    if (params?.fecha_hasta) searchParams.fecha_hasta = params.fecha_hasta;
+    const res = await apiClient.get('/epp/reportes/entregas-por-mes', { params: searchParams });
+    return res.data as Array<{
+      fecha_entrega: string;
+      trabajador_id: string;
+      trabajador_nombre: string;
+      nro_documento: string;
+      fecha_vencimiento: string | null;
+      razon_social: string;
+      sede: string | null;
+      equipo: string;
+      vigencia: 'Vencido' | 'Vigente' | 'Por vencer';
+      cantidad: number;
+      costo_unitario: number | null;
+    }>;
+  },
+
+  async getReporteEntregasPorSede(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/entregas-por-sede', { params });
+    return res.data as Array<{
+      sede: string;
+      total: number;
+      vencido: number;
+      vigente: number;
+      por_vencer: number;
+    }>;
+  },
+
+  async getReporteEppsMasSolicitados(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/epps-mas-solicitados', { params });
+    return res.data as Array<{
+      epp_id: string;
+      epp_nombre: string;
+      total_solicitado: number;
+      cantidad_entregas: number;
+    }>;
+  },
+
+  async getReporteTrabajadorCostoHistorico(empresaIds?: string[]) {
+    const params = empresaIds?.length ? { empresa_ids: empresaIds.join(',') } : {};
+    const res = await apiClient.get('/epp/reportes/trabajador-costo-historico', { params });
+    return res.data as Array<{
+      trabajador_id: string;
+      trabajador_nombre: string;
+      nro_documento: string;
+      razon_social: string | null;
+      total_items: number;
+      costo_total: number;
+    }>;
+  },
 };
