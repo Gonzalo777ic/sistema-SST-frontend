@@ -917,7 +917,7 @@ export default function DetalleSolicitudEPPPage() {
                       <p className="text-xs text-gray-500 mt-1 line-clamp-2">{epp.descripcion}</p>
                     )}
                     <p className="text-xs text-gray-500 mt-1">
-                      Stock: {epp.stock} | Vigencia: {epp.vigencia || 'N/A'}
+                      Vigencia: {epp.vigencia || 'N/A'}
                     </p>
                   </div>
                 </div>

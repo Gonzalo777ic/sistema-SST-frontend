@@ -24,6 +24,7 @@ import {
   FileDown,
   Package,
   Image as ImageIcon,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -158,9 +159,6 @@ export default function FichasEPPPage() {
                     Vigencia
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Stock
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -170,7 +168,7 @@ export default function FichasEPPPage() {
                 <>
                   {[1, 2, 3, 4, 5].map((i) => (
                     <tr key={i}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((j) => (
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((j) => (
                         <td key={j} className="px-4 py-4">
                           <Skeleton className="h-4 w-full" />
                         </td>
@@ -180,7 +178,7 @@ export default function FichasEPPPage() {
                 </>
               ) : filteredEpps.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center">
+                  <td colSpan={8} className="px-4 py-12 text-center">
                     <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">Sin Información</p>
                   </td>
@@ -226,19 +224,6 @@ export default function FichasEPPPage() {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                       {epp.vigencia || '-'}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          epp.stock > 10
-                            ? 'text-green-700 bg-green-50 border border-green-200'
-                            : epp.stock > 0
-                              ? 'text-yellow-700 bg-yellow-50 border border-yellow-200'
-                              : 'text-red-700 bg-red-50 border border-red-200'
-                        }`}
-                      >
-                        {epp.stock}
-                      </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
@@ -286,7 +271,7 @@ export default function FichasEPPPage() {
         >
           <EppFormModal
             epp={editingEpp}
-            empresaId={usuario?.empresaId || ''}
+            empresaId={editingEpp?.empresa_id || usuario?.empresaId || ''}
             onSuccess={() => {
               setShowEditModal(false);
               setEditingEpp(null);
@@ -313,6 +298,8 @@ interface EppFormModalProps {
 
 function EppFormModal({ epp, empresaId, onSuccess, onCancel }: EppFormModalProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImagen, setIsUploadingImagen] = useState(false);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
   const [formData, setFormData] = useState({
     nombre: epp?.nombre || '',
     tipo_proteccion: (epp?.tipo_proteccion || TipoProteccionEPP.Otros) as TipoProteccionEPP,
@@ -321,7 +308,6 @@ function EppFormModal({ epp, empresaId, onSuccess, onCancel }: EppFormModalProps
     descripcion: epp?.descripcion || '',
     imagen_url: epp?.imagen_url || '',
     adjunto_pdf_url: epp?.adjunto_pdf_url || '',
-    stock: epp?.stock?.toString() || '0',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -345,7 +331,6 @@ function EppFormModal({ epp, empresaId, onSuccess, onCancel }: EppFormModalProps
           descripcion: formData.descripcion || undefined,
           imagen_url: formData.imagen_url || undefined,
           adjunto_pdf_url: formData.adjunto_pdf_url || undefined,
-          stock: parseInt(formData.stock) || 0,
         };
 
         await eppService.updateEpp(epp.id, payload);
@@ -361,7 +346,6 @@ function EppFormModal({ epp, empresaId, onSuccess, onCancel }: EppFormModalProps
           descripcion: formData.descripcion || undefined,
           imagen_url: formData.imagen_url || undefined,
           adjunto_pdf_url: formData.adjunto_pdf_url || undefined,
-          stock: parseInt(formData.stock) || 0,
           empresa_id: empresaId,
         };
 
@@ -477,46 +461,132 @@ function EppFormModal({ epp, empresaId, onSuccess, onCancel }: EppFormModalProps
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          URL de Imagen
+          Imagen del EPP
         </label>
-        <Input
-          type="url"
-          value={formData.imagen_url}
-          onChange={(e) =>
-            setFormData({ ...formData, imagen_url: e.target.value })
-          }
-          placeholder="https://ejemplo.com/imagen.jpg"
-        />
+        <p className="text-xs text-slate-500 mb-2">
+          Suba una imagen o ingrese la URL manualmente
+        </p>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700">
+                <Upload className="w-4 h-4" />
+                Subir imagen
+              </span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                className="hidden"
+                disabled={isUploadingImagen || !empresaId}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !empresaId) return;
+                  try {
+                    setIsUploadingImagen(true);
+                    const { url } = await eppService.uploadEppImagen(empresaId, file);
+                    setFormData((prev) => ({ ...prev, imagen_url: url }));
+                    toast.success('Imagen subida correctamente');
+                  } catch (err: any) {
+                    toast.error('Error al subir imagen', {
+                      description: err.response?.data?.message || 'No se pudo subir la imagen',
+                    });
+                  } finally {
+                    setIsUploadingImagen(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <Input
+            type="url"
+            value={formData.imagen_url}
+            onChange={(e) =>
+              setFormData({ ...formData, imagen_url: e.target.value })
+            }
+            placeholder="https://ejemplo.com/imagen.jpg"
+          />
+          {formData.imagen_url && (
+            <div className="flex items-center gap-2">
+              <img
+                src={formData.imagen_url}
+                alt="Vista previa"
+                className="h-16 object-contain rounded border bg-slate-50"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, imagen_url: '' })}
+              >
+                Quitar
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          URL del PDF (Ficha técnica)
+          Ficha técnica (PDF)
         </label>
-        <Input
-          type="url"
-          value={formData.adjunto_pdf_url}
-          onChange={(e) =>
-            setFormData({ ...formData, adjunto_pdf_url: e.target.value })
-          }
-          placeholder="https://ejemplo.com/ficha-tecnica.pdf"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Stock inicial
-        </label>
-        <Input
-          type="number"
-          min="0"
-          value={formData.stock}
-          onChange={(e) =>
-            setFormData({ ...formData, stock: e.target.value })
-          }
-          placeholder="0"
-          required
-        />
+        <p className="text-xs text-slate-500 mb-2">
+          Suba un PDF o ingrese la URL manualmente
+        </p>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer">
+              <span className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700">
+                <Upload className="w-4 h-4" />
+                Subir PDF
+              </span>
+              <input
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                disabled={isUploadingPdf || !empresaId}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file || !empresaId) return;
+                  try {
+                    setIsUploadingPdf(true);
+                    const { url } = await eppService.uploadEppFichaPdf(empresaId, file);
+                    setFormData((prev) => ({ ...prev, adjunto_pdf_url: url }));
+                    toast.success('PDF subido correctamente');
+                  } catch (err: any) {
+                    toast.error('Error al subir PDF', {
+                      description: err.response?.data?.message || 'No se pudo subir el PDF',
+                    });
+                  } finally {
+                    setIsUploadingPdf(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+            </label>
+          </div>
+          <Input
+            type="url"
+            value={formData.adjunto_pdf_url}
+            onChange={(e) =>
+              setFormData({ ...formData, adjunto_pdf_url: e.target.value })
+            }
+            placeholder="https://ejemplo.com/ficha-tecnica.pdf"
+          />
+          {formData.adjunto_pdf_url && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFormData({ ...formData, adjunto_pdf_url: '' })}
+            >
+              Quitar PDF
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-4 border-t border-gray-200">

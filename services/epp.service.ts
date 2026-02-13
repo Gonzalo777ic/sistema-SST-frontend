@@ -71,8 +71,7 @@ export interface IEPP {
   costo: number | null;
   categoria_criticidad: CategoriaCriticidadEPP | null;
   adjunto_pdf_url: string | null;
-  stock: number;
-  empresa_id: string;
+  empresa_id: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -194,8 +193,7 @@ export interface CreateEppDto {
   costo?: number;
   categoria_criticidad?: CategoriaCriticidadEPP;
   adjunto_pdf_url?: string;
-  stock?: number;
-  empresa_id: string;
+  empresa_id?: string | null;
 }
 
 export interface UpdateEppDto {
@@ -208,7 +206,6 @@ export interface UpdateEppDto {
   costo?: number;
   categoria_criticidad?: CategoriaCriticidadEPP;
   adjunto_pdf_url?: string;
-  stock?: number;
 }
 
 export const eppService = {
@@ -227,6 +224,22 @@ export const eppService = {
 
   async findOneEpp(id: string): Promise<IEPP> {
     const response = await apiClient.get<IEPP>(`/epp/catalogo/${id}`);
+    return response.data;
+  },
+
+  async uploadEppImagen(empresaId: string, file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('empresa_id', empresaId);
+    const response = await apiClient.post<{ url: string }>('/epp/catalogo/upload-imagen', formData);
+    return response.data;
+  },
+
+  async uploadEppFichaPdf(empresaId: string, file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('empresa_id', empresaId);
+    const response = await apiClient.post<{ url: string }>('/epp/catalogo/upload-ficha-pdf', formData);
     return response.data;
   },
 

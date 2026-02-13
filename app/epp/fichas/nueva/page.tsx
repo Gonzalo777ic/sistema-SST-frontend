@@ -121,13 +121,17 @@ export default function NuevaFichaEPPPage() {
       return;
     }
 
-    // SUPER_ADMIN: selecciona empresa del proyecto. Otros: usa empresa vinculada.
-    const empresaId = isSuperAdmin
-      ? formData.empresa_id
-      : usuario?.empresaId || empresasVinculadas?.[0]?.id;
-    if (!empresaId) {
+    // SUPER_ADMIN: selecciona empresa o "Todas las Empresas". Otros: usa empresa vinculada.
+    const empresaIdRaw = isSuperAdmin ? formData.empresa_id : (usuario?.empresaId || empresasVinculadas?.[0]?.id);
+    const isGlobal = empresaIdRaw === '__GLOBAL__';
+    const empresaId = isGlobal ? null : empresaIdRaw;
+    if (isSuperAdmin && !formData.empresa_id) {
+      toast.error('Seleccione una empresa o "Todas las Empresas"');
+      return;
+    }
+    if (!empresaId && !isGlobal) {
       if (isSuperAdmin) {
-        toast.error('Seleccione una empresa');
+        toast.error('Seleccione una empresa o "Todas las Empresas"');
       } else {
         toast.error('No se encontró empresa vinculada', {
           description: 'Complete su perfil o contacte al administrador para vincular su cuenta a una empresa.',
@@ -139,16 +143,18 @@ export default function NuevaFichaEPPPage() {
     try {
       setIsSaving(true);
 
-      // Por ahora, si hay archivos, solo mostramos un mensaje
-      // ya que el bucket aún no está implementado
+      let imagenUrl = formData.imagen_url || undefined;
+      let adjuntoPdfUrl = formData.adjunto_pdf_url || undefined;
+
+      const uploadEmpresaId = empresaId ?? '';
       if (imagenFile) {
-        toast.info('La subida de imágenes estará disponible cuando se implemente el bucket de almacenamiento');
-        // Por ahora, usar la URL si está disponible
+        const { url } = await eppService.uploadEppImagen(uploadEmpresaId, imagenFile);
+        imagenUrl = url;
       }
 
       if (pdfFile) {
-        toast.info('La subida de PDFs estará disponible cuando se implemente el bucket de almacenamiento');
-        // Por ahora, usar la URL si está disponible
+        const { url } = await eppService.uploadEppFichaPdf(uploadEmpresaId, pdfFile);
+        adjuntoPdfUrl = url;
       }
 
       const payload: CreateEppDto = {
@@ -159,10 +165,9 @@ export default function NuevaFichaEPPPage() {
         costo: formData.costo ? parseFloat(formData.costo) : undefined,
         categoria_criticidad: formData.categoria_criticidad || undefined,
         descripcion: formData.descripcion || undefined,
-        imagen_url: formData.imagen_url || undefined,
-        adjunto_pdf_url: formData.adjunto_pdf_url || undefined,
-        stock: 0,
-        empresa_id: empresaId,
+        imagen_url: imagenUrl,
+        adjunto_pdf_url: adjuntoPdfUrl,
+        empresa_id: empresaId ?? undefined,
       };
 
       await eppService.createEpp(payload);
@@ -212,6 +217,7 @@ export default function NuevaFichaEPPPage() {
                   required
                 >
                   <option value="">Seleccione una empresa</option>
+                  <option value="__GLOBAL__">Todas las Empresas</option>
                   {empresas.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.nombre}
@@ -220,7 +226,7 @@ export default function NuevaFichaEPPPage() {
                 </Select>
               )}
               <p className="mt-1 text-xs text-gray-500">
-                La gestión de EPPs es a nivel proyecto. Seleccione la empresa para esta ficha.
+                Seleccione una empresa o &quot;Todas las Empresas&quot; para que la ficha aplique globalmente al proyecto.
               </p>
             </div>
           )}
