@@ -26,6 +26,9 @@ import { UsuarioRol } from '@/types';
 const empresaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio'),
   ruc: z.string().length(11, 'El RUC debe tener 11 dígitos').regex(/^\d{11}$/, 'El RUC debe contener solo números'),
+  direccion: z.string().min(1, 'La dirección es obligatoria'),
+  actividad_economica: z.string().min(1, 'La actividad económica es obligatoria'),
+  numero_trabajadores: z.coerce.number().min(0, 'Debe ser 0 o mayor').optional(),
   logoUrl: z.string().url('Debe ser una URL válida').optional().or(z.literal('')),
   activo: z.boolean().optional(),
 });
@@ -53,6 +56,9 @@ export default function EmpresasPage() {
     defaultValues: {
       nombre: '',
       ruc: '',
+      direccion: '',
+      actividad_economica: '',
+      numero_trabajadores: 0,
       logoUrl: '',
       activo: true,
     },
@@ -70,6 +76,9 @@ export default function EmpresasPage() {
       reset({
         nombre: editingEmpresa.nombre,
         ruc: editingEmpresa.ruc,
+        direccion: editingEmpresa.direccion || '',
+        actividad_economica: editingEmpresa.actividad_economica || '',
+        numero_trabajadores: editingEmpresa.numero_trabajadores ?? 0,
         logoUrl: editingEmpresa.logoUrl || '',
         activo: editingEmpresa.activo,
       });
@@ -77,6 +86,9 @@ export default function EmpresasPage() {
       reset({
         nombre: '',
         ruc: '',
+        direccion: '',
+        actividad_economica: '',
+        numero_trabajadores: 0,
         logoUrl: '',
         activo: true,
       });
@@ -103,6 +115,9 @@ export default function EmpresasPage() {
         await empresasService.update(editingEmpresa.id, {
           nombre: data.nombre,
           ruc: data.ruc,
+          direccion: data.direccion || undefined,
+          actividad_economica: data.actividad_economica || undefined,
+          numero_trabajadores: data.numero_trabajadores,
           logoUrl: data.logoUrl || undefined,
           activo: data.activo,
         });
@@ -113,6 +128,9 @@ export default function EmpresasPage() {
         await empresasService.create({
           nombre: data.nombre,
           ruc: data.ruc,
+          direccion: data.direccion,
+          actividad_economica: data.actividad_economica,
+          numero_trabajadores: data.numero_trabajadores,
           logoUrl: data.logoUrl || undefined,
           activo: data.activo,
         });
@@ -320,6 +338,50 @@ export default function EmpresasPage() {
               />
               {errors.ruc && (
                 <p className="mt-1 text-sm text-danger">{errors.ruc.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Dirección (legal) *
+              </label>
+              <Input
+                {...register('direccion')}
+                placeholder="Ej: Av. Principal 123"
+              />
+              {errors.direccion && (
+                <p className="mt-1 text-sm text-danger">{errors.direccion.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Actividad económica *
+              </label>
+              <Input
+                {...register('actividad_economica')}
+                placeholder="Ej: Elaboración de productos"
+              />
+              {errors.actividad_economica && (
+                <p className="mt-1 text-sm text-danger">{errors.actividad_economica.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                N° de trabajadores
+              </label>
+              <Input
+                type="number"
+                min={0}
+                {...register('numero_trabajadores')}
+                placeholder="0"
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                Número fijo de trabajadores (para registros y kardex)
+              </p>
+              {errors.numero_trabajadores && (
+                <p className="mt-1 text-sm text-danger">{errors.numero_trabajadores.message}</p>
               )}
             </div>
 

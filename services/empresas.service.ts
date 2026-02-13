@@ -4,6 +4,9 @@ export interface Empresa {
   id: string;
   nombre: string;
   ruc: string;
+  direccion: string | null;
+  actividad_economica: string | null;
+  numero_trabajadores: number;
   logoUrl: string | null;
   activo: boolean;
   areas?: { id: string; nombre: string }[];
@@ -14,6 +17,9 @@ export interface Empresa {
 export interface CreateEmpresaDto {
   nombre: string;
   ruc: string;
+  direccion: string;
+  actividad_economica: string;
+  numero_trabajadores?: number;
   logoUrl?: string;
   activo?: boolean;
 }
@@ -21,6 +27,9 @@ export interface CreateEmpresaDto {
 export interface UpdateEmpresaDto {
   nombre?: string;
   ruc?: string;
+  direccion?: string;
+  actividad_economica?: string;
+  numero_trabajadores?: number;
   logoUrl?: string;
   activo?: boolean;
 }

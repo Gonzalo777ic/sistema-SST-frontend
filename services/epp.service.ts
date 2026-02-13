@@ -328,10 +328,20 @@ export const eppService = {
     return response.data;
   },
 
-  async getUltimoKardexPdf(trabajadorId: string): Promise<{ pdf_url: string | null; solicitud_id: string | null }> {
-    const response = await apiClient.get<{ pdf_url: string | null; solicitud_id: string | null }>(
-      `/epp/ultimo-kardex-pdf/${trabajadorId}`
-    );
+  async getUltimoKardexPdf(
+    trabajadorId: string,
+  ): Promise<{ pdf_url: string | null; trabajador_id: string | null }> {
+    const response = await apiClient.get<{
+      pdf_url: string | null;
+      trabajador_id: string | null;
+    }>(`/epp/ultimo-kardex-pdf/${trabajadorId}`);
+    return response.data;
+  },
+
+  async getKardexPdfBlob(trabajadorId: string): Promise<Blob> {
+    const response = await apiClient.get(`/epp/kardex-pdf/${trabajadorId}`, {
+      responseType: 'blob',
+    });
     return response.data;
   },
 

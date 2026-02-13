@@ -155,15 +155,15 @@ export default function KardexPage() {
     if (!kardexData?.trabajador_id) return;
     try {
       setPdfDownloading(true);
-      const { pdf_url, solicitud_id } = await eppService.getUltimoKardexPdf(kardexData.trabajador_id);
-      if (!solicitud_id || !pdf_url) {
+      const { trabajador_id } = await eppService.getUltimoKardexPdf(kardexData.trabajador_id);
+      if (!trabajador_id) {
         toast.info('PDF no disponible', {
-          description: 'El documento se generará al conectar con el almacenamiento en la nube (GCS).',
+          description: 'No hay entregas registradas para este trabajador o el documento aún no se ha generado.',
         });
         return;
       }
 
-      const blob = await eppService.getRegistroPdfBlob(solicitud_id);
+      const blob = await eppService.getKardexPdfBlob(trabajador_id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -172,8 +172,8 @@ export default function KardexPage() {
       URL.revokeObjectURL(url);
       toast.success('PDF descargado');
     } catch (error: any) {
-      toast.info('PDF no disponible', {
-        description: 'El documento se generará al conectar con el almacenamiento en la nube (GCS).',
+      toast.error('Error al descargar PDF', {
+        description: error.response?.data?.message || 'No se pudo descargar el último kardex.',
       });
     } finally {
       setPdfDownloading(false);

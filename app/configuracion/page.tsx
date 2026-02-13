@@ -5,7 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usuariosService } from '@/services/usuarios.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Settings, Lock, Eye, EyeOff } from 'lucide-react';
+import { Settings, Lock, Eye, EyeOff, UserPlus, FileSignature } from 'lucide-react';
+import { UsuarioRol } from '@/types';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -89,6 +90,8 @@ export default function ConfiguracionPage() {
     }
   };
 
+  const esAdmin = currentUser?.roles?.includes(UsuarioRol.SUPER_ADMIN) || currentUser?.roles?.includes(UsuarioRol.ADMIN_EMPRESA);
+
   if (!currentUser) {
     return null;
   }
@@ -128,6 +131,50 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       </div>
+
+      {/* Información de Onboarding - Solo Admin / Super Admin */}
+      {esAdmin && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <UserPlus className="w-5 h-5" />
+            Información del Onboarding
+          </h2>
+          <p className="text-slate-600 text-sm mb-4">
+            Campos que los usuarios registran al completar su perfil inicial. La firma maestra del responsable de entrega es necesaria para que aparezca en los PDF de registro de EPP.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <h3 className="font-medium text-slate-800 mb-2 flex items-center gap-2">
+                <FileSignature className="w-4 h-4" />
+                Usuarios con trabajador (empleados)
+              </h3>
+              <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
+                <li>Talla de casco</li>
+                <li>Talla de camisa</li>
+                <li>Talla de pantalón</li>
+                <li>Talla de calzado</li>
+                <li><strong>Firma digital (maestra)</strong> — reutilizable en entregas de EPP</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-medium text-slate-800 mb-2 flex items-center gap-2">
+                <FileSignature className="w-4 h-4" />
+                Admin / Super Admin (sin trabajador vinculado)
+              </h3>
+              <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
+                <li>Nombres (opcional)</li>
+                <li>Apellido paterno (opcional)</li>
+                <li>Apellido materno (opcional)</li>
+                <li>DNI (opcional)</li>
+                <li><strong>Firma digital (maestra)</strong> — aparece como &quot;Firma responsable&quot; en PDF cuando registra entregas</li>
+              </ul>
+              <p className="mt-2 text-xs text-amber-700 bg-amber-50 p-2 rounded">
+                Si el responsable de entrega no completa su firma en el onboarding, la columna &quot;Firma responsable&quot; aparecerá vacía en los registros de EPP.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cambio de Contraseña */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
