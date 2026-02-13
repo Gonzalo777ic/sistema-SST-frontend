@@ -22,6 +22,7 @@ import {
   ChevronUp,
   FileDown,
   BookOpen,
+  History,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { toast } from 'sonner';
@@ -65,6 +66,8 @@ export default function KardexPage() {
   const [kardexData, setKardexData] = useState<IKardex | null>(null);
   const [kardexLoading, setKardexLoading] = useState(false);
   const [pdfDownloading, setPdfDownloading] = useState(false);
+  const [descargandoSolicitudId, setDescargandoSolicitudId] = useState<string | null>(null);
+  const [showHistorialAuditoria, setShowHistorialAuditoria] = useState(false);
 
   const esAdmin = hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]);
 
@@ -151,7 +154,7 @@ export default function KardexPage() {
     }
   };
 
-  const handleDescargarPdf = async () => {
+  const handleDescargarUltimoKardex = async () => {
     if (!kardexData?.trabajador_id) return;
     try {
       setPdfDownloading(true);
@@ -167,12 +170,12 @@ export default function KardexPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `registro-entrega-epp-${kardexData.trabajador_nombre.replace(/\s+/g, '-')}.pdf`;
+      a.download = `kardex-epp-${kardexData.trabajador_nombre.replace(/\s+/g, '-')}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('PDF descargado');
+      toast.success('Kardex descargado');
     } catch (error: any) {
-      toast.error('Error al descargar PDF', {
+      toast.error('Error al descargar kardex', {
         description: error.response?.data?.message || 'No se pudo descargar el último kardex.',
       });
     } finally {
@@ -180,9 +183,37 @@ export default function KardexPage() {
     }
   };
 
+  const handleDescargarPdfHistorial = async (
+    sol: { id: string; codigo_correlativo: string | null; kardex_pdf_url?: string | null },
+  ) => {
+    const codigo = sol.codigo_correlativo || sol.id;
+    try {
+      setDescargandoSolicitudId(sol.id);
+      const blob = sol.kardex_pdf_url
+        ? await eppService.getKardexPdfBlobBySolicitud(sol.id)
+        : await eppService.getRegistroPdfBlob(sol.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = sol.kardex_pdf_url
+        ? `kardex-${codigo}.pdf`
+        : `registro-entrega-${codigo}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(sol.kardex_pdf_url ? 'Kardex descargado' : 'Registro de entrega descargado');
+    } catch (error: any) {
+      toast.error('Error al descargar', {
+        description: error.response?.data?.message || 'No se pudo descargar el documento.',
+      });
+    } finally {
+      setDescargandoSolicitudId(null);
+    }
+  };
+
   const closeKardexModal = () => {
     setKardexData(null);
     setShowKardexModal(false);
+    setShowHistorialAuditoria(false);
   };
 
   const getEstadoColorSolicitud = (estado: EstadoSolicitudEPP) => {
@@ -446,7 +477,7 @@ export default function KardexPage() {
                         onClick={() => handleVerKardex(item.trabajador_id)}
                       >
                         <FileDown className="w-4 h-4 mr-2" />
-                        Ver último Kardex
+                        Ver todos Kardex
                       </Button>
                     </td>
                   </tr>
@@ -484,55 +515,91 @@ export default function KardexPage() {
                 </p>
               </div>
 
-              <div className="max-h-64 overflow-y-auto border rounded">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Código</th>
-                      <th className="px-3 py-2 text-left">Fecha</th>
-                      <th className="px-3 py-2 text-left">Items</th>
-                      <th className="px-3 py-2 text-left">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {kardexData.historial.length === 0 ? (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowHistorialAuditoria(!showHistorialAuditoria)}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  {showHistorialAuditoria ? 'Ocultar' : 'Ver'} historial de entregas (auditoría)
+                  {showHistorialAuditoria ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {showHistorialAuditoria && (
+                <div className="max-h-64 overflow-y-auto border rounded">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <td colSpan={4} className="px-3 py-8 text-center text-gray-500">
-                          Sin entregas registradas
-                        </td>
+                        <th className="px-3 py-2 text-left">Código</th>
+                        <th className="px-3 py-2 text-left">Fecha</th>
+                        <th className="px-3 py-2 text-left">Items</th>
+                        <th className="px-3 py-2 text-left">Estado</th>
+                        <th className="px-3 py-2 text-center">Descargar</th>
                       </tr>
-                    ) : (
-                      kardexData.historial.map((sol) => (
-                        <tr key={sol.id}>
-                          <td className="px-3 py-2">{sol.codigo_correlativo}</td>
-                          <td className="px-3 py-2">
-                            {new Date(sol.fecha_solicitud).toLocaleDateString('es-PE')}
-                          </td>
-                          <td className="px-3 py-2">
-                            {sol.detalles?.length ?? 0} item(s)
-                          </td>
-                          <td className="px-3 py-2">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium border ${getEstadoColorSolicitud(sol.estado)}`}
-                            >
-                              {sol.estado}
-                            </span>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {kardexData.historial.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
+                            Sin entregas registradas
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        kardexData.historial.map((sol) => (
+                          <tr key={sol.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2">{sol.codigo_correlativo}</td>
+                            <td className="px-3 py-2">
+                              {sol.fecha_entrega
+                                ? new Date(sol.fecha_entrega).toLocaleDateString('es-PE')
+                                : new Date(sol.fecha_solicitud).toLocaleDateString('es-PE')}
+                            </td>
+                            <td className="px-3 py-2">
+                              {sol.detalles?.length ?? 0} item(s)
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium border ${getEstadoColorSolicitud(sol.estado)}`}
+                              >
+                                {sol.estado}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                                onClick={() => handleDescargarPdfHistorial(sol)}
+                                disabled={descargandoSolicitudId === sol.id}
+                              >
+                                <FileDown className="w-4 h-4 mr-1" />
+                                {descargandoSolicitudId === sol.id ? '...' : 'PDF'}
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                )}
               </div>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <Button
-                  onClick={handleDescargarPdf}
+                  onClick={handleDescargarUltimoKardex}
                   disabled={pdfDownloading}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <FileDown className="w-4 h-4 mr-2" />
-                  {pdfDownloading ? 'Descargando...' : 'Descargar PDF'}
+                  {pdfDownloading ? 'Descargando...' : 'Descargar último kardex'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHistorialAuditoria((v) => !v)}
+                  className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                >
+                  <History className="w-4 h-4 mr-2" />
+                  {showHistorialAuditoria ? 'Ocultar historial' : 'Ver todos los kardex'}
                 </Button>
               </div>
             </div>

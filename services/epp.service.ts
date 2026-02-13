@@ -131,6 +131,7 @@ export interface SolicitudEPP {
   entregado_por_nombre: string | null;
   fecha_entrega: string | null;
   firma_recepcion_url: string | null;
+  kardex_pdf_url: string | null;
   area_id: string | null;
   area_nombre: string | null;
   empresa_id: string;
@@ -347,6 +348,13 @@ export const eppService = {
 
   async getRegistroPdfBlob(solicitudId: string): Promise<Blob> {
     const response = await apiClient.get(`/epp/registro-pdf/${solicitudId}`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  async getKardexPdfBlobBySolicitud(solicitudId: string): Promise<Blob> {
+    const response = await apiClient.get(`/epp/kardex-pdf-solicitud/${solicitudId}`, {
       responseType: 'blob',
     });
     return response.data;
