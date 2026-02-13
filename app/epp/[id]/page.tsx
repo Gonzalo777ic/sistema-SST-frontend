@@ -88,6 +88,7 @@ export default function DetalleSolicitudEPPPage() {
   const [entregadaStep, setEntregadaStep] = useState(1);
   const [passwordEntregada, setPasswordEntregada] = useState('');
   const [firmaEntregada, setFirmaEntregada] = useState('');
+  const [isSubmittingEntregada, setIsSubmittingEntregada] = useState(false);
   const [comentariosRechazo, setComentariosRechazo] = useState('');
   const [confirmEstadoModal, setConfirmEstadoModal] = useState<{
     open: boolean;
@@ -284,10 +285,31 @@ export default function DetalleSolicitudEPPPage() {
         toast.error('Debe ingresar la firma del solicitante');
         return;
       }
-      await handleUpdateEstado(EstadoSolicitudEPP.Entregada, {
+      setIsSubmittingEntregada(true);
+      const promise = eppService.updateEstado(solicitud.id, {
+        estado: EstadoSolicitudEPP.Entregada,
         password: passwordEntregada,
         firma_recepcion_base64: firmaEntregada,
       });
+      toast.promise(promise, {
+        loading: 'Registrando entrega... Creando PDF y subiendo a la nube. Puede continuar navegando.',
+        success: () => {
+          setEntregadaModal(false);
+          setConfirmEstadoModal({ open: false, targetState: null });
+          setRechazarModal(false);
+          setObservadaModal(false);
+          loadSolicitud();
+          return 'Entrega registrada correctamente';
+        },
+        error: (err: any) => {
+          return err.response?.data?.message || 'Error al registrar la entrega';
+        },
+      });
+      try {
+        await promise;
+      } finally {
+        setIsSubmittingEntregada(false);
+      }
     }
   };
 
@@ -966,7 +988,21 @@ export default function DetalleSolicitudEPPPage() {
       {/* Modal Entregada (2 pasos: password + firma) */}
       {entregadaModal && solicitud && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
+            {isSubmittingEntregada && (
+              <div className="bg-blue-50 px-4 py-2 border-b border-blue-100">
+                <p className="text-sm text-blue-800 font-medium">
+                  Registrando entrega... Creando PDF y subiendo a la nube
+                </p>
+                <div className="mt-2 h-1.5 bg-blue-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full w-1/3 bg-blue-600 rounded-full"
+                    style={{ animation: 'progress-indeterminate 1.5s ease-in-out infinite' }}
+                  />
+                </div>
+              </div>
+            )}
+            <div className="p-6">
             {entregadaStep === 1 ? (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -1015,19 +1051,24 @@ export default function DetalleSolicitudEPPPage() {
                   height={120}
                 />
                 <div className="flex gap-2 justify-end mt-4">
-                  <Button variant="outline" onClick={() => setEntregadaStep(1)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setEntregadaStep(1)}
+                    disabled={isSubmittingEntregada}
+                  >
                     Atrás
                   </Button>
                   <Button
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleConfirmarEntregada}
-                    disabled={!firmaEntregada}
+                    disabled={!firmaEntregada || isSubmittingEntregada}
                   >
-                    Registrar entrega
+                    {isSubmittingEntregada ? 'Registrando...' : 'Registrar entrega'}
                   </Button>
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
       )}
