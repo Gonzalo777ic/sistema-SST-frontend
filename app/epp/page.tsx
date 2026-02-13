@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   eppService,
   SolicitudEPP,
   EstadoSolicitudEPP,
-  IEPP,
 } from '@/services/epp.service';
+import { authService } from '@/services/auth.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { areasService, Area } from '@/services/areas.service';
@@ -15,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import {
   Plus,
   Eye,
@@ -63,6 +65,18 @@ export default function EPPPage() {
   const [filtroSede, setFiltroSede] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<EstadoSolicitudEPP | ''>('');
   const [filtroCodigo, setFiltroCodigo] = useState('');
+
+  // Modales para cambio de estado
+  const [modalEstado, setModalEstado] = useState<{
+    tipo: 'aprobada' | 'rechazada' | 'observada' | 'entregada';
+    solicitud: SolicitudEPP;
+  } | null>(null);
+  const [observacionesModal, setObservacionesModal] = useState('');
+  const [comentariosRechazoModal, setComentariosRechazoModal] = useState('');
+  const [passwordEntregada, setPasswordEntregada] = useState('');
+  const [firmaEntregada, setFirmaEntregada] = useState('');
+  const [entregadaStep, setEntregadaStep] = useState(1);
+  const [isSubmittingEstado, setIsSubmittingEstado] = useState(false);
 
   const canCreate = hasAnyRole([
     UsuarioRol.SUPER_ADMIN,
@@ -123,18 +137,104 @@ export default function EPPPage() {
     }
   };
 
+  const handleSelectEstado = (solicitud: SolicitudEPP, nuevoEstado: EstadoSolicitudEPP) => {
+    const estadoActual = String(solicitud.estado || '').toUpperCase();
+    const estadoNuevo = String(nuevoEstado || '').toUpperCase();
+    if (estadoNuevo === estadoActual) return;
+
+    const permitidos: string[] =
+      estadoActual === 'PENDIENTE'
+        ? ['OBSERVADA', 'APROBADA', 'RECHAZADA']
+        : estadoActual === 'OBSERVADA'
+          ? ['PENDIENTE', 'APROBADA', 'RECHAZADA']
+          : estadoActual === 'APROBADA'
+            ? ['ENTREGADA']
+            : [];
+    if (!permitidos.includes(estadoNuevo)) return;
+
+    if (estadoNuevo === 'OBSERVADA') {
+      setObservacionesModal('');
+      setModalEstado({ tipo: 'observada', solicitud });
+      return;
+    }
+    if (estadoNuevo === 'APROBADA') {
+      setModalEstado({ tipo: 'aprobada', solicitud });
+      return;
+    }
+    if (estadoNuevo === 'RECHAZADA') {
+      setComentariosRechazoModal('');
+      setModalEstado({ tipo: 'rechazada', solicitud });
+      return;
+    }
+    if (estadoNuevo === 'ENTREGADA') {
+      setPasswordEntregada('');
+      setFirmaEntregada('');
+      setEntregadaStep(1);
+      setModalEstado({ tipo: 'entregada', solicitud });
+      return;
+    }
+    handleUpdateEstado(solicitud.id, nuevoEstado as EstadoSolicitudEPP, {});
+  };
+
   const handleUpdateEstado = async (
     id: string,
     nuevoEstado: EstadoSolicitudEPP,
+    extra: { observaciones?: string; comentarios_aprobacion?: string; password?: string; firma_recepcion_base64?: string },
   ) => {
     try {
-      await eppService.updateEstado(id, { estado: nuevoEstado });
+      setIsSubmittingEstado(true);
+      await eppService.updateEstado(id, {
+        estado: nuevoEstado,
+        ...extra,
+      });
       toast.success(`Estado actualizado a ${nuevoEstado}`);
+      setModalEstado(null);
       loadData();
     } catch (error: any) {
       toast.error('Error al actualizar estado', {
         description: error.response?.data?.message || 'No se pudo actualizar el estado',
       });
+    } finally {
+      setIsSubmittingEstado(false);
+    }
+  };
+
+  const handleConfirmarModal = async () => {
+    if (!modalEstado) return;
+    const { tipo, solicitud } = modalEstado;
+
+    if (tipo === 'observada') {
+      await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Observada, {
+        observaciones: observacionesModal || undefined,
+      });
+    } else if (tipo === 'aprobada') {
+      await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Aprobada, {});
+    } else if (tipo === 'rechazada') {
+      await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Rechazada, {
+        comentarios_aprobacion: comentariosRechazoModal || undefined,
+      });
+    } else if (tipo === 'entregada') {
+      if (entregadaStep === 1) {
+        try {
+          const { valid } = await authService.verifyPassword(passwordEntregada);
+          if (!valid) {
+            toast.error('Contraseña incorrecta');
+            return;
+          }
+          setEntregadaStep(2);
+        } catch {
+          toast.error('Error al validar contraseña');
+        }
+      } else {
+        if (!firmaEntregada) {
+          toast.error('Debe ingresar la firma del solicitante');
+          return;
+        }
+        await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Entregada, {
+          password: passwordEntregada,
+          firma_recepcion_base64: firmaEntregada,
+        });
+      }
     }
   };
 
@@ -446,8 +546,8 @@ export default function EPPPage() {
                       <Select
                         value={solicitud.estado}
                         onChange={(e) =>
-                          handleUpdateEstado(
-                            solicitud.id,
+                          handleSelectEstado(
+                            solicitud,
                             e.target.value as EstadoSolicitudEPP,
                           )
                         }
@@ -482,6 +582,179 @@ export default function EPPPage() {
         </div>
       </div>
 
+      {/* Modales de confirmación (renderizados en body para evitar problemas de z-index) */}
+      {typeof window !== 'undefined' &&
+        modalEstado &&
+        document.body &&
+        createPortal(
+          <>
+            {/* Modal Observada */}
+            {modalEstado.tipo === 'observada' && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Marcar como OBSERVADA
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Ingrese las observaciones (opcional). Este cambio es reversible.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea
+              value={observacionesModal}
+              onChange={(e) => setObservacionesModal(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4"
+              rows={3}
+              placeholder="Indique las observaciones..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setModalEstado(null)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleConfirmarModal}
+                disabled={isSubmittingEstado}
+              >
+                Confirmar
+              </Button>
+            </div>
+          </div>
+              </div>
+            )}
+
+            {/* Modal Aprobada */}
+            {modalEstado.tipo === 'aprobada' && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              ¿Desea aprobar esta solicitud?
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Si lo hace no podrá revertirlo. La solicitud pasará a estado APROBADA y solo podrá avanzar a ENTREGADA.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setModalEstado(null)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={handleConfirmarModal}
+                disabled={isSubmittingEstado}
+              >
+                Aprobar
+              </Button>
+            </div>
+          </div>
+              </div>
+            )}
+
+            {/* Modal Rechazada */}
+            {modalEstado.tipo === 'rechazada' && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Rechazar solicitud
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Desea rechazar esta solicitud? Si lo hace no podrá revertirlo. La solicitud quedará en estado RECHAZADA para auditoría.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Comentario de rechazo (opcional)
+            </label>
+            <textarea
+              value={comentariosRechazoModal}
+              onChange={(e) => setComentariosRechazoModal(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+              rows={3}
+              placeholder="Indique el motivo del rechazo..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setModalEstado(null)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleConfirmarModal}
+                disabled={isSubmittingEstado}
+              >
+                Rechazar solicitud
+              </Button>
+            </div>
+          </div>
+              </div>
+            )}
+
+            {/* Modal Entregada (2 pasos: password + firma) */}
+            {modalEstado.tipo === 'entregada' && modalEstado.solicitud && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            {entregadaStep === 1 ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Verificar identidad
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Ingrese su contraseña para confirmar que es usted quien registra la entrega (admin/SST).
+                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <Input
+                  type="password"
+                  value={passwordEntregada}
+                  onChange={(e) => setPasswordEntregada(e.target.value)}
+                  placeholder="Su contraseña"
+                  className="mb-4"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setModalEstado(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleConfirmarModal}
+                    disabled={isSubmittingEstado || !passwordEntregada}
+                  >
+                    Continuar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Firma del solicitante
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Solicitante: <strong>{modalEstado.solicitud.solicitante_nombre}</strong>
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  El solicitante debe firmar para confirmar la recepción del EPP.
+                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Firma de recepción</label>
+                <SignaturePad
+                  value={firmaEntregada}
+                  onChange={setFirmaEntregada}
+                  width={300}
+                  height={120}
+                />
+                <div className="flex gap-2 justify-end mt-4">
+                  <Button variant="outline" onClick={() => setEntregadaStep(1)}>
+                    Atrás
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleConfirmarModal}
+                    disabled={isSubmittingEstado || !firmaEntregada}
+                  >
+                    Registrar entrega
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+            )}
+          </>,
+          document.body
+        )}
     </div>
   );
 }

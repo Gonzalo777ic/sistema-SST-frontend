@@ -173,7 +173,10 @@ export interface UpdateSolicitudEppDto {
 export interface UpdateEstadoDto {
   estado: EstadoSolicitudEPP;
   comentarios_aprobacion?: string;
+  observaciones?: string;
   firma_recepcion_url?: string;
+  firma_recepcion_base64?: string;
+  password?: string;
 }
 
 export interface IKardex {

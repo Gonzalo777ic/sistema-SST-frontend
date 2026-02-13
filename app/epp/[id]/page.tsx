@@ -26,6 +26,8 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { SignaturePad } from '@/components/ui/signature-pad';
+import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
@@ -80,6 +82,12 @@ export default function DetalleSolicitudEPPPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [rechazarModal, setRechazarModal] = useState(false);
+  const [observadaModal, setObservadaModal] = useState(false);
+  const [observacionesParaObservada, setObservacionesParaObservada] = useState('');
+  const [entregadaModal, setEntregadaModal] = useState(false);
+  const [entregadaStep, setEntregadaStep] = useState(1);
+  const [passwordEntregada, setPasswordEntregada] = useState('');
+  const [firmaEntregada, setFirmaEntregada] = useState('');
   const [comentariosRechazo, setComentariosRechazo] = useState('');
   const [confirmEstadoModal, setConfirmEstadoModal] = useState<{
     open: boolean;
@@ -213,13 +221,19 @@ export default function DetalleSolicitudEPPPage() {
     toast.info('Cambios en EPPs descartados');
   };
 
-  const handleUpdateEstado = async (nuevoEstado: EstadoSolicitudEPP) => {
+  const handleUpdateEstado = async (
+    nuevoEstado: EstadoSolicitudEPP,
+    extra?: { observaciones?: string; comentarios_aprobacion?: string; password?: string; firma_recepcion_base64?: string },
+  ) => {
     if (!solicitud) return;
 
     try {
-      await eppService.updateEstado(solicitud.id, { estado: nuevoEstado });
+      await eppService.updateEstado(solicitud.id, { estado: nuevoEstado, ...extra });
       toast.success(`Estado actualizado a ${nuevoEstado}`);
       setConfirmEstadoModal({ open: false, targetState: null });
+      setRechazarModal(false);
+      setObservadaModal(false);
+      setEntregadaModal(false);
       loadSolicitud();
     } catch (error: any) {
       toast.error('Error al actualizar estado', {
@@ -237,7 +251,44 @@ export default function DetalleSolicitudEPPPage() {
       setRechazarModal(true);
       return;
     }
+    if (nuevoEstado === EstadoSolicitudEPP.Observada) {
+      setObservacionesParaObservada('');
+      setObservadaModal(true);
+      return;
+    }
+    if (nuevoEstado === EstadoSolicitudEPP.Entregada) {
+      setPasswordEntregada('');
+      setFirmaEntregada('');
+      setEntregadaStep(1);
+      setEntregadaModal(true);
+      return;
+    }
     handleUpdateEstado(nuevoEstado);
+  };
+
+  const handleConfirmarEntregada = async () => {
+    if (!solicitud) return;
+    if (entregadaStep === 1) {
+      try {
+        const { valid } = await authService.verifyPassword(passwordEntregada);
+        if (!valid) {
+          toast.error('Contraseña incorrecta');
+          return;
+        }
+        setEntregadaStep(2);
+      } catch {
+        toast.error('Error al validar contraseña');
+      }
+    } else {
+      if (!firmaEntregada) {
+        toast.error('Debe ingresar la firma del solicitante');
+        return;
+      }
+      await handleUpdateEstado(EstadoSolicitudEPP.Entregada, {
+        password: passwordEntregada,
+        firma_recepcion_base64: firmaEntregada,
+      });
+    }
   };
 
   const handleAgregarEPP = (epp: IEPP, cantidad: number = 1) => {
@@ -253,21 +304,17 @@ export default function DetalleSolicitudEPPPage() {
 
   const handleRechazar = async () => {
     if (!solicitud) return;
+    await handleUpdateEstado(EstadoSolicitudEPP.Rechazada, {
+      comentarios_aprobacion: comentariosRechazo || undefined,
+    });
+    setComentariosRechazo('');
+  };
 
-    try {
-      await eppService.updateEstado(solicitud.id, {
-        estado: EstadoSolicitudEPP.Rechazada,
-        comentarios_aprobacion: comentariosRechazo || undefined,
-      });
-      toast.success('Solicitud rechazada');
-      setRechazarModal(false);
-      setComentariosRechazo('');
-      loadSolicitud();
-    } catch (error: any) {
-      toast.error('Error al rechazar', {
-        description: error.response?.data?.message || 'No se pudo rechazar la solicitud',
-      });
-    }
+  const handleConfirmarObservada = async () => {
+    if (!solicitud) return;
+    await handleUpdateEstado(EstadoSolicitudEPP.Observada, {
+      observaciones: observacionesParaObservada || undefined,
+    });
   };
 
   const handleToggleExceptuar = (detalleId: string) => {
@@ -879,6 +926,108 @@ export default function DetalleSolicitudEPPPage() {
                 Rechazar solicitud
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Observada */}
+      {observadaModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Marcar como OBSERVADA
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Ingrese las observaciones (opcional). Este cambio es reversible.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+            <textarea
+              value={observacionesParaObservada}
+              onChange={(e) => setObservacionesParaObservada(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4"
+              rows={3}
+              placeholder="Indique las observaciones..."
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setObservadaModal(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleConfirmarObservada}
+              >
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Entregada (2 pasos: password + firma) */}
+      {entregadaModal && solicitud && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            {entregadaStep === 1 ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Verificar identidad
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Ingrese su contraseña para confirmar que es usted quien registra la entrega (admin/SST).
+                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={passwordEntregada}
+                  onChange={(e) => setPasswordEntregada(e.target.value)}
+                  placeholder="Su contraseña"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setEntregadaModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleConfirmarEntregada}
+                    disabled={!passwordEntregada}
+                  >
+                    Continuar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Firma del solicitante
+                </h3>
+                <p className="text-sm text-gray-600 mb-2">
+                  Solicitante: <strong>{solicitud.solicitante_nombre}</strong>
+                </p>
+                <p className="text-sm text-gray-600 mb-4">
+                  El solicitante debe firmar para confirmar la recepción del EPP.
+                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Firma de recepción</label>
+                <SignaturePad
+                  value={firmaEntregada}
+                  onChange={setFirmaEntregada}
+                  width={300}
+                  height={120}
+                />
+                <div className="flex gap-2 justify-end mt-4">
+                  <Button variant="outline" onClick={() => setEntregadaStep(1)}>
+                    Atrás
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleConfirmarEntregada}
+                    disabled={!firmaEntregada}
+                  >
+                    Registrar entrega
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
