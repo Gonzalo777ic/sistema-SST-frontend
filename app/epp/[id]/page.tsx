@@ -26,7 +26,6 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { SignaturePad } from '@/components/ui/signature-pad';
 import { authService } from '@/services/auth.service';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -85,9 +84,7 @@ export default function DetalleSolicitudEPPPage() {
   const [observadaModal, setObservadaModal] = useState(false);
   const [observacionesParaObservada, setObservacionesParaObservada] = useState('');
   const [entregadaModal, setEntregadaModal] = useState(false);
-  const [entregadaStep, setEntregadaStep] = useState(1);
   const [passwordEntregada, setPasswordEntregada] = useState('');
-  const [firmaEntregada, setFirmaEntregada] = useState('');
   const [isSubmittingEntregada, setIsSubmittingEntregada] = useState(false);
   const [comentariosRechazo, setComentariosRechazo] = useState('');
   const [confirmEstadoModal, setConfirmEstadoModal] = useState<{
@@ -259,8 +256,6 @@ export default function DetalleSolicitudEPPPage() {
     }
     if (nuevoEstado === EstadoSolicitudEPP.Entregada) {
       setPasswordEntregada('');
-      setFirmaEntregada('');
-      setEntregadaStep(1);
       setEntregadaModal(true);
       return;
     }
@@ -269,27 +264,16 @@ export default function DetalleSolicitudEPPPage() {
 
   const handleConfirmarEntregada = async () => {
     if (!solicitud) return;
-    if (entregadaStep === 1) {
-      try {
-        const { valid } = await authService.verifyPassword(passwordEntregada);
-        if (!valid) {
-          toast.error('Contraseña incorrecta');
-          return;
-        }
-        setEntregadaStep(2);
-      } catch {
-        toast.error('Error al validar contraseña');
-      }
-    } else {
-      if (!firmaEntregada) {
-        toast.error('Debe ingresar la firma del solicitante');
+    try {
+      const { valid } = await authService.verifyPassword(passwordEntregada);
+      if (!valid) {
+        toast.error('Contraseña incorrecta');
         return;
       }
       setIsSubmittingEntregada(true);
       const promise = eppService.updateEstado(solicitud.id, {
         estado: EstadoSolicitudEPP.Entregada,
         password: passwordEntregada,
-        firma_recepcion_base64: firmaEntregada,
       });
       toast.promise(promise, {
         loading: 'Registrando entrega... Creando PDF y subiendo a la nube. Puede continuar navegando.',
@@ -305,11 +289,11 @@ export default function DetalleSolicitudEPPPage() {
           return err.response?.data?.message || 'Error al registrar la entrega';
         },
       });
-      try {
-        await promise;
-      } finally {
-        setIsSubmittingEntregada(false);
-      }
+      await promise;
+    } catch {
+      toast.error('Error al validar contraseña');
+    } finally {
+      setIsSubmittingEntregada(false);
     }
   };
 
@@ -985,7 +969,7 @@ export default function DetalleSolicitudEPPPage() {
         </div>
       )}
 
-      {/* Modal Entregada (2 pasos: password + firma) */}
+      {/* Modal Entregada (solo password; firma del solicitante se usa la del onboarding) */}
       {entregadaModal && solicitud && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
@@ -1003,71 +987,32 @@ export default function DetalleSolicitudEPPPage() {
               </div>
             )}
             <div className="p-6">
-            {entregadaStep === 1 ? (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Verificar identidad
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Ingrese su contraseña para confirmar que es usted quien registra la entrega (admin/SST).
-                </p>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={passwordEntregada}
-                  onChange={(e) => setPasswordEntregada(e.target.value)}
-                  placeholder="Su contraseña"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                />
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setEntregadaModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={handleConfirmarEntregada}
-                    disabled={!passwordEntregada}
-                  >
-                    Continuar
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Firma del solicitante
-                </h3>
-                <p className="text-sm text-gray-600 mb-2">
-                  Solicitante: <strong>{solicitud.solicitante_nombre}</strong>
-                </p>
-                <p className="text-sm text-gray-600 mb-4">
-                  El solicitante debe firmar para confirmar la recepción del EPP.
-                </p>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Firma de recepción</label>
-                <SignaturePad
-                  value={firmaEntregada}
-                  onChange={setFirmaEntregada}
-                  width={300}
-                  height={120}
-                />
-                <div className="flex gap-2 justify-end mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setEntregadaStep(1)}
-                    disabled={isSubmittingEntregada}
-                  >
-                    Atrás
-                  </Button>
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={handleConfirmarEntregada}
-                    disabled={!firmaEntregada || isSubmittingEntregada}
-                  >
-                    {isSubmittingEntregada ? 'Registrando...' : 'Registrar entrega'}
-                  </Button>
-                </div>
-              </>
-            )}
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Verificar identidad
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Ingrese su contraseña para confirmar que es usted quien registra la entrega. La firma del solicitante se usa automáticamente (onboarding).
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+              <input
+                type="password"
+                value={passwordEntregada}
+                onChange={(e) => setPasswordEntregada(e.target.value)}
+                placeholder="Su contraseña"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEntregadaModal(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={handleConfirmarEntregada}
+                  disabled={!passwordEntregada || isSubmittingEntregada}
+                >
+                  {isSubmittingEntregada ? 'Registrando...' : 'Registrar entrega'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

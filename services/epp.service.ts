@@ -353,6 +353,28 @@ export const eppService = {
     return response.data;
   },
 
+  async getEppsAnteriormenteSolicitados(
+    trabajadorId: string,
+    empresaId: string,
+  ): Promise<IEPP[]> {
+    const res = await apiClient.get('/epp/catalogo/epps-anteriormente-solicitados', {
+      params: { trabajador_id: trabajadorId, empresa_id: empresaId },
+    });
+    return res.data;
+  },
+
+  async getFavoritosEpp(trabajadorId: string): Promise<string[]> {
+    const res = await apiClient.get<{ epp_ids: string[] }>('/epp/catalogo/favoritos', {
+      params: { trabajador_id: trabajadorId },
+    });
+    return res.data.epp_ids;
+  },
+
+  async toggleFavoritoEpp(eppId: string): Promise<{ es_favorito: boolean }> {
+    const res = await apiClient.post(`/epp/catalogo/favoritos/${eppId}/toggle`);
+    return res.data;
+  },
+
   async getKardexPdfBlobBySolicitud(solicitudId: string): Promise<Blob> {
     const response = await apiClient.get(`/epp/kardex-pdf-solicitud/${solicitudId}`, {
       responseType: 'blob',

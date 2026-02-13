@@ -87,10 +87,13 @@ export default function EPPPage() {
   ]);
 
   const esAdmin = hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA]);
+  const esSoloEmpleado =
+    hasAnyRole([UsuarioRol.EMPLEADO]) &&
+    !hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.SUPERVISOR]);
 
   useEffect(() => {
     loadData();
-  }, [usuario?.empresaId, esAdmin]);
+  }, [usuario?.empresaId, usuario?.trabajadorId, esAdmin, esSoloEmpleado]);
 
   useEffect(() => {
     if (usuario?.empresaId) {
@@ -104,14 +107,23 @@ export default function EPPPage() {
 
     try {
       setIsLoading(true);
-      const empresaIdFilter = esAdmin ? undefined : (usuario.empresaId ?? undefined);
-      const [solicitudesData, empresasData] = await Promise.all([
-        eppService.findAll(empresaIdFilter).catch(() => []),
-        empresasService.findAll().catch(() => []),
-      ]);
-
-      setSolicitudes(solicitudesData);
-      setEmpresas(empresasData);
+      if (esSoloEmpleado && usuario.trabajadorId) {
+        const solicitudesData = await eppService.findAll(
+          usuario.empresaId ?? undefined,
+          undefined,
+          usuario.trabajadorId,
+        );
+        setSolicitudes(solicitudesData);
+        setEmpresas([]);
+      } else {
+        const empresaIdFilter = esAdmin ? undefined : (usuario.empresaId ?? undefined);
+        const [solicitudesData, empresasData] = await Promise.all([
+          eppService.findAll(empresaIdFilter).catch(() => []),
+          empresasService.findAll().catch(() => []),
+        ]);
+        setSolicitudes(solicitudesData);
+        setEmpresas(empresasData);
+      }
     } catch (error: any) {
       toast.error('Error al cargar solicitudes');
     } finally {
@@ -301,7 +313,8 @@ export default function EPPPage() {
         </h1>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros - ocultos para empleado */}
+      {!esSoloEmpleado && (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <button
           onClick={() => setShowFilters(!showFilters)}
@@ -429,36 +442,39 @@ export default function EPPPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Barra de Herramientas */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-wrap gap-2">
-          <Link href="/epp/reportes">
+        {!esSoloEmpleado && (
+          <div className="flex flex-wrap gap-2">
+            <Link href="/epp/reportes">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <FileText className="w-4 h-4 mr-2" />
+                Reporte
+              </Button>
+            </Link>
+            <Link href="/epp/fichas" className="inline-block">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <ClipboardList className="w-4 h-4 mr-2" />
+                Fichas EPP
+              </Button>
+            </Link>
+            <Link href="/epp/kardex">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Eye className="w-4 h-4 mr-2" />
+                Kardex Por Trabajador
+              </Button>
+            </Link>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <FileText className="w-4 h-4 mr-2" />
-              Reporte
+              <Upload className="w-4 h-4 mr-2" />
+              Importar Solicitudes
             </Button>
-          </Link>
-          <Link href="/epp/fichas" className="inline-block">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <ClipboardList className="w-4 h-4 mr-2" />
-              Fichas EPP
-            </Button>
-          </Link>
-          <Link href="/epp/kardex">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Eye className="w-4 h-4 mr-2" />
-              Kardex Por Trabajador
-            </Button>
-          </Link>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Upload className="w-4 h-4 mr-2" />
-            Importar Solicitudes
-          </Button>
-        </div>
+          </div>
+        )}
 
         {canCreate && (
-          <Link href="/epp/nueva">
+          <Link href={esSoloEmpleado ? '/epp/mis-solicitudes/nueva' : '/epp/nueva'}>
             <Button className="bg-blue-600 hover:bg-blue-700 text-white">
               <Plus className="w-4 h-4 mr-2" />
               Nueva Solicitud
@@ -553,25 +569,33 @@ export default function EPPPage() {
                       {solicitud.sede || '-'}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <Select
-                        value={solicitud.estado}
-                        onChange={(e) =>
-                          handleSelectEstado(
-                            solicitud,
-                            e.target.value as EstadoSolicitudEPP,
-                          )
-                        }
-                        className={`border-2 rounded-md font-medium text-sm ${getEstadoColor(solicitud.estado)} bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1`}
-                        style={{
-                          borderColor: getEstadoColor(solicitud.estado).split(' ')[2]?.replace('border-', ''),
-                        }}
-                      >
-                        <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
-                        <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
-                        <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
-                        <option value={EstadoSolicitudEPP.Entregada}>ENTREGADA</option>
-                        <option value={EstadoSolicitudEPP.Rechazada}>RECHAZADA</option>
-                      </Select>
+                      {esSoloEmpleado ? (
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium border ${getEstadoColor(solicitud.estado)}`}
+                        >
+                          {solicitud.estado}
+                        </span>
+                      ) : (
+                        <Select
+                          value={solicitud.estado}
+                          onChange={(e) =>
+                            handleSelectEstado(
+                              solicitud,
+                              e.target.value as EstadoSolicitudEPP,
+                            )
+                          }
+                          className={`border-2 rounded-md font-medium text-sm ${getEstadoColor(solicitud.estado)} bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1`}
+                          style={{
+                            borderColor: getEstadoColor(solicitud.estado).split(' ')[2]?.replace('border-', ''),
+                          }}
+                        >
+                          <option value={EstadoSolicitudEPP.Pendiente}>PENDIENTE</option>
+                          <option value={EstadoSolicitudEPP.Observada}>OBSERVADA</option>
+                          <option value={EstadoSolicitudEPP.Aprobada}>APROBADA</option>
+                          <option value={EstadoSolicitudEPP.Entregada}>ENTREGADA</option>
+                          <option value={EstadoSolicitudEPP.Rechazada}>RECHAZADA</option>
+                        </Select>
+                      )}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <Link href={`/epp/${solicitud.id}`}>

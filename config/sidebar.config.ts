@@ -56,11 +56,23 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Trabajadores activos',
         href: '/trabajadores',
         icon: Users,
+        roles: [
+          UsuarioRol.SUPER_ADMIN,
+          UsuarioRol.ADMIN_EMPRESA,
+          UsuarioRol.INGENIERO_SST,
+          UsuarioRol.SUPERVISOR,
+        ],
       },
       {
         label: 'Capacitaciones',
         href: '/capacitaciones',
         icon: GraduationCap,
+        roles: [
+          UsuarioRol.SUPER_ADMIN,
+          UsuarioRol.ADMIN_EMPRESA,
+          UsuarioRol.INGENIERO_SST,
+          UsuarioRol.SUPERVISOR,
+        ],
       },
       {
         label: 'Exámenes médicos',
