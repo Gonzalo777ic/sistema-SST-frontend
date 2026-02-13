@@ -48,6 +48,16 @@ export interface SidebarGroup {
   items: SidebarItemType[];
 }
 
+const ROLES_NO_EMPLEADO: UsuarioRol[] = [
+  UsuarioRol.SUPER_ADMIN,
+  UsuarioRol.ADMIN_EMPRESA,
+  UsuarioRol.INGENIERO_SST,
+  UsuarioRol.SUPERVISOR,
+  UsuarioRol.MEDICO,
+  UsuarioRol.AUDITOR,
+  UsuarioRol.CENTRO_MEDICO,
+];
+
 export const sidebarConfig: SidebarGroup[] = [
   {
     title: 'TRABAJADORES',
@@ -56,23 +66,13 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Trabajadores activos',
         href: '/trabajadores',
         icon: Users,
-        roles: [
-          UsuarioRol.SUPER_ADMIN,
-          UsuarioRol.ADMIN_EMPRESA,
-          UsuarioRol.INGENIERO_SST,
-          UsuarioRol.SUPERVISOR,
-        ],
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Capacitaciones',
         href: '/capacitaciones',
         icon: GraduationCap,
-        roles: [
-          UsuarioRol.SUPER_ADMIN,
-          UsuarioRol.ADMIN_EMPRESA,
-          UsuarioRol.INGENIERO_SST,
-          UsuarioRol.SUPERVISOR,
-        ],
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Exámenes médicos',
@@ -94,11 +94,13 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Seguimiento de acciones',
         href: '/acciones-correctivas',
         icon: CheckCircle2,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Accidentes / Incidentes',
         href: '/incidentes',
         icon: AlertTriangle,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Herramientas de gestión',
@@ -108,57 +110,34 @@ export const sidebarConfig: SidebarGroup[] = [
             label: 'Análisis de Riesgos (ATS)',
             href: '/ats',
             icon: ClipboardCheck,
-            roles: [
-              UsuarioRol.SUPER_ADMIN,
-              UsuarioRol.ADMIN_EMPRESA,
-              UsuarioRol.INGENIERO_SST,
-              UsuarioRol.SUPERVISOR,
-              UsuarioRol.EMPLEADO,
-            ],
+            roles: ROLES_NO_EMPLEADO,
           },
           {
             label: 'Permisos (PETAR)',
             href: '/riesgos/petar',
             icon: ShieldAlert,
-            roles: [
-              UsuarioRol.SUPER_ADMIN,
-              UsuarioRol.ADMIN_EMPRESA,
-              UsuarioRol.INGENIERO_SST,
-              UsuarioRol.SUPERVISOR,
-              UsuarioRol.EMPLEADO,
-            ],
-            requiresTrabajadorId: true, // Para EMPLEADO
+            roles: ROLES_NO_EMPLEADO,
+            requiresTrabajadorId: true,
           },
           {
             label: 'Matriz IPERC',
             href: '/riesgos/iperc',
             icon: TrendingUp,
-            roles: [
-              UsuarioRol.SUPER_ADMIN,
-              UsuarioRol.ADMIN_EMPRESA,
-              UsuarioRol.INGENIERO_SST,
-              UsuarioRol.SUPERVISOR,
-              UsuarioRol.EMPLEADO,
-            ],
-            requiresTrabajadorId: true, // Para EMPLEADO
+            roles: ROLES_NO_EMPLEADO,
+            requiresTrabajadorId: true,
           },
           {
             label: 'Inspecciones',
             href: '/inspecciones',
             icon: ClipboardCheck,
+            roles: ROLES_NO_EMPLEADO,
           },
           {
             label: 'Procedimientos (PETS)',
             href: '/riesgos/pets',
             icon: FileText,
-            roles: [
-              UsuarioRol.SUPER_ADMIN,
-              UsuarioRol.ADMIN_EMPRESA,
-              UsuarioRol.INGENIERO_SST,
-              UsuarioRol.SUPERVISOR,
-              UsuarioRol.EMPLEADO,
-            ],
-            requiresTrabajadorId: true, // Para EMPLEADO
+            roles: ROLES_NO_EMPLEADO,
+            requiresTrabajadorId: true,
           },
         ],
       },
@@ -171,11 +150,13 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Documentos SST',
         href: '/documentos',
         icon: FolderClosed,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Difusión de documentos',
         href: '/difusion',
         icon: FileText,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Comité de SST',
@@ -185,16 +166,19 @@ export const sidebarConfig: SidebarGroup[] = [
             label: 'Gestión de Comités',
             href: '/comites',
             icon: Users,
+            roles: ROLES_NO_EMPLEADO,
           },
           {
             label: 'Reuniones y Actas',
             href: '/comites/reuniones',
             icon: CalendarDays,
+            roles: ROLES_NO_EMPLEADO,
           },
           {
             label: 'Seguimiento de Acuerdos',
             href: '/comites/acuerdos',
             icon: ListTodo,
+            roles: ROLES_NO_EMPLEADO,
           },
         ],
       },
@@ -207,21 +191,25 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Cumplimiento',
         href: '/dashboard/reportes/cumplimiento',
         icon: BarChart3,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Accidentes / Incidentes',
         href: '/dashboard/reportes/accidentes',
         icon: AlertTriangle,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Capacitaciones',
         href: '/dashboard/reportes/capacitaciones',
         icon: GraduationCap,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Comité',
         href: '/dashboard/reportes/comite',
         icon: Users2,
+        roles: ROLES_NO_EMPLEADO,
       },
     ],
   },
@@ -232,16 +220,19 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Publicar comunicados',
         href: '/dashboard/app/comunicados',
         icon: Smartphone,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Contactos SST',
         href: '/dashboard/app/contactos',
         icon: Phone,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Menu/Branding',
         href: '/dashboard/app/branding',
         icon: Palette,
+        roles: ROLES_NO_EMPLEADO,
       },
     ],
   },
@@ -258,6 +249,7 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Alertas',
         href: '/dashboard/config/alertas',
         icon: Bell,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Jerarquía Organizacional',
@@ -276,11 +268,13 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Datos para importación',
         href: '/dashboard/config/importacion',
         icon: Database,
+        roles: ROLES_NO_EMPLEADO,
       },
       {
         label: 'Configuración EPP',
         href: '/configuracion/epp',
         icon: Settings,
+        roles: ROLES_NO_EMPLEADO,
       },
     ],
   },

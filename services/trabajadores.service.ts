@@ -47,6 +47,10 @@ export interface Trabajador {
   contacto_emergencia_telefono: string | null;
   foto_url: string | null;
   firma_digital_url?: string | null;
+  talla_casco?: string | null;
+  talla_camisa?: string | null;
+  talla_pantalon?: string | null;
+  talla_calzado?: number | null;
   empresa_id: string;
   empresa_nombre?: string | null;
   usuario_id: string | null;

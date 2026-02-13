@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usuariosService } from '@/services/usuarios.service';
+import { trabajadoresService, Trabajador, UpdatePersonalDataDto } from '@/services/trabajadores.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Settings, Lock, Eye, EyeOff, UserPlus, FileSignature } from 'lucide-react';
 import { UsuarioRol } from '@/types';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { SignaturePad } from '@/components/ui/signature-pad';
 
 const changePasswordSchema = z.object({
   password_actual: z.string().min(1, 'La contraseña actual es obligatoria'),
@@ -23,12 +26,30 @@ const changePasswordSchema = z.object({
 
 type ChangePasswordFormData = z.infer<typeof changePasswordSchema>;
 
+const personalDataSchema = z.object({
+  talla_casco: z.string().optional(),
+  talla_camisa: z.string().optional(),
+  talla_pantalon: z.string().optional(),
+  talla_calzado: z.string().optional(),
+  firma_digital_url: z.string().optional(),
+  password_actual: z.string().min(1, 'La contraseña es obligatoria para guardar cambios'),
+});
+
+type PersonalDataFormData = z.infer<typeof personalDataSchema>;
+
+const tallasCasco = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const tallasRopa = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+const tallasCalzado = Array.from({ length: 20 }, (_, i) => (i + 35).toString());
+
 export default function ConfiguracionPage() {
   const { usuario: currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingPersonal, setIsSubmittingPersonal] = useState(false);
+  const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
   const [showPasswordActual, setShowPasswordActual] = useState(false);
   const [showNuevaPassword, setShowNuevaPassword] = useState(false);
   const [showConfirmacionPassword, setShowConfirmacionPassword] = useState(false);
+  const [showPasswordPersonal, setShowPasswordPersonal] = useState(false);
 
   const {
     register,
@@ -43,6 +64,89 @@ export default function ConfiguracionPage() {
       confirmacion_password: '',
     },
   });
+
+  const personalDataForm = useForm<PersonalDataFormData>({
+    resolver: zodResolver(personalDataSchema),
+    defaultValues: {
+      talla_casco: '',
+      talla_camisa: '',
+      talla_pantalon: '',
+      talla_calzado: '',
+      firma_digital_url: '',
+      password_actual: '',
+    },
+  });
+
+  useEffect(() => {
+    if (currentUser?.trabajadorId) {
+      trabajadoresService.findOne(currentUser.trabajadorId).then(setTrabajador).catch(() => setTrabajador(null));
+    } else {
+      setTrabajador(null);
+    }
+  }, [currentUser?.trabajadorId]);
+
+  useEffect(() => {
+    if (trabajador) {
+      personalDataForm.reset({
+        talla_casco: trabajador.talla_casco ?? '',
+        talla_camisa: trabajador.talla_camisa ?? '',
+        talla_pantalon: trabajador.talla_pantalon ?? '',
+        talla_calzado: trabajador.talla_calzado != null ? String(trabajador.talla_calzado) : '',
+        firma_digital_url: trabajador.firma_digital_url ?? '',
+        password_actual: '',
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trabajador?.id]);
+
+  const onSubmitPersonalData = async (data: PersonalDataFormData) => {
+    if (!currentUser?.trabajadorId) return;
+
+    setIsSubmittingPersonal(true);
+    try {
+      const { authService } = await import('@/services/auth.service');
+      try {
+        await authService.login({
+          dni: currentUser.dni,
+          password: data.password_actual,
+        });
+      } catch {
+        toast.error('Contraseña incorrecta', {
+          description: 'La contraseña actual no es válida',
+        });
+        setIsSubmittingPersonal(false);
+        return;
+      }
+
+      const personalData: UpdatePersonalDataDto = {
+        talla_casco: data.talla_casco || undefined,
+        talla_camisa: data.talla_camisa || undefined,
+        talla_pantalon: data.talla_pantalon || undefined,
+        talla_calzado: data.talla_calzado || undefined,
+        // Solo enviar firma si es base64 (nueva firma dibujada); las URLs existentes no se reenvían
+        firma_digital_url: data.firma_digital_url?.startsWith('data:') ? data.firma_digital_url : undefined,
+      };
+
+      await trabajadoresService.updatePersonalData(currentUser.trabajadorId, personalData);
+      const updated = await trabajadoresService.findOne(currentUser.trabajadorId);
+      setTrabajador(updated);
+
+      toast.success('Datos actualizados', {
+        description: 'Tallas y firma han sido actualizados correctamente',
+      });
+
+      personalDataForm.reset({
+        ...personalDataForm.getValues(),
+        password_actual: '',
+      });
+    } catch (error: any) {
+      toast.error('Error al actualizar', {
+        description: error.response?.data?.message || 'No se pudieron guardar los cambios',
+      });
+    } finally {
+      setIsSubmittingPersonal(false);
+    }
+  };
 
   const onSubmit = async (data: ChangePasswordFormData) => {
     if (!currentUser) {
@@ -131,6 +235,124 @@ export default function ConfiguracionPage() {
           </div>
         </div>
       </div>
+
+      {/* Tallas y Firma - Solo empleado con trabajador vinculado */}
+      {currentUser.trabajadorId && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <FileSignature className="w-5 h-5" />
+            Tallas y Firma (Onboarding)
+          </h2>
+          <p className="text-slate-600 text-sm mb-4">
+            Puedes modificar tus tallas de EPP y tu firma digital. Se requiere tu contraseña para guardar cambios.
+          </p>
+          {trabajador ? (
+            <form onSubmit={personalDataForm.handleSubmit(onSubmitPersonalData)} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Casco</label>
+                  <Select {...personalDataForm.register('talla_casco')} className="w-full">
+                    <option value="">Seleccione una talla</option>
+                    {tallasCasco.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Camisa</label>
+                  <Select {...personalDataForm.register('talla_camisa')} className="w-full">
+                    <option value="">Seleccione una talla</option>
+                    {tallasRopa.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Pantalón</label>
+                  <Select {...personalDataForm.register('talla_pantalon')} className="w-full">
+                    <option value="">Seleccione una talla</option>
+                    {tallasRopa.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Calzado</label>
+                  <Select {...personalDataForm.register('talla_calzado')} className="w-full">
+                    <option value="">Seleccione una talla</option>
+                    {tallasCalzado.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Firma digital</label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Dibuje su firma. Se usará en registros de entrega de EPP.
+                </p>
+                <SignaturePad
+                  value={personalDataForm.watch('firma_digital_url') || trabajador.firma_digital_url || undefined}
+                  onChange={(url) => personalDataForm.setValue('firma_digital_url', url)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Contraseña actual <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Input
+                    {...personalDataForm.register('password_actual')}
+                    type={showPasswordPersonal ? 'text' : 'password'}
+                    placeholder="Ingresa tu contraseña para confirmar"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordPersonal(!showPasswordPersonal)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  >
+                    {showPasswordPersonal ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                {personalDataForm.formState.errors.password_actual && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {personalDataForm.formState.errors.password_actual.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => personalDataForm.reset({
+                    talla_casco: trabajador.talla_casco ?? '',
+                    talla_camisa: trabajador.talla_camisa ?? '',
+                    talla_pantalon: trabajador.talla_pantalon ?? '',
+                    talla_calzado: trabajador.talla_calzado != null ? String(trabajador.talla_calzado) : '',
+                    firma_digital_url: trabajador.firma_digital_url ?? '',
+                    password_actual: '',
+                  })}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSubmittingPersonal}>
+                  {isSubmittingPersonal ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-slate-500 text-sm">Cargando datos...</p>
+          )}
+        </div>
+      )}
 
       {/* Información de Onboarding - Solo Admin / Super Admin */}
       {esAdmin && (

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
+  Grid3X3,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -74,8 +75,6 @@ export default function EPPPage() {
   const [observacionesModal, setObservacionesModal] = useState('');
   const [comentariosRechazoModal, setComentariosRechazoModal] = useState('');
   const [passwordEntregada, setPasswordEntregada] = useState('');
-  const [firmaEntregada, setFirmaEntregada] = useState('');
-  const [entregadaStep, setEntregadaStep] = useState(1);
   const [isSubmittingEstado, setIsSubmittingEstado] = useState(false);
 
   const canCreate = hasAnyRole([
@@ -180,8 +179,6 @@ export default function EPPPage() {
     }
     if (estadoNuevo === 'ENTREGADA') {
       setPasswordEntregada('');
-      setFirmaEntregada('');
-      setEntregadaStep(1);
       setModalEstado({ tipo: 'entregada', solicitud });
       return;
     }
@@ -234,26 +231,17 @@ export default function EPPPage() {
         comentarios_aprobacion: comentariosRechazoModal || undefined,
       });
     } else if (tipo === 'entregada') {
-      if (entregadaStep === 1) {
-        try {
-          const { valid } = await authService.verifyPassword(passwordEntregada);
-          if (!valid) {
-            toast.error('Contraseña incorrecta');
-            return;
-          }
-          setEntregadaStep(2);
-        } catch {
-          toast.error('Error al validar contraseña');
-        }
-      } else {
-        if (!firmaEntregada) {
-          toast.error('Debe ingresar la firma del solicitante');
+      try {
+        const { valid } = await authService.verifyPassword(passwordEntregada);
+        if (!valid) {
+          toast.error('Contraseña incorrecta');
           return;
         }
         await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Entregada, {
           password: passwordEntregada,
-          firma_recepcion_base64: firmaEntregada,
         });
+      } catch {
+        toast.error('Error al validar contraseña');
       }
     }
   };
@@ -473,14 +461,24 @@ export default function EPPPage() {
           </div>
         )}
 
-        {canCreate && (
-          <Link href={esSoloEmpleado ? '/epp/mis-solicitudes/nueva' : '/epp/nueva'}>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Plus className="w-4 h-4 mr-2" />
-              Nueva Solicitud
-            </Button>
-          </Link>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {esSoloEmpleado && (
+            <Link href="/epp/catalogo">
+              <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                <Grid3X3 className="w-4 h-4 mr-2" />
+                Ver catálogo
+              </Button>
+            </Link>
+          )}
+          {canCreate && (
+            <Link href={esSoloEmpleado ? '/epp/mis-solicitudes/nueva' : '/epp/nueva'}>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Plus className="w-4 h-4 mr-2" />
+                Nueva Solicitud
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Tabla de Datos */}
