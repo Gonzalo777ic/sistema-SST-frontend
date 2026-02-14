@@ -337,7 +337,7 @@ export default function TrabajadorDetallePage() {
           </Link>
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="outline"
+              variant="primary"
               size="sm"
               onClick={() => toast.info('EMOS: Próximamente')}
             >
@@ -345,19 +345,19 @@ export default function TrabajadorDetallePage() {
               EMOS
             </Button>
             <Link href="/capacitaciones">
-              <Button variant="outline" size="sm">
+              <Button variant="primary" size="sm">
                 <GraduationCap className="w-4 h-4 mr-2" />
                 Capacitaciones
               </Button>
             </Link>
             <Link href="/incidentes">
-              <Button variant="outline" size="sm">
+              <Button variant="primary" size="sm">
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 Accidentes/Incidentes
               </Button>
             </Link>
             <Button
-              variant="outline"
+              variant="primary"
               size="sm"
               onClick={() => toast.info('Documentos: Próximamente')}
             >
@@ -365,7 +365,7 @@ export default function TrabajadorDetallePage() {
               Documentos
             </Button>
             <Button
-              variant="outline"
+              variant="primary"
               size="sm"
               onClick={() => toast.info('Notas: Próximamente')}
             >
