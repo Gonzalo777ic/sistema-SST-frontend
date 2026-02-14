@@ -74,7 +74,6 @@ export function SignaturePad({
       const coords = getCoords(e);
       if (coords) {
         setIsDrawing(true);
-        setHasDrawn(true);
         prevPos.current = coords;
       }
     },
@@ -88,6 +87,7 @@ export function SignaturePad({
       const coords = getCoords(e);
       if (coords) {
         draw(coords.x, coords.y);
+        setHasDrawn(true);
       }
     },
     [isDrawing, disabled, getCoords, draw]
@@ -109,6 +109,7 @@ export function SignaturePad({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
+    prevPos.current = null;
     onChange?.('');
   }, [disabled, onChange]);
 

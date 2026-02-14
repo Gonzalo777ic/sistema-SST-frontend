@@ -102,6 +102,15 @@ export default function PerfilSetupPage() {
 
     try {
       setIsSubmitting(true);
+      if (data.firma_digital_url) {
+        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+        if (!isValidSignature(data.firma_digital_url)) {
+          toast.error(getSignatureValidationError());
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const personalData: UpdatePersonalDataDto = {
         talla_casco: data.talla_casco,
         talla_camisa: data.talla_camisa,

@@ -118,13 +118,22 @@ export default function ConfiguracionPage() {
         return;
       }
 
+      const firmaUrl = data.firma_digital_url?.startsWith('data:') ? data.firma_digital_url : undefined;
+      if (firmaUrl) {
+        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+        if (!isValidSignature(firmaUrl)) {
+          toast.error(getSignatureValidationError());
+          setIsSubmittingPersonal(false);
+          return;
+        }
+      }
+
       const personalData: UpdatePersonalDataDto = {
         talla_casco: data.talla_casco || undefined,
         talla_camisa: data.talla_camisa || undefined,
         talla_pantalon: data.talla_pantalon || undefined,
         talla_calzado: data.talla_calzado || undefined,
-        // Solo enviar firma si es base64 (nueva firma dibujada); las URLs existentes no se reenvían
-        firma_digital_url: data.firma_digital_url?.startsWith('data:') ? data.firma_digital_url : undefined,
+        firma_digital_url: firmaUrl,
       };
 
       await trabajadoresService.updatePersonalData(currentUser.trabajadorId, personalData);

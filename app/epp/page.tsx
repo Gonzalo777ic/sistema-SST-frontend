@@ -258,6 +258,11 @@ export default function EPPPage() {
           toast.error('Debe ingresar la firma del solicitante');
           return;
         }
+        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+        if (!isValidSignature(firmaEntregada)) {
+          toast.error(getSignatureValidationError());
+          return;
+        }
         await handleUpdateEstado(solicitud.id, EstadoSolicitudEPP.Entregada, {
           password: passwordEntregada,
           firma_recepcion_base64: firmaEntregada,
@@ -313,7 +318,7 @@ export default function EPPPage() {
   }, [solicitudes]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0 max-w-full">
       {/* Cabecera */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">
@@ -503,38 +508,29 @@ export default function EPPPage() {
 
       {/* Tabla de Datos */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-x-auto max-w-full">
+          <table className="w-full table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Código correlativo
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[100px]">
+                  Código
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Fecha Solicitud
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[90px]">
+                  Fecha
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Usuario de EPP
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-0">
                   Solicitante
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Razón Social
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider min-w-0 hidden lg:table-cell">
+                  Empresa
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Unidad
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[70px] hidden md:table-cell">
                   Área
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Sede
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[115px]">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-[70px]">
                   Acciones
                 </th>
               </tr>
@@ -544,8 +540,8 @@ export default function EPPPage() {
                 <>
                   {[1, 2, 3, 4, 5].map((i) => (
                     <tr key={i}>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((j) => (
-                        <td key={j} className="px-4 py-4">
+                      {[1, 2, 3, 4, 5, 6, 7].map((j) => (
+                        <td key={j} className="px-3 py-4">
                           <Skeleton className="h-4 w-full" />
                         </td>
                       ))}
@@ -554,7 +550,7 @@ export default function EPPPage() {
                 </>
               ) : filteredSolicitudes.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center">
+                  <td colSpan={7} className="px-4 py-12 text-center">
                     <Package className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-600">Sin Información</p>
                   </td>
@@ -562,34 +558,46 @@ export default function EPPPage() {
               ) : (
                 filteredSolicitudes.map((solicitud) => (
                   <tr key={solicitud.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.codigo_correlativo || '-'}
+                    <td className="px-3 py-4 text-sm text-gray-900">
+                      <span className="truncate block" title={solicitud.codigo_correlativo || '-'}>
+                        {solicitud.codigo_correlativo || '-'}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-4 text-sm text-gray-900 whitespace-nowrap">
                       {new Date(solicitud.fecha_solicitud).toLocaleDateString('es-PE')}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.usuario_epp_nombre || '-'}
+                    <td className="px-3 py-4 text-sm text-gray-900 min-w-0">
+                      <span
+                        className="truncate block max-w-[140px] sm:max-w-[200px]"
+                        title={
+                          solicitud.usuario_epp_nombre !== solicitud.solicitante_nombre
+                            ? `${solicitud.solicitante_nombre || '-'} (solicitado por: ${solicitud.usuario_epp_nombre || '-'})`
+                            : solicitud.solicitante_nombre || '-'
+                        }
+                      >
+                        {solicitud.solicitante_nombre || '-'}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.solicitante_nombre || '-'}
+                    <td className="px-3 py-4 text-sm text-gray-900 hidden lg:table-cell min-w-0">
+                      <span
+                        className="truncate block max-w-[120px]"
+                        title={solicitud.empresa_nombre || '-'}
+                      >
+                        {solicitud.empresa_nombre || '-'}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.empresa_nombre || '-'}
+                    <td className="px-3 py-4 text-sm text-gray-900 hidden md:table-cell">
+                      <span
+                        className="truncate block max-w-[80px]"
+                        title={solicitud.area_nombre || '-'}
+                      >
+                        {solicitud.area_nombre || '-'}
+                      </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.unidad || '-'}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.area_nombre || '-'}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {solicitud.sede || '-'}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap">
+                    <td className="px-3 py-4 min-w-[115px]">
                       {esSoloEmpleado ? (
                         <span
-                          className={`px-2 py-1 rounded text-xs font-medium border ${getEstadoColor(solicitud.estado)}`}
+                          className={`inline-block px-2 py-1 rounded text-xs font-medium border whitespace-nowrap ${getEstadoColor(solicitud.estado)}`}
                         >
                           {solicitud.estado}
                         </span>
@@ -602,7 +610,7 @@ export default function EPPPage() {
                               e.target.value as EstadoSolicitudEPP,
                             )
                           }
-                          className={`border-2 rounded-md font-medium text-sm ${getEstadoColor(solicitud.estado)} bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1`}
+                          className={`w-full min-w-[100px] border-2 rounded-md font-medium text-sm whitespace-nowrap ${getEstadoColor(solicitud.estado)} bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1`}
                           style={{
                             borderColor: getEstadoColor(solicitud.estado).split(' ')[2]?.replace('border-', ''),
                           }}
@@ -615,7 +623,7 @@ export default function EPPPage() {
                         </Select>
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                    <td className="px-3 py-4 text-sm">
                       <Link href={`/epp/${solicitud.id}`}>
                         <Button
                           variant="ghost"

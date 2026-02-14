@@ -304,6 +304,11 @@ export default function DetalleSolicitudEPPPage() {
           toast.error('Debe ingresar la firma del solicitante');
           return;
         }
+        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+        if (!isValidSignature(firmaEntregada)) {
+          toast.error(getSignatureValidationError());
+          return;
+        }
         setIsSubmittingEntregada(true);
         const promise = eppService.updateEstado(solicitud.id, {
           estado: EstadoSolicitudEPP.Entregada,

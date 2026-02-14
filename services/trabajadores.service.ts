@@ -103,18 +103,36 @@ export interface UpdateTrabajadorDto {
   apellido_paterno?: string;
   apellido_materno?: string;
   cargo?: string;
+  puesto?: string;
   area_id?: string;
   telefono?: string;
   email?: string;
   email_corporativo?: string;
   fecha_ingreso?: string;
+  fecha_nacimiento?: string;
+  sexo?: string;
   estado?: EstadoTrabajador;
   grupo_sanguineo?: GrupoSanguineo;
   contacto_emergencia_nombre?: string;
   contacto_emergencia_telefono?: string;
   foto_url?: string;
+  firma_digital_url?: string;
   sede?: string;
   unidad?: string;
+  jefe_directo?: string;
+  centro_costos?: string;
+  nivel_exposicion?: string;
+  tipo_usuario?: string;
+  seguro_atencion_medica?: string;
+  modalidad_contrato?: string;
+  gerencia?: string;
+  puesto_capacitacion?: string;
+  protocolos_emo?: string;
+  pais?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
+  direccion?: string;
   talla_casco?: string;
   talla_camisa?: string;
   talla_pantalon?: string;
@@ -152,6 +170,17 @@ export const trabajadoresService = {
     const response = await apiClient.patch<Trabajador>(
       `/trabajadores/${id}`,
       data
+    );
+    return response.data;
+  },
+
+  async uploadFoto(id: string, file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<{ url: string }>(
+      `/trabajadores/${id}/upload-foto`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
     );
     return response.data;
   },
