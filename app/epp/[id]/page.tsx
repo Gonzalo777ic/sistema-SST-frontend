@@ -269,51 +269,33 @@ export default function DetalleSolicitudEPPPage() {
 
   const handleConfirmarEntregada = async () => {
     if (!solicitud) return;
-    const esAutoSolicitud = solicitud.es_auto_solicitud === true;
     try {
-      const { valid } = await authService.verifyPassword(passwordEntregada);
-      if (!valid) {
-        toast.error('Contraseña incorrecta');
-        return;
-      }
-      if (esAutoSolicitud) {
-        setIsSubmittingEntregada(true);
-        const promise = eppService.updateEstado(solicitud.id, {
-          estado: EstadoSolicitudEPP.Entregada,
-          password: passwordEntregada,
-        });
-        toast.promise(promise, {
-          loading: 'Registrando entrega... Creando PDF y subiendo a la nube. Puede continuar navegando.',
-          success: () => {
-            setEntregadaModal(false);
-            setConfirmEstadoModal({ open: false, targetState: null });
-            setRechazarModal(false);
-            setObservadaModal(false);
-            loadSolicitud();
-            return 'Entrega registrada correctamente';
-          },
-          error: (err: any) => {
-            return err.response?.data?.message || 'Error al registrar la entrega';
-          },
-        });
-        await promise;
-      } else if (entregadaStep === 1) {
+      if (entregadaStep === 1) {
+        const { valid } = await authService.verifyPassword(passwordEntregada);
+        if (!valid) {
+          toast.error('Contraseña incorrecta');
+          return;
+        }
         setEntregadaStep(2);
       } else {
-        if (!firmaEntregada) {
+        const tieneFirmaDibujada = !!firmaEntregada;
+        const tieneFirmaCargada = !!solicitud.solicitante_firma_digital_url;
+        if (!tieneFirmaDibujada && !tieneFirmaCargada) {
           toast.error('Debe ingresar la firma del solicitante');
           return;
         }
-        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
-        if (!isValidSignature(firmaEntregada)) {
-          toast.error(getSignatureValidationError());
-          return;
+        if (tieneFirmaDibujada) {
+          const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+          if (!isValidSignature(firmaEntregada)) {
+            toast.error(getSignatureValidationError());
+            return;
+          }
         }
         setIsSubmittingEntregada(true);
         const promise = eppService.updateEstado(solicitud.id, {
           estado: EstadoSolicitudEPP.Entregada,
           password: passwordEntregada,
-          firma_recepcion_base64: firmaEntregada,
+          ...(tieneFirmaDibujada && { firma_recepcion_base64: firmaEntregada }),
         });
         toast.promise(promise, {
           loading: 'Registrando entrega... Creando PDF y subiendo a la nube. Puede continuar navegando.',
@@ -1028,32 +1010,7 @@ export default function DetalleSolicitudEPPPage() {
               </div>
             )}
             <div className="p-6">
-            {solicitud.es_auto_solicitud ? (
-              <>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Registrar entrega</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Ingrese su contraseña para confirmar que es usted quien registra la entrega. La firma del solicitante se usa automáticamente (ya la envió al crear la solicitud).
-                </p>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={passwordEntregada}
-                  onChange={(e) => setPasswordEntregada(e.target.value)}
-                  placeholder="Su contraseña"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                />
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setEntregadaModal(false)}>Cancelar</Button>
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={handleConfirmarEntregada}
-                    disabled={!passwordEntregada || isSubmittingEntregada}
-                  >
-                    {isSubmittingEntregada ? 'Registrando...' : 'Registrar entrega'}
-                  </Button>
-                </div>
-              </>
-            ) : entregadaStep === 1 ? (
+            {entregadaStep === 1 ? (
               <>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Verificar identidad</h3>
                 <p className="text-sm text-gray-600 mb-4">
@@ -1087,7 +1044,30 @@ export default function DetalleSolicitudEPPPage() {
                 <p className="text-sm text-gray-600 mb-4">
                   El trabajador debe firmar para avalar que estuvo presente en la entrega.
                 </p>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Firma de recepción</label>
+                {solicitud.solicitante_firma_digital_url ? (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Firma registrada (verificar)</label>
+                    <div className="border border-gray-200 rounded-lg p-2 bg-white inline-block">
+                      <img
+                        src={solicitud.solicitante_firma_digital_url}
+                        alt="Firma del solicitante"
+                        className="max-w-[280px] h-[100px] object-contain"
+                      />
+                    </div>
+                    <p className="text-xs text-amber-600 mt-1">
+                      Si la firma está vacía o desea cambiarla, ingrese una nueva abajo.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-600 mb-4">
+                    El solicitante no tiene firma registrada. Debe ingresar su firma para continuar.
+                  </p>
+                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {solicitud.solicitante_firma_digital_url
+                    ? 'Ingresar firma nuevamente (si está vacía o inválida)'
+                    : 'Firma de recepción'}
+                </label>
                 <SignaturePad
                   value={firmaEntregada}
                   onChange={setFirmaEntregada}
@@ -1101,7 +1081,10 @@ export default function DetalleSolicitudEPPPage() {
                   <Button
                     className="bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleConfirmarEntregada}
-                    disabled={!firmaEntregada || isSubmittingEntregada}
+                    disabled={
+                      isSubmittingEntregada ||
+                      (!firmaEntregada && !solicitud.solicitante_firma_digital_url)
+                    }
                   >
                     {isSubmittingEntregada ? 'Registrando...' : 'Registrar entrega'}
                   </Button>

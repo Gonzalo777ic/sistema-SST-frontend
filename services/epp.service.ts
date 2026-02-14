@@ -115,6 +115,7 @@ export interface SolicitudEPP {
   solicitante_id: string;
   solicitante_nombre: string | null;
   solicitante_documento: string | null;
+  solicitante_firma_digital_url?: string | null;
   solicitante_sexo: string | null;
   solicitante_puesto: string | null;
   solicitante_centro_costos: string | null;
