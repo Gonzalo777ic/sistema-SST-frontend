@@ -1,6 +1,14 @@
 import apiClient from '@/lib/axios';
 
 export enum TipoCapacitacion {
+  Capacitacion = 'Capacitación',
+  CapacitacionObligatoria = 'Capacitación obligatoria',
+  Charla = 'Charla',
+  Charla5Minutos = 'Charla 5 minutos',
+  CharlaSST = 'Charla de seguridad y salud en el trabajo',
+  PausasActivas = 'Pausas activas',
+  SimulacroEmergencia = 'Simulacro de emergencia',
+  TomaConsciencia = 'Toma de consciencia',
   Induccion = 'Inducción',
   TrabajoAltura = 'Trabajo en Altura',
   EspaciosConfinados = 'Espacios Confinados',
@@ -14,8 +22,9 @@ export enum TipoCapacitacion {
 }
 
 export enum EstadoCapacitacion {
-  Programada = 'Programada',
-  Completada = 'Completada',
+  Pendiente = 'PENDIENTE',
+  Programada = 'PROGRAMADA',
+  Completada = 'COMPLETADA',
   Cancelada = 'Cancelada',
 }
 
@@ -48,12 +57,17 @@ export interface Capacitacion {
   id: string;
   titulo: string;
   descripcion: string;
-  lugar: string;
+  lugar: string | null;
   tipo: TipoCapacitacion;
   fecha: string;
-  hora_inicio: string;
-  hora_fin: string;
-  duracion_horas: number;
+  fecha_fin: string | null;
+  sede: string | null;
+  unidad: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  duracion_horas: number | null;
+  duracion_minutos: number | null;
+  duracion_hhmm: string | null;
   estado: EstadoCapacitacion;
   instructor: string | null;
   material_url: string | null;
@@ -61,6 +75,7 @@ export interface Capacitacion {
   participantes: ParticipanteDto[];
   examenes: ExamenDto[];
   empresa_id: string;
+  empresa_nombre: string | null;
   creado_por: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -69,19 +84,24 @@ export interface Capacitacion {
 export interface CreateCapacitacionDto {
   titulo: string;
   descripcion: string;
-  lugar: string;
+  lugar?: string;
   tipo: TipoCapacitacion;
   fecha: string;
-  hora_inicio: string;
-  hora_fin: string;
-  duracion_horas: number;
+  fecha_fin?: string;
+  sede?: string;
+  unidad?: string;
+  hora_inicio?: string;
+  hora_fin?: string;
+  duracion_horas?: number;
+  duracion_hhmm?: string;
+  duracion_minutos?: number;
   instructor?: string;
   instructor_id?: string;
   material_url?: string;
   certificado_url?: string;
   estado?: EstadoCapacitacion;
   participantes?: ParticipanteDto[];
-  empresa_id: string;
+  empresa_id?: string;
   creado_por_id: string;
 }
 
@@ -94,8 +114,31 @@ export interface CreateExamenDto {
 }
 
 export const capacitacionesService = {
-  async findAll(empresaId?: string): Promise<Capacitacion[]> {
-    const params = empresaId ? { empresa_id: empresaId } : {};
+  async findAll(filters?: {
+    empresaId?: string;
+    tipo?: string;
+    tema?: string;
+    fechaDesde?: string;
+    fechaHasta?: string;
+    estado?: string;
+    razonSocial?: string;
+    grupo?: string;
+    area?: string;
+    responsable?: string;
+    unidad?: string;
+  }): Promise<Capacitacion[]> {
+    const params: Record<string, string> = {};
+    if (filters?.empresaId) params.empresa_id = filters.empresaId;
+    if (filters?.tipo) params.tipo = filters.tipo;
+    if (filters?.tema) params.tema = filters.tema;
+    if (filters?.fechaDesde) params.fecha_desde = filters.fechaDesde;
+    if (filters?.fechaHasta) params.fecha_hasta = filters.fechaHasta;
+    if (filters?.estado) params.estado = filters.estado;
+    if (filters?.razonSocial) params.razon_social = filters.razonSocial;
+    if (filters?.grupo) params.grupo = filters.grupo;
+    if (filters?.area) params.area = filters.area;
+    if (filters?.responsable) params.responsable = filters.responsable;
+    if (filters?.unidad) params.unidad = filters.unidad;
     const response = await apiClient.get<Capacitacion[]>('/capacitaciones', { params });
     return response.data;
   },
