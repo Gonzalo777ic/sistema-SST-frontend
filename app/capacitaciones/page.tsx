@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { capacitacionesService, Capacitacion, CreateCapacitacionDto, TipoCapacitacion, EstadoCapacitacion } from '@/services/capacitaciones.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
+import { configCapacitacionesService } from '@/services/config-capacitaciones.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -84,6 +85,8 @@ export default function CapacitacionesPage() {
   const { usuario, empresasVinculadas } = useAuth();
   const [capacitaciones, setCapacitaciones] = useState<Capacitacion[]>([]);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [configTipos, setConfigTipos] = useState<string[]>([]);
+  const [configGrupos, setConfigGrupos] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(true);
   const [modalRegistrar, setModalRegistrar] = useState(false);
@@ -124,6 +127,19 @@ export default function CapacitacionesPage() {
     loadEmpresas();
   }, [empresasVinculadas?.length]);
 
+  useEffect(() => {
+    configCapacitacionesService
+      .getConfig()
+      .then((config) => {
+        setConfigTipos(config.tipos ?? []);
+        setConfigGrupos(config.grupos ?? []);
+      })
+      .catch(() => {
+        setConfigTipos([]);
+        setConfigGrupos([]);
+      });
+  }, []);
+
   const loadEmpresas = async () => {
     try {
       const data = await empresasService.findAll();
@@ -149,7 +165,7 @@ export default function CapacitacionesPage() {
     try {
       setIsLoading(true);
       const data = await capacitacionesService.findAll({
-        empresaId: usuario?.empresaId,
+        empresaId: usuario?.empresaId ?? undefined,
         tipo: filtros.tipo || undefined,
         tema: filtros.tema || undefined,
         fechaDesde: filtros.fecha_desde || undefined,
@@ -257,7 +273,7 @@ export default function CapacitacionesPage() {
                   onChange={(e) => setFiltros((f) => ({ ...f, tipo: e.target.value }))}
                 >
                   <option value="">Todos</option>
-                  {TIPOS_ACTIVIDAD.map((t) => (
+                  {configTipos.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </Select>
@@ -311,11 +327,15 @@ export default function CapacitacionesPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Grupo</label>
-                <Input
-                  placeholder="Grupo"
+                <Select
                   value={filtros.grupo}
                   onChange={(e) => setFiltros((f) => ({ ...f, grupo: e.target.value }))}
-                />
+                >
+                  <option value="">Todos</option>
+                  {configGrupos.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </Select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Área</label>
@@ -358,10 +378,12 @@ export default function CapacitacionesPage() {
           <FileText className="h-4 w-4 mr-2" />
           Reporte
         </Button>
-        <Button variant="primary">
-          <Settings className="h-4 w-4 mr-2" />
-          Configuración
-        </Button>
+        <Link href="/configuracion/capacitaciones">
+          <Button variant="primary">
+            <Settings className="h-4 w-4 mr-2" />
+            Configuración
+          </Button>
+        </Link>
         <Button variant="primary">
           <Search className="h-4 w-4 mr-2" />
           Buscar por trabajador

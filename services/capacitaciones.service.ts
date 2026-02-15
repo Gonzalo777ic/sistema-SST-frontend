@@ -34,6 +34,8 @@ export interface ParticipanteDto {
   asistencia?: boolean;
   calificacion?: number;
   aprobado?: boolean;
+  firmo?: boolean;
+  rendio_examen?: boolean;
 }
 
 export interface PreguntaDto {
@@ -53,16 +55,36 @@ export interface ExamenDto {
   preguntas_count: number;
 }
 
+export interface AdjuntoCapacitacion {
+  id: string;
+  titulo: string;
+  archivo_url: string;
+  nombre_archivo: string;
+  fecha_registro: string;
+  registrado_por: string;
+}
+
+export interface PasoInstruccion {
+  id: string;
+  descripcion: string;
+  esEvaluacion: boolean;
+  imagenUrl?: string;
+}
+
 export interface Capacitacion {
   id: string;
   titulo: string;
   descripcion: string;
   lugar: string | null;
   tipo: TipoCapacitacion;
+  firma_capacitador_url?: string | null;
   fecha: string;
   fecha_fin: string | null;
   sede: string | null;
   unidad: string | null;
+  area?: string | null;
+  grupo?: string | null;
+  instrucciones?: PasoInstruccion[] | null;
   hora_inicio: string | null;
   hora_fin: string | null;
   duracion_horas: number | null;
@@ -90,6 +112,9 @@ export interface CreateCapacitacionDto {
   fecha_fin?: string;
   sede?: string;
   unidad?: string;
+  area?: string;
+  grupo?: string;
+  instrucciones?: PasoInstruccion[];
   hora_inicio?: string;
   hora_fin?: string;
   duracion_horas?: number;
@@ -97,6 +122,7 @@ export interface CreateCapacitacionDto {
   duracion_minutos?: number;
   instructor?: string;
   instructor_id?: string;
+  firma_capacitador_url?: string;
   material_url?: string;
   certificado_url?: string;
   estado?: EstadoCapacitacion;
@@ -180,10 +206,69 @@ export const capacitacionesService = {
     trabajadorId: string,
     asistencia: boolean,
     calificacion?: number,
+    aprobado?: boolean,
+    firmo?: boolean,
   ): Promise<void> {
     await apiClient.patch(`/capacitaciones/${capacitacionId}/asistencias/${trabajadorId}`, {
       asistencia,
       calificacion,
+      aprobado,
+      firmo,
     });
+  },
+
+  async retirarParticipante(capacitacionId: string, trabajadorId: string): Promise<void> {
+    await apiClient.delete(`/capacitaciones/${capacitacionId}/participantes/${trabajadorId}`);
+  },
+
+  async obtenerUrlCertificado(capacitacionId: string, trabajadorId: string): Promise<{ url: string }> {
+    const response = await apiClient.get<{ url: string }>(`/capacitaciones/${capacitacionId}/certificado/${trabajadorId}`);
+    return response.data;
+  },
+
+  async obtenerResultadoEvaluacion(capacitacionId: string, trabajadorId: string): Promise<any> {
+    const response = await apiClient.get(`/capacitaciones/${capacitacionId}/resultado-evaluacion/${trabajadorId}`);
+    return response.data;
+  },
+
+  async obtenerAdjuntos(capacitacionId: string): Promise<AdjuntoCapacitacion[]> {
+    const response = await apiClient.get<AdjuntoCapacitacion[]>(`/capacitaciones/${capacitacionId}/adjuntos`);
+    return response.data;
+  },
+
+  async crearAdjunto(capacitacionId: string, titulo: string, file: File): Promise<{ id: string }> {
+    const formData = new FormData();
+    formData.append('titulo', titulo);
+    formData.append('file', file);
+    const response = await apiClient.post<{ id: string }>(`/capacitaciones/${capacitacionId}/adjuntos`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  async eliminarAdjunto(adjuntoId: string): Promise<void> {
+    await apiClient.delete(`/capacitaciones/adjuntos/${adjuntoId}`);
+  },
+
+  async obtenerEvaluacionesFavoritas(empresaId?: string): Promise<{ id: string; nombre: string; preguntas: any[] }[]> {
+    const params = empresaId ? { empresa_id: empresaId } : {};
+    const response = await apiClient.get<{ id: string; nombre: string; preguntas: any[] }[]>('/capacitaciones/evaluaciones-favoritas', { params });
+    return response.data;
+  },
+
+  async crearEvaluacionFavorita(nombre: string, preguntas: any[]): Promise<{ id: string }> {
+    const response = await apiClient.post<{ id: string }>('/capacitaciones/evaluaciones-favoritas', { nombre, preguntas });
+    return response.data;
+  },
+
+  async eliminarEvaluacionFavorita(id: string): Promise<void> {
+    await apiClient.delete(`/capacitaciones/evaluaciones-favoritas/${id}`);
+  },
+
+  async agregarParticipante(capacitacionId: string, trabajadorId: string): Promise<Capacitacion> {
+    const response = await apiClient.post<Capacitacion>(`/capacitaciones/${capacitacionId}/participantes`, {
+      trabajador_id: trabajadorId,
+    });
+    return response.data;
   },
 };
