@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { saludService, ExamenMedico } from '@/services/salud.service';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import {
@@ -29,77 +31,33 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Interfaz para la tabla según las columnas especificadas
-interface IExamenMedicoTable {
-  id: string;
-  nombres: string;
-  documento: string;
-  centro_medico: string;
-  proyecto: string;
-  sede: string;
-  tipo_examen: string;
-  fecha_programacion: string;
-  resultado: 'Apto' | 'No Apto' | 'Pendiente';
-  vigencia: string;
-  estado: string;
-}
-
 export default function ExamenesMedicosPage() {
-  const [examenes, setExamenes] = useState<IExamenMedicoTable[]>([]);
+  const [examenes, setExamenes] = useState<ExamenMedico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [paginaActual, setPaginaActual] = useState(1);
   const registrosPorPagina = 10;
 
-  // Datos mock para visualización inmediata
-  const datosMock: IExamenMedicoTable[] = [
-    {
-      id: '1',
-      nombres: ' García',
-      documento: '12345678',
-      centro_medico: 'Clínica San José',
-      proyecto: 'Proyecto A',
-      sede: 'Lima',
-      tipo_examen: 'Ingreso',
-      fecha_programacion: '2024-01-15',
-      resultado: 'Apto',
-      vigencia: '2025-01-15',
-      estado: 'Completado',
-    },
-    {
-      id: '2',
-      nombres: 'María López Sánchez',
-      documento: '87654321',
-      centro_medico: 'Centro Médico Nacional',
-      proyecto: 'Proyecto B',
-      sede: 'Arequipa',
-      tipo_examen: 'Periódico',
-      fecha_programacion: '2024-02-20',
-      resultado: 'No Apto',
-      vigencia: '2025-02-20',
-      estado: 'Completado',
-    },
-    {
-      id: '3',
-      nombres: 'Carlos Rodríguez Torres',
-      documento: '11223344',
-      centro_medico: 'Hospital Regional',
-      proyecto: 'Proyecto A',
-      sede: 'Lima',
-      tipo_examen: 'Retiro',
-      fecha_programacion: '2024-03-10',
-      resultado: 'Pendiente',
-      vigencia: '-',
-      estado: 'Programado',
-    },
-  ];
-
   useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setExamenes(datosMock);
-      setIsLoading(false);
-    }, 500);
+    let cancelled = false;
+    saludService
+      .findAllExamenes()
+      .then((data) => {
+        if (!cancelled) {
+          setExamenes(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error('Error al cargar los exámenes médicos');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const totalRegistros = examenes.length;
@@ -111,6 +69,7 @@ export default function ExamenesMedicosPage() {
   const getResultadoBadge = (resultado: string) => {
     const styles: Record<string, string> = {
       Apto: 'bg-green-100 text-green-800',
+      'Apto con Restricciones': 'bg-amber-100 text-amber-800',
       'No Apto': 'bg-red-100 text-red-800',
       Pendiente: 'bg-yellow-100 text-yellow-800',
     };
@@ -128,7 +87,11 @@ export default function ExamenesMedicosPage() {
   const getEstadoBadge = (estado: string) => {
     const styles: Record<string, string> = {
       Completado: 'bg-green-100 text-green-800',
+      Realizado: 'bg-green-100 text-green-800',
+      Revisado: 'bg-green-100 text-green-800',
       Programado: 'bg-blue-100 text-blue-800',
+      PorVencer: 'bg-yellow-100 text-yellow-800',
+      Vencido: 'bg-red-100 text-red-800',
       Cancelado: 'bg-red-100 text-red-800',
     };
     return (
@@ -328,18 +291,22 @@ export default function ExamenesMedicosPage() {
           <FileText className="h-4 w-4 mr-2" />
           Formato DIGESA
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-          <Settings className="h-4 w-4 mr-2" />
-          Configuración
-        </Button>
+        <Link href="/salud/examenes/configuracion">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <Settings className="h-4 w-4 mr-2" />
+            Configuración
+          </Button>
+        </Link>
         <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
           <Upload className="h-4 w-4 mr-2" />
           Importar
         </Button>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-          <CalendarPlus className="h-4 w-4 mr-2" />
-          Programar EMO
-        </Button>
+        <Link href="/salud/examenes/nuevo">
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+            <CalendarPlus className="h-4 w-4 mr-2" />
+            Programar EMO
+          </Button>
+        </Link>
       </div>
 
       {/* D. TABLA DE DATOS */}
@@ -390,17 +357,27 @@ export default function ExamenesMedicosPage() {
                 <TableBody>
                   {examenesPaginados.map((examen) => (
                     <TableRow key={examen.id} className="hover:bg-gray-50">
-                      <TableCell className="text-sm font-medium">{examen.nombres}</TableCell>
-                      <TableCell className="text-sm">{examen.documento}</TableCell>
+                      <TableCell className="text-sm font-medium">
+                        {examen.trabajador_nombre ?? '-'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {examen.trabajador_documento ?? '-'}
+                      </TableCell>
                       <TableCell className="text-sm">{examen.centro_medico}</TableCell>
-                      <TableCell className="text-sm">{examen.proyecto}</TableCell>
-                      <TableCell className="text-sm">{examen.sede}</TableCell>
+                      <TableCell className="text-sm">{examen.proyecto ?? '-'}</TableCell>
+                      <TableCell className="text-sm">{examen.sede ?? '-'}</TableCell>
                       <TableCell className="text-sm">{examen.tipo_examen}</TableCell>
                       <TableCell className="text-sm">
-                        {new Date(examen.fecha_programacion).toLocaleDateString('es-PE')}
+                        {examen.fecha_programada
+                          ? new Date(examen.fecha_programada).toLocaleDateString('es-PE')
+                          : '-'}
                       </TableCell>
                       <TableCell>{getResultadoBadge(examen.resultado)}</TableCell>
-                      <TableCell className="text-sm">{examen.vigencia}</TableCell>
+                      <TableCell className="text-sm">
+                        {examen.fecha_vencimiento
+                          ? new Date(examen.fecha_vencimiento).toLocaleDateString('es-PE')
+                          : '-'}
+                      </TableCell>
                       <TableCell>{getEstadoBadge(examen.estado)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">

@@ -3,9 +3,12 @@ import apiClient from '@/lib/axios';
 export enum TipoExamen {
   Ingreso = 'Ingreso',
   Periodico = 'Periódico',
+  PreOcupacional = 'Pre-Ocupacional',
   Retiro = 'Retiro',
   Reingreso = 'Reingreso',
   PorExposicion = 'Por Exposición',
+  Otros = 'Otros',
+  Reubicacion = 'Reubicación',
 }
 
 export enum ResultadoExamen {
@@ -45,6 +48,9 @@ export interface ExamenMedico {
   id: string;
   trabajador_id: string;
   trabajador_nombre: string | null;
+  trabajador_documento?: string | null;
+  proyecto?: string | null;
+  sede?: string | null;
   tipo_examen: TipoExamen;
   fecha_programada: string;
   fecha_realizado: string | null;
@@ -138,6 +144,23 @@ export const saludService = {
 
   async findOneExamen(id: string): Promise<ExamenMedico> {
     const response = await apiClient.get<ExamenMedico>(`/salud/examenes/${id}`);
+    return response.data;
+  },
+
+  async createExamen(dto: {
+    trabajador_id: string;
+    tipo_examen: string;
+    fecha_programada: string;
+    hora_programacion?: string;
+    centro_medico: string;
+    medico_evaluador?: string;
+    perfil_emo_id?: string;
+    proyecto?: string;
+    adicionales?: string;
+    recomendaciones_personalizadas?: string;
+    cargado_por_id: string;
+  }): Promise<ExamenMedico> {
+    const response = await apiClient.post<ExamenMedico>('/salud/examenes', dto);
     return response.data;
   },
 
