@@ -75,7 +75,20 @@ export const sidebarConfig: SidebarGroup[] = [
         roles: ROLES_NO_EMPLEADO,
       },
       {
-        label: 'Exámenes médicos',
+        label: 'Mis capacitaciones',
+        href: '/mis-capacitaciones',
+        icon: GraduationCap,
+        requiresTrabajadorId: true,
+        roles: [UsuarioRol.EMPLEADO, UsuarioRol.SUPERVISOR, UsuarioRol.MEDICO, UsuarioRol.INGENIERO_SST, UsuarioRol.AUDITOR, UsuarioRol.CENTRO_MEDICO],
+      },
+      {
+        label: 'EMOs',
+        href: '/salud/examenes',
+        icon: Stethoscope,
+        roles: ROLES_NO_EMPLEADO,
+      },
+      {
+        label: 'Mis exámenes',
         href: '/mis-examenes',
         icon: Stethoscope,
         requiresTrabajadorId: true,

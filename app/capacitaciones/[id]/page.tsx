@@ -50,6 +50,7 @@ import { cn } from '@/lib/utils';
 const TIPOS = Object.values(TipoCapacitacion);
 const GRUPOS = ['Otros', 'Inducción', 'EPP', 'Seguridad', 'Salud'];
 const NOTA_MINIMA_APROBATORIA = 11;
+const ID_PASO_FIRMA = 'firma-registro-participacion';
 
 interface PreguntaEvaluacion {
   id: string;
@@ -372,17 +373,24 @@ export default function CapacitacionDetailPage() {
         instructor: data.instructor || '',
       });
       setFirmaCapacitador(data.firma_capacitador_url || null);
-      setPasosInstruccion(
-        data.instrucciones && Array.isArray(data.instrucciones)
-          ? data.instrucciones.map((p: any) => ({
-              id: String(p?.id ?? crypto.randomUUID()),
-              descripcion: String(p?.descripcion ?? ''),
-              esEvaluacion: Boolean(p?.esEvaluacion ?? false),
-              imagenUrl: p?.imagenUrl ? String(p.imagenUrl) : undefined,
-              preguntas: p?.preguntas,
-            }))
-          : []
-      );
+      const inst = data.instrucciones && Array.isArray(data.instrucciones) ? data.instrucciones : [];
+      const tienePasoFirma = inst.some((p: any) => p.firmaRegistro || p.id === ID_PASO_FIRMA);
+      const pasosNormales = inst.filter((p: any) => !p.firmaRegistro && p.id !== ID_PASO_FIRMA).map((p: any) => ({
+        id: String(p?.id ?? crypto.randomUUID()),
+        descripcion: String(p?.descripcion ?? ''),
+        esEvaluacion: Boolean(p?.esEvaluacion ?? false),
+        imagenUrl: p?.imagenUrl ? String(p.imagenUrl) : undefined,
+        preguntas: p?.preguntas,
+      }));
+      const pasoFirma = tienePasoFirma
+        ? inst.find((p: any) => p.firmaRegistro || p.id === ID_PASO_FIRMA)
+        : null;
+      setPasosInstruccion([
+        ...pasosNormales,
+        pasoFirma
+          ? { id: ID_PASO_FIRMA, descripcion: pasoFirma.descripcion || 'Firma de registro de participación', esEvaluacion: false, firmaRegistro: true }
+          : { id: ID_PASO_FIRMA, descripcion: 'Firma de registro de participación', esEvaluacion: false, firmaRegistro: true },
+      ]);
     } catch (error: any) {
       toast.error('Error al cargar capacitación', {
         description: error.response?.data?.message || 'No se pudo cargar la capacitación',
@@ -602,6 +610,7 @@ export default function CapacitacionDetailPage() {
             descripcion: String(p?.descripcion ?? ''),
             esEvaluacion: Boolean(p?.esEvaluacion ?? false),
             imagenUrl: p?.imagenUrl ? String(p.imagenUrl) : undefined,
+            ...((p as any).firmaRegistro ? { firmaRegistro: true } : {}),
           };
           const preguntas = (p as any).preguntas;
           return Array.isArray(preguntas) && preguntas.length > 0 ? { ...base, preguntas } : base;
@@ -1077,16 +1086,15 @@ export default function CapacitacionDetailPage() {
             variant="outline"
             size="sm"
             className="mb-6"
-            onClick={() =>
-              setPasosInstruccion((prev) => [
-                ...prev,
-                {
-                  id: crypto.randomUUID(),
-                  descripcion: '',
-                  esEvaluacion: prev.length === 0,
-                },
-              ])
-            }
+            onClick={() => {
+              const pasosSinFirma = pasosInstruccion.filter((p: any) => !p.firmaRegistro && p.id !== ID_PASO_FIRMA);
+              const pasoFirma = pasosInstruccion.find((p: any) => p.firmaRegistro || p.id === ID_PASO_FIRMA);
+              setPasosInstruccion([
+                ...pasosSinFirma,
+                { id: crypto.randomUUID(), descripcion: '', esEvaluacion: pasosSinFirma.length === 0 },
+                ...(pasoFirma ? [pasoFirma] : []),
+              ]);
+            }}
           >
             <Plus className="w-4 h-4 mr-2" />
             Agregar Paso
@@ -1097,16 +1105,26 @@ export default function CapacitacionDetailPage() {
                 No hay pasos aún. Agregue un paso de evaluación.
               </div>
             ) : (
-              pasosInstruccion.map((paso, i) => (
+              pasosInstruccion.map((paso, i) => {
+                const esPasoFirma = (paso as any).firmaRegistro || paso.id === ID_PASO_FIRMA;
+                return (
                 <div key={paso.id} className="border border-slate-200 rounded-lg p-4 flex gap-4 relative">
-                  <button
-                    type="button"
-                    onClick={() => setPasosInstruccion((prev) => prev.filter((p) => p.id !== paso.id))}
-                    className="absolute top-3 right-3 text-slate-400 hover:text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {!esPasoFirma && (
+                    <button
+                      type="button"
+                      onClick={() => setPasosInstruccion((prev) => prev.filter((p) => p.id !== paso.id))}
+                      className="absolute top-3 right-3 text-slate-400 hover:text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                   <div className="flex-1">
+                    {esPasoFirma ? (
+                      <div className="flex items-center gap-2 mb-2">
+                        <PenLine className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium text-slate-700">Firma de registro de participación (paso final obligatorio)</span>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-2 mb-2">
                       <input
                         type="checkbox"
@@ -1152,7 +1170,11 @@ export default function CapacitacionDetailPage() {
                         </Button>
                       )}
                     </div>
+                    )}
                     <label className="block text-sm font-medium text-slate-700 mb-1">Descripción</label>
+                    {esPasoFirma ? (
+                      <p className="text-sm text-slate-600 py-2">{paso.descripcion}</p>
+                    ) : (
                     <textarea
                       value={paso.descripcion}
                       onChange={(e) =>
@@ -1164,7 +1186,9 @@ export default function CapacitacionDetailPage() {
                       className="w-full px-3 py-2 border rounded-lg"
                       placeholder="Descripción del paso"
                     />
+                    )}
                   </div>
+                  {!esPasoFirma && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Imagen de fondo</label>
                     <div className="w-24 h-24 border-2 border-dashed rounded-lg flex items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer">
@@ -1173,8 +1197,10 @@ export default function CapacitacionDetailPage() {
                       </Button>
                     </div>
                   </div>
+                  )}
                 </div>
-              ))
+              );
+              })
             )}
           </div>
         </div>

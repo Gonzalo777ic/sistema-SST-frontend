@@ -26,8 +26,14 @@ function SidebarComponent() {
     if (!item.href) return false;
     
     // Rutas especiales que necesitan lógica específica
+    if (item.href === '/salud/examenes') {
+      return pathname === '/salud/examenes' || pathname.startsWith('/salud/examenes/');
+    }
     if (item.href === '/mis-examenes') {
       return pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
+    }
+    if (item.href === '/mis-capacitaciones') {
+      return pathname === '/mis-capacitaciones' || pathname.startsWith('/mis-capacitaciones/');
     }
     if (item.href === '/riesgos/petar') {
       return pathname === '/riesgos/petar' || pathname.startsWith('/riesgos/petar/');

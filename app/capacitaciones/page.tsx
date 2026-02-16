@@ -385,10 +385,6 @@ export default function CapacitacionesPage() {
           </Button>
         </Link>
         <Button variant="primary">
-          <Search className="h-4 w-4 mr-2" />
-          Buscar por trabajador
-        </Button>
-        <Button variant="primary">
           <Upload className="h-4 w-4 mr-2" />
           Importar capacitaciones
         </Button>

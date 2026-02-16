@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Monitor,
   Activity,
   ChevronDown,
   ChevronRight,
@@ -176,16 +175,48 @@ export default function ExamenesMedicosPage() {
         </button>
         {filtrosAbiertos && (
           <div className="border-t border-gray-200 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Buscar
+                  Nombres y Apellidos
                 </label>
-                <Input placeholder="Nombre, DNI..." />
+                <Input placeholder="Nombre, apellidos..." />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  
+                  Nro Documento
+                </label>
+                <Input placeholder="Documento..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Tipo de EMO
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="PERIODICO">PERIÓDICO</option>
+                  <option value="PRE_OCUPACIONAL">PRE-OCUPACIONAL</option>
+                  <option value="RETIRO">RETIRO</option>
+                  <option value="REUBICACION">REUBICACIÓN</option>
+                  <option value="OTROS">OTROS</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Aptitud EMO
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="SIN_RESULTADO">SIN RESULTADO</option>
+                  <option value="APTO">APTO</option>
+                  <option value="APTO_CON_RESTRICCIONES">APTO CON RESTRICCIONES</option>
+                  <option value="OBSERVADO">OBSERVADO</option>
+                  <option value="NO_APTO">NO APTO</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Unidad
                 </label>
                 <Select>
                   <option value="">Todos</option>
@@ -193,13 +224,18 @@ export default function ExamenesMedicosPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Tipo Examen
+                  Área
                 </label>
                 <Select>
                   <option value="">Todos</option>
-                  <option value="Ingreso">Ingreso</option>
-                  <option value="Periodico">Periódico</option>
-                  <option value="Retiro">Retiro</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Sede
+                </label>
+                <Select>
+                  <option value="">Todos</option>
                 </Select>
               </div>
               <div>
@@ -208,10 +244,78 @@ export default function ExamenesMedicosPage() {
                 </label>
                 <Select>
                   <option value="">Todos</option>
-                  <option value="Completado">Completado</option>
-                  <option value="Programado">Programado</option>
-                  <option value="Cancelado">Cancelado</option>
+                  <option value="ENTREGADO">ENTREGADO</option>
+                  <option value="PROXIMO">PRÓXIMO</option>
+                  <option value="ATRASADO">ATRASADO</option>
+                  <option value="ASISTIO">ASISTIÓ</option>
+                  <option value="LEIDO">LEIDO</option>
+                  <option value="DIFERIDO">DIFERIDO</option>
                 </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Vigencia
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="POR_VENCER">Por Vencer</option>
+                  <option value="SIN_REGISTRO">Sin registro</option>
+                  <option value="VENCIDO">Vencido</option>
+                  <option value="VIGENTE">Vigente</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Estado trabajador
+                </label>
+                <Select>
+                  <option value="">Todos</option>
+                  <option value="HABILITADO">Habilitado</option>
+                  <option value="DESHABILITADO">Deshabilitado</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Programación
+                </label>
+                <Select defaultValue="PROGRAMADO">
+                  <option value="">Todos</option>
+                  <option value="PROGRAMADO">Programado</option>
+                  <option value="NO_PROGRAMADO">No Programado</option>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Fecha Programación
+                </label>
+                <div className="flex gap-2 items-center">
+                  <Input type="date" placeholder="Fecha inicial" className="flex-1" />
+                  <span className="text-gray-400">-</span>
+                  <Input type="date" placeholder="Fecha final" className="flex-1" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Centro Médico
+                </label>
+                <Input placeholder="Centro médico..." />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Proyecto
+                </label>
+                <Input placeholder="Proyecto..." />
+              </div>
+              <div className="flex items-center justify-start md:col-span-2 lg:col-span-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Mostrar EMO más reciente
+                  </span>
+                </label>
               </div>
             </div>
           </div>

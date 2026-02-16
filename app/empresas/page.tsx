@@ -3,10 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { empresasService, Empresa } from '@/services/empresas.service';
+import {
+  empresasService,
+  Empresa,
+  FirmaGerente,
+  CandidatoGerente,
+  CreateFirmaGerenteDto,
+} from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import {
   Table,
   TableBody,
@@ -16,7 +23,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Edit, Trash2, Building2, Upload } from 'lucide-react';
+import { Plus, Edit, Trash2, Building2, Upload, UserPlus, UserMinus, UserCheck, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -44,6 +51,27 @@ export default function EmpresasPage() {
   const [editingEmpresa, setEditingEmpresa] = useState<Empresa | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
+  const [gerentesPorEmpresa, setGerentesPorEmpresa] = useState<Record<string, FirmaGerente[]>>({});
+  const [isModalGerenteOpen, setIsModalGerenteOpen] = useState(false);
+  const [empresaParaGerente, setEmpresaParaGerente] = useState<Empresa | null>(null);
+  const [busquedaGerente, setBusquedaGerente] = useState('');
+  const [candidatosGerente, setCandidatosGerente] = useState<CandidatoGerente[]>([]);
+  const [isBuscandoGerente, setIsBuscandoGerente] = useState(false);
+  const [candidatoSeleccionado, setCandidatoSeleccionado] = useState<CandidatoGerente | null>(null);
+  const [rolGerente, setRolGerente] = useState('RRHH');
+  const [cargoGerente, setCargoGerente] = useState('');
+  const [firmaGerenteDataUrl, setFirmaGerenteDataUrl] = useState<string>('');
+  const [firmaGerenteFile, setFirmaGerenteFile] = useState<File | null>(null);
+  const [isGuardandoGerente, setIsGuardandoGerente] = useState(false);
+
+  const [editingGerente, setEditingGerente] = useState<FirmaGerente | null>(null);
+  const [empresaParaEditarGerente, setEmpresaParaEditarGerente] = useState<Empresa | null>(null);
+  const [editRolGerente, setEditRolGerente] = useState('RRHH');
+  const [editCargoGerente, setEditCargoGerente] = useState('');
+  const [editFirmaGerenteDataUrl, setEditFirmaGerenteDataUrl] = useState<string>('');
+  const [editFirmaGerenteFile, setEditFirmaGerenteFile] = useState<File | null>(null);
+  const [isGuardandoEdicionGerente, setIsGuardandoEdicionGerente] = useState(false);
+
   const {
     register,
     handleSubmit,
@@ -67,9 +95,41 @@ export default function EmpresasPage() {
   const canCreate = hasRole(UsuarioRol.SUPER_ADMIN);
   const canEdit = hasRole(UsuarioRol.SUPER_ADMIN) || hasRole(UsuarioRol.ADMIN_EMPRESA);
 
+  const ROLES_GERENTE = ['RRHH', 'SST', 'MO', 'CERTIFICACION'];
+
   useEffect(() => {
     loadEmpresas();
   }, []);
+
+  useEffect(() => {
+    if (empresas.length > 0) {
+      empresas.forEach((e) => {
+        empresasService.listarGerentes(e.id).then((list) => {
+          setGerentesPorEmpresa((prev) => ({ ...prev, [e.id]: list }));
+        }).catch(() => {});
+      });
+    }
+  }, [empresas]);
+
+  useEffect(() => {
+    const q = busquedaGerente.trim();
+    if (q.length < 2 || !empresaParaGerente) {
+      setCandidatosGerente([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setIsBuscandoGerente(true);
+      try {
+        const res = await empresasService.buscarCandidatosGerente(empresaParaGerente.id, q);
+        setCandidatosGerente(res);
+      } catch {
+        setCandidatosGerente([]);
+      } finally {
+        setIsBuscandoGerente(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busquedaGerente, empresaParaGerente]);
 
   useEffect(() => {
     if (editingEmpresa) {
@@ -174,6 +234,150 @@ export default function EmpresasPage() {
     setIsModalOpen(true);
   };
 
+  const openModalGerente = (empresa: Empresa) => {
+    setEmpresaParaGerente(empresa);
+    setCandidatoSeleccionado(null);
+    setBusquedaGerente('');
+    setCandidatosGerente([]);
+    setRolGerente('RRHH');
+    setCargoGerente('');
+    setFirmaGerenteDataUrl('');
+    setFirmaGerenteFile(null);
+    setIsModalGerenteOpen(true);
+  };
+
+  const closeModalGerente = () => {
+    setIsModalGerenteOpen(false);
+    setEmpresaParaGerente(null);
+    setCandidatoSeleccionado(null);
+  };
+
+  const openModalEditarGerente = (gerente: FirmaGerente, empresa: Empresa) => {
+    setEditingGerente(gerente);
+    setEmpresaParaEditarGerente(empresa);
+    setEditRolGerente(gerente.rol);
+    setEditCargoGerente(gerente.cargo);
+    setEditFirmaGerenteDataUrl('');
+    setEditFirmaGerenteFile(null);
+  };
+
+  const closeModalEditarGerente = () => {
+    setEditingGerente(null);
+    setEmpresaParaEditarGerente(null);
+  };
+
+  const handleGuardarEditarGerente = async () => {
+    if (!editingGerente || !empresaParaEditarGerente) return;
+    if (!editCargoGerente.trim()) {
+      toast.error('El cargo es obligatorio');
+      return;
+    }
+
+    setIsGuardandoEdicionGerente(true);
+    try {
+      let firmaBase64: string | null | undefined = undefined;
+      if (editFirmaGerenteDataUrl?.startsWith('data:image/')) {
+        firmaBase64 = editFirmaGerenteDataUrl;
+      } else if (editFirmaGerenteFile) {
+        if (editFirmaGerenteFile.size > 10 * 1024 * 1024) {
+          toast.error('La imagen de firma no debe superar 10 MB');
+          setIsGuardandoEdicionGerente(false);
+          return;
+        }
+        firmaBase64 = await new Promise<string>((res, rej) => {
+          const reader = new FileReader();
+          reader.onload = () => res(reader.result as string);
+          reader.onerror = rej;
+          reader.readAsDataURL(editFirmaGerenteFile!);
+        });
+      }
+      await empresasService.actualizarGerente(editingGerente.id, {
+        rol: editRolGerente,
+        cargo: editCargoGerente.trim(),
+        firma_base64: firmaBase64,
+      });
+      toast.success('Gerente actualizado');
+      const list = await empresasService.listarGerentes(empresaParaEditarGerente.id);
+      setGerentesPorEmpresa((prev) => ({ ...prev, [empresaParaEditarGerente.id]: list }));
+      closeModalEditarGerente();
+    } catch (error: any) {
+      toast.error('Error al actualizar', {
+        description: error.response?.data?.message || 'No se pudo guardar',
+      });
+    } finally {
+      setIsGuardandoEdicionGerente(false);
+    }
+  };
+
+  const agregarCandidatoComoGerente = (c: CandidatoGerente) => {
+    setCandidatoSeleccionado(c);
+    setCandidatosGerente([]);
+    setBusquedaGerente('');
+  };
+
+  const handleGuardarGerente = async () => {
+    if (!empresaParaGerente || !candidatoSeleccionado) {
+      toast.error('Seleccione un usuario o trabajador');
+      return;
+    }
+    if (!cargoGerente.trim()) {
+      toast.error('El cargo es obligatorio');
+      return;
+    }
+    const tieneFirma = !!firmaGerenteDataUrl || !!firmaGerenteFile || !!candidatoSeleccionado.firma_url;
+    if (!tieneFirma) {
+      toast.error('Debe adjuntar una imagen de firma o dibujarla');
+      return;
+    }
+    if (firmaGerenteFile && firmaGerenteFile.size > 10 * 1024 * 1024) {
+      toast.error('La imagen de firma no debe superar 10 MB');
+      return;
+    }
+
+    setIsGuardandoGerente(true);
+    try {
+      let firmaBase64: string | null = null;
+      if (firmaGerenteDataUrl?.startsWith('data:image/')) {
+        firmaBase64 = firmaGerenteDataUrl;
+      } else if (firmaGerenteFile) {
+        const reader = new FileReader();
+        firmaBase64 = await new Promise<string>((res, rej) => {
+          reader.onload = () => res(reader.result as string);
+          reader.onerror = rej;
+          reader.readAsDataURL(firmaGerenteFile!);
+        });
+      }
+      const dto: CreateFirmaGerenteDto = {
+        empresa_id: empresaParaGerente.id,
+        nombre_completo: candidatoSeleccionado.nombre_completo,
+        numero_documento: candidatoSeleccionado.numero_documento,
+        tipo_documento: candidatoSeleccionado.tipo_documento || 'DNI',
+        rol: rolGerente,
+        cargo: cargoGerente.trim(),
+        firma_base64: firmaBase64,
+      };
+      if (candidatoSeleccionado.tipo === 'usuario') {
+        dto.usuario_id = candidatoSeleccionado.id;
+      } else {
+        dto.trabajador_id = candidatoSeleccionado.id;
+      }
+      if (!firmaBase64 && candidatoSeleccionado.firma_url) {
+        dto.firma_base64 = undefined;
+      }
+      await empresasService.crearGerente(dto);
+      toast.success('Gerente registrado correctamente');
+      const list = await empresasService.listarGerentes(empresaParaGerente.id);
+      setGerentesPorEmpresa((prev) => ({ ...prev, [empresaParaGerente.id]: list }));
+      closeModalGerente();
+    } catch (error: any) {
+      toast.error('Error al registrar gerente', {
+        description: error.response?.data?.message || 'No se pudo guardar',
+      });
+    } finally {
+      setIsGuardandoGerente(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -190,6 +394,9 @@ export default function EmpresasPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Configuración de Razón Social</h2>
+          </div>
           {isLoading ? (
             <div className="p-6 space-y-4">
               {[1, 2, 3].map((i) => (
@@ -218,14 +425,14 @@ export default function EmpresasPage() {
                 <TableBody>
                   {empresas.map((empresa) => (
                     <TableRow key={empresa.id}>
-                      <TableCell className="w-14">
-                        <div className="flex items-center justify-center min-h-[2.5rem]">
+                      <TableCell className="w-24">
+                        <div className="flex items-center justify-center min-h-[4rem]">
                           {empresa.logoUrl ? (
                             <>
                               <img
                                 src={empresa.logoUrl}
                                 alt={`Logo ${empresa.nombre}`}
-                                className="h-10 w-10 object-contain rounded border bg-slate-50"
+                                className="h-16 w-16 object-contain rounded border bg-slate-50"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.display = 'none';
                                   const fallback = (e.target as HTMLImageElement).nextElementSibling;
@@ -303,6 +510,140 @@ export default function EmpresasPage() {
             </div>
           )}
         </div>
+
+        {/* Configuración de firmas de gerente */}
+        {empresas.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900">Configuración de firmas de gerente</h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Asigne usuarios (ADMIN/SUPER_ADMIN) o trabajadores como responsables de firma por razón social.
+              </p>
+            </div>
+            <div className="p-6 space-y-8">
+              {empresas.map((empresa) => (
+                <div key={empresa.id}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-medium text-slate-900">{empresa.nombre}</h3>
+                    <Button variant="primary" size="sm" onClick={() => openModalGerente(empresa)}>
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Nuevo Gerente
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12">Nro</TableHead>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Rol</TableHead>
+                          <TableHead>Cargo</TableHead>
+                          <TableHead>Firma</TableHead>
+                          <TableHead className="w-24 text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(gerentesPorEmpresa[empresa.id] ?? []).length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-slate-500 py-8">
+                              No hay gerentes configurados. Haga clic en &quot;Nuevo Gerente&quot; para agregar.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          (gerentesPorEmpresa[empresa.id] ?? []).map((g, i) => (
+                            <TableRow
+                              key={g.id}
+                              className={!g.activo ? 'bg-slate-50 opacity-75' : ''}
+                            >
+                              <TableCell>{i + 1}</TableCell>
+                              <TableCell className="font-medium">
+                                {g.nombre_completo}
+                                {!g.activo && (
+                                  <span className="ml-2 text-xs text-slate-500 font-normal">
+                                    (Anteriormente gerente)
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>{g.rol}</TableCell>
+                              <TableCell>{g.cargo}</TableCell>
+                              <TableCell>
+                                {g.firma_url ? (
+                                  <img
+                                    src={g.firma_url}
+                                    alt="Firma"
+                                    className="h-12 object-contain border rounded bg-slate-50"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <span className="text-slate-400 text-sm">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                {g.activo && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-slate-600"
+                                    title="Editar rol, cargo y firma"
+                                    onClick={() => openModalEditarGerente(g, empresa)}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {g.activo ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-amber-600"
+                                    title="Desactivar"
+                                    onClick={async () => {
+                                      if (!confirm('¿Desactivar este gerente? El registro se mantendrá como "Anteriormente gerente".')) return;
+                                      try {
+                                        await empresasService.desactivarGerente(g.id);
+                                        const list = await empresasService.listarGerentes(empresa.id);
+                                        setGerentesPorEmpresa((prev) => ({ ...prev, [empresa.id]: list }));
+                                        toast.success('Gerente desactivado');
+                                      } catch (e: any) {
+                                        toast.error(e.response?.data?.message || 'Error al desactivar');
+                                      }
+                                    }}
+                                  >
+                                    <UserMinus className="w-4 h-4" />
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-green-600"
+                                    title="Reactivar"
+                                    onClick={async () => {
+                                      try {
+                                        await empresasService.reactivarGerente(g.id);
+                                        const list = await empresasService.listarGerentes(empresa.id);
+                                        setGerentesPorEmpresa((prev) => ({ ...prev, [empresa.id]: list }));
+                                        toast.success('Gerente reactivado');
+                                      } catch (e: any) {
+                                        toast.error(e.response?.data?.message || 'Error al reactivar');
+                                      }
+                                    }}
+                                  >
+                                    <UserCheck className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <Modal
           isOpen={isModalOpen}
@@ -496,6 +837,273 @@ export default function EmpresasPage() {
               </Button>
             </div>
           </form>
+        </Modal>
+
+        {/* Modal Registrar nuevo gerente */}
+        <Modal
+          isOpen={isModalGerenteOpen}
+          onClose={closeModalGerente}
+          title="Registrar nuevo gerente"
+          size="lg"
+        >
+          <div className="space-y-4">
+            {!candidatoSeleccionado ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Buscar por nombre o DNI <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Busque usuarios (ADMIN, SUPER_ADMIN) o trabajadores de la empresa. Los ADMIN deben tener nombres y apellidos registrados.
+                  </p>
+                  <div className="relative">
+                    <Input
+                      placeholder="Nombre o DNI (mín. 2 caracteres)"
+                      value={busquedaGerente}
+                      onChange={(e) => setBusquedaGerente(e.target.value)}
+                    />
+                    {isBuscandoGerente && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">Buscando...</span>
+                    )}
+                  </div>
+                  {candidatosGerente.length > 0 && (
+                    <div className="mt-2 border rounded-lg max-h-48 overflow-y-auto">
+                      {candidatosGerente.map((c) => (
+                        <button
+                          key={`${c.tipo}-${c.id}`}
+                          type="button"
+                          className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b last:border-0"
+                          onClick={() => agregarCandidatoComoGerente(c)}
+                        >
+                          <p className="font-medium">{c.nombre_completo}</p>
+                          <p className="text-sm text-slate-600">
+                            {c.numero_documento} · {c.tipo_documento} · {c.tipo === 'usuario' ? 'Usuario' : 'Trabajador'}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="p-3 bg-slate-50 rounded-lg">
+                  <p className="font-medium text-slate-900">{candidatoSeleccionado.nombre_completo}</p>
+                  <p className="text-sm text-slate-600">
+                    N° documento: {candidatoSeleccionado.numero_documento} · Tipo: {candidatoSeleccionado.tipo_documento}
+                  </p>
+                  <Button variant="ghost" size="sm" className="mt-2" onClick={() => setCandidatoSeleccionado(null)}>
+                    Cambiar selección
+                  </Button>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Rol del gerente <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={rolGerente}
+                    onChange={(e) => setRolGerente(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                  >
+                    {ROLES_GERENTE.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Cargo del gerente <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    placeholder="Ej: Coordinador del SGC"
+                    value={cargoGerente}
+                    onChange={(e) => setCargoGerente(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                    Firma <span className="text-red-500">*</span>
+                  </label>
+                  <p className="text-xs text-slate-500 mb-2">
+                    Cargue una imagen (JPG, PNG, máx. 10 MB) o dibuje abajo. Si el usuario tiene firma registrada, puede usarla o reemplazarla.
+                  </p>
+                  {candidatoSeleccionado.firma_url && !firmaGerenteDataUrl && !firmaGerenteFile && (
+                    <div className="mb-3 p-2 border rounded-lg bg-slate-50">
+                      <p className="text-xs font-medium text-slate-600 mb-2">Firma actual del usuario:</p>
+                      <img
+                        src={candidatoSeleccionado.firma_url}
+                        alt="Firma"
+                        className="max-h-20 object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                      <p className="text-xs text-slate-500 mt-2">Puede usar esta firma o adjuntar/dibujar una nueva abajo.</p>
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <label
+                      htmlFor="firma-gerente-upload"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700 cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Subir imagen (JPG, PNG, máx. 10 MB)
+                    </label>
+                    <input
+                      id="firma-gerente-upload"
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f && f.size <= 10 * 1024 * 1024) {
+                          setFirmaGerenteFile(f);
+                          setFirmaGerenteDataUrl('');
+                        } else if (f) {
+                          toast.error('El archivo no debe superar 10 MB');
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                    {firmaGerenteFile && (
+                      <p className="text-sm text-slate-600 mt-1">{firmaGerenteFile.name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-2">O dibuje su firma:</p>
+                    <SignaturePad
+                      width={400}
+                      height={120}
+                      value={firmaGerenteDataUrl}
+                      onChange={(url) => {
+                        setFirmaGerenteDataUrl(url);
+                        setFirmaGerenteFile(null);
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                  <Button variant="outline" onClick={closeModalGerente}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleGuardarGerente} disabled={isGuardandoGerente}>
+                    {isGuardandoGerente ? 'Guardando...' : 'Confirmar'}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+
+        {/* Modal Editar gerente */}
+        <Modal
+          isOpen={!!editingGerente}
+          onClose={closeModalEditarGerente}
+          title="Editar gerente"
+          size="lg"
+        >
+          {editingGerente && empresaParaEditarGerente && (
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="font-medium text-slate-900">{editingGerente.nombre_completo}</p>
+                <p className="text-sm text-slate-600">
+                  N° documento: {editingGerente.numero_documento} · Tipo: {editingGerente.tipo_documento}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">El nombre no se puede modificar.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Rol del gerente *</label>
+                <select
+                  value={editRolGerente}
+                  onChange={(e) => setEditRolGerente(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md"
+                >
+                  {ROLES_GERENTE.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Cargo del gerente *</label>
+                <Input
+                  placeholder="Ej: Coordinador del SGC"
+                  value={editCargoGerente}
+                  onChange={(e) => setEditCargoGerente(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Firma</label>
+                <p className="text-xs text-slate-500 mb-2">
+                  Cargue una imagen (JPG, PNG, máx. 10 MB) o dibuje abajo para actualizar. Si no cambia nada, se mantiene la firma actual.
+                </p>
+                {editingGerente.firma_url && !editFirmaGerenteDataUrl && !editFirmaGerenteFile && (
+                  <div className="mb-3 p-2 border rounded-lg bg-slate-50">
+                    <p className="text-xs font-medium text-slate-600 mb-2">Firma actual:</p>
+                    <img
+                      src={editingGerente.firma_url}
+                      alt="Firma"
+                      className="max-h-20 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+                <div className="mb-3">
+                  <label
+                    htmlFor="firma-gerente-edit-upload"
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-slate-300 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700 cursor-pointer"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Subir nueva imagen (JPG, PNG, máx. 10 MB)
+                  </label>
+                  <input
+                    id="firma-gerente-edit-upload"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f && f.size <= 10 * 1024 * 1024) {
+                        setEditFirmaGerenteFile(f);
+                        setEditFirmaGerenteDataUrl('');
+                      } else if (f) {
+                        toast.error('El archivo no debe superar 10 MB');
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                  {editFirmaGerenteFile && (
+                    <p className="text-sm text-slate-600 mt-1">{editFirmaGerenteFile.name}</p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-2">O dibuje una nueva firma:</p>
+                  <SignaturePad
+                    width={400}
+                    height={120}
+                    value={editFirmaGerenteDataUrl}
+                    onChange={(url) => {
+                      setEditFirmaGerenteDataUrl(url);
+                      setEditFirmaGerenteFile(null);
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button variant="outline" onClick={closeModalEditarGerente}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleGuardarEditarGerente} disabled={isGuardandoEdicionGerente}>
+                  {isGuardandoEdicionGerente ? 'Guardando...' : 'Guardar cambios'}
+                </Button>
+              </div>
+            </div>
+          )}
         </Modal>
       </div>
 

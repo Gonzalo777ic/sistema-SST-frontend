@@ -64,11 +64,19 @@ export interface AdjuntoCapacitacion {
   registrado_por: string;
 }
 
+export interface PreguntaParaTrabajador {
+  texto_pregunta: string;
+  tipo: 'OpcionMultiple' | 'VerdaderoFalso';
+  opciones: string[];
+}
+
 export interface PasoInstruccion {
   id: string;
   descripcion: string;
   esEvaluacion: boolean;
   imagenUrl?: string;
+  firmaRegistro?: boolean;
+  preguntas?: PreguntaParaTrabajador[];
 }
 
 export interface Capacitacion {
@@ -140,6 +148,19 @@ export interface CreateExamenDto {
 }
 
 export const capacitacionesService = {
+  async findMisCapacitaciones(filters?: {
+    estadoRegistro?: 'pendiente' | 'completado';
+    grupo?: string;
+    tipo?: string;
+  }): Promise<Capacitacion[]> {
+    const params: Record<string, string> = {};
+    if (filters?.estadoRegistro) params.estado_registro = filters.estadoRegistro;
+    if (filters?.grupo) params.grupo = filters.grupo;
+    if (filters?.tipo) params.tipo = filters.tipo;
+    const response = await apiClient.get<Capacitacion[]>('/capacitaciones/mis-capacitaciones', { params });
+    return response.data;
+  },
+
   async findAll(filters?: {
     empresaId?: string;
     tipo?: string;
@@ -171,6 +192,25 @@ export const capacitacionesService = {
 
   async findOne(id: string): Promise<Capacitacion> {
     const response = await apiClient.get<Capacitacion>(`/capacitaciones/${id}`);
+    return response.data;
+  },
+
+  async findOneParaTrabajador(id: string): Promise<Capacitacion> {
+    const response = await apiClient.get<Capacitacion>(`/capacitaciones/${id}/para-trabajador`);
+    return response.data;
+  },
+
+  async evaluarPaso(capacitacionId: string, pasoId: string, respuestas: { pregunta_index: number; respuesta_seleccionada: number }[]): Promise<{
+    aprobado: boolean;
+    puntaje: number;
+    puntaje_total: number;
+    intentos_usados: number;
+    intentos_restantes: number;
+  }> {
+    const response = await apiClient.post(`/capacitaciones/${capacitacionId}/evaluar-paso`, {
+      paso_id: pasoId,
+      respuestas,
+    });
     return response.data;
   },
 

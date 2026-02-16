@@ -9,9 +9,10 @@ import {
   RegistroAsistenciaItem,
   FirmasCertificado,
 } from '@/services/config-capacitaciones.service';
+import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
+import { empresasService, Empresa, FirmaGerente } from '@/services/empresas.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import {
   Settings,
   GraduationCap,
@@ -21,11 +22,10 @@ import {
   Pencil,
   Trash2,
   Info,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-
-const TIPOS_DOCUMENTO = ['DNI', 'CARNE_EXTRANJERIA', 'PASAPORTE'];
 
 export default function ConfigCapacitacionesPage() {
   const { usuario } = useAuth();
@@ -56,14 +56,54 @@ export default function ConfigCapacitacionesPage() {
   const [nuevoTipo, setNuevoTipo] = useState('');
   const [nuevoGrupo, setNuevoGrupo] = useState('');
   const [nuevoUbicacion, setNuevoUbicacion] = useState('');
-  const [nuevoResponsable, setNuevoResponsable] = useState<Partial<ResponsableCertificacion>>({});
+  const [busquedaResponsable, setBusquedaResponsable] = useState('');
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<Trabajador[]>([]);
+  const [isBuscandoResponsable, setIsBuscandoResponsable] = useState(false);
+  const [mostrarDropdownResponsable, setMostrarDropdownResponsable] = useState(false);
   const [editandoTipo, setEditandoTipo] = useState<string | null>(null);
   const [editandoGrupo, setEditandoGrupo] = useState<string | null>(null);
   const [editandoUbicacion, setEditandoUbicacion] = useState<string | null>(null);
 
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [gerentesSstPorEmpresa, setGerentesSstPorEmpresa] = useState<Record<string, FirmaGerente[]>>({});
+
   useEffect(() => {
     loadConfig();
   }, []);
+
+  useEffect(() => {
+    empresasService.findAll().then((list) => {
+      setEmpresas(list);
+      list.forEach((emp) => {
+        empresasService.listarGerentes(emp.id).then((gerentes) => {
+          const sst = gerentes.filter((g) => g.rol === 'SST' && g.activo);
+          setGerentesSstPorEmpresa((prev) => ({ ...prev, [emp.id]: sst }));
+        }).catch(() => setGerentesSstPorEmpresa((prev) => ({ ...prev, [emp.id]: [] })));
+      });
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const q = busquedaResponsable.trim();
+    if (q.length < 2) {
+      setResultadosBusqueda([]);
+      setMostrarDropdownResponsable(false);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setIsBuscandoResponsable(true);
+      try {
+        const res = await trabajadoresService.buscar(usuario?.empresaId, q);
+        setResultadosBusqueda(res);
+        setMostrarDropdownResponsable(true);
+      } catch {
+        setResultadosBusqueda([]);
+      } finally {
+        setIsBuscandoResponsable(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busquedaResponsable, usuario?.empresaId]);
 
   const loadConfig = async () => {
     try {
@@ -112,7 +152,7 @@ export default function ConfigCapacitacionesPage() {
         grupos: form.grupos,
         ubicaciones: form.ubicaciones,
         responsables_certificacion: form.responsables_certificacion,
-        registro_asistencia: form.registro_asistencia.length > 0 ? form.registro_asistencia : undefined,
+        registro_asistencia: form.registro_asistencia,
         firmas_certificado: form.firmas_certificado,
       });
       toast.success('Configuración guardada');
@@ -150,20 +190,30 @@ export default function ConfigCapacitacionesPage() {
     }
   };
 
-  const addResponsable = () => {
-    const { nombre_completo, numero_documento, tipo_documento } = nuevoResponsable;
-    if (nombre_completo?.trim() && numero_documento?.trim() && tipo_documento) {
-      setForm((f) => ({
-        ...f,
-        responsables_certificacion: [
-          ...f.responsables_certificacion,
-          { nombre_completo: nombre_completo.trim(), numero_documento: numero_documento.trim(), tipo_documento },
-        ],
-      }));
-      setNuevoResponsable({});
-    } else {
-      toast.error('Complete nombre, documento y tipo');
+  const agregarResponsableDesdeTrabajador = (t: Trabajador) => {
+    const doc = t.documento_identidad || t.numero_documento || '';
+    const tipo = t.tipo_documento || 'DNI';
+    const yaAgregado = form.responsables_certificacion.some(
+      (r) => r.numero_documento === doc || r.numero_documento === t.numero_documento
+    );
+    if (yaAgregado) {
+      toast.error('Este trabajador ya está en la lista');
+      return;
     }
+    setForm((f) => ({
+      ...f,
+      responsables_certificacion: [
+        ...f.responsables_certificacion,
+        {
+          nombre_completo: t.nombre_completo,
+          numero_documento: doc,
+          tipo_documento: tipo,
+        },
+      ],
+    }));
+    setBusquedaResponsable('');
+    setResultadosBusqueda([]);
+    setMostrarDropdownResponsable(false);
   };
 
   const removeTipo = (idx: number) => {
@@ -207,6 +257,13 @@ export default function ConfigCapacitacionesPage() {
       registro_asistencia: f.registro_asistencia.map((r, i) =>
         i === idx ? { ...r, [field]: value } : r
       ),
+    }));
+  };
+
+  const removeRegistroAsistencia = (idx: number) => {
+    setForm((f) => ({
+      ...f,
+      registro_asistencia: f.registro_asistencia.filter((_, i) => i !== idx),
     }));
   };
 
@@ -473,44 +530,65 @@ export default function ConfigCapacitacionesPage() {
       {/* Responsable de certificación */}
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Responsable de certificación</h2>
-        <div className="space-y-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <p className="text-sm text-slate-600 mb-3">
+          Busca por nombre o DNI para agregar trabajadores como responsables de certificación.
+        </p>
+        <div className="mb-4">
+          <div className="relative flex-1">
             <Input
-              placeholder="Nombre completo"
-              value={nuevoResponsable.nombre_completo ?? ''}
-              onChange={(e) => setNuevoResponsable((r) => ({ ...r, nombre_completo: e.target.value }))}
+              placeholder="Buscar por nombre o DNI (mín. 2 caracteres)"
+              value={busquedaResponsable}
+              onChange={(e) => setBusquedaResponsable(e.target.value)}
+              onFocus={() => resultadosBusqueda.length > 0 && setMostrarDropdownResponsable(true)}
+              onBlur={() => setTimeout(() => setMostrarDropdownResponsable(false), 200)}
             />
-            <Input
-              placeholder="N° de documento"
-              value={nuevoResponsable.numero_documento ?? ''}
-              onChange={(e) => setNuevoResponsable((r) => ({ ...r, numero_documento: e.target.value }))}
-            />
-            <Select
-              value={nuevoResponsable.tipo_documento ?? ''}
-              onChange={(e) => setNuevoResponsable((r) => ({ ...r, tipo_documento: e.target.value }))}
-            >
-              <option value="">Tipo de documento</option>
-              {TIPOS_DOCUMENTO.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </Select>
+            {isBuscandoResponsable && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">Buscando...</span>
+            )}
+            {mostrarDropdownResponsable && resultadosBusqueda.length > 0 && (() => {
+              const disponibles = resultadosBusqueda.filter(
+                (t) =>
+                  !form.responsables_certificacion.some(
+                    (r) => r.numero_documento === (t.documento_identidad || t.numero_documento)
+                  )
+              );
+              if (disponibles.length === 0) return null;
+              return (
+              <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {disponibles.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="w-full px-4 py-3 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                    onClick={() => agregarResponsableDesdeTrabajador(t)}
+                  >
+                    <p className="font-medium text-slate-900">{t.nombre_completo}</p>
+                    <p className="text-sm text-slate-600">
+                      N° de documento: {t.documento_identidad} · Tipo: {t.tipo_documento || 'DNI'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+              );
+            })()}
           </div>
-          <Button variant="primary" size="sm" onClick={addResponsable}>
-            <Plus className="w-4 h-4 mr-2" />
-            Agregar
-          </Button>
         </div>
         <div className="space-y-3">
           {form.responsables_certificacion.map((r, i) => (
-            <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
               <div>
-                <p className="font-medium">{r.nombre_completo}</p>
+                <p className="font-medium text-slate-900">{r.nombre_completo}</p>
                 <p className="text-sm text-slate-600">
                   N° de documento: {r.numero_documento} · Tipo: {r.tipo_documento}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600" onClick={() => removeResponsable(i)}>
-                <Trash2 className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                onClick={() => removeResponsable(i)}
+              >
+                <X className="w-4 h-4" />
               </Button>
             </div>
           ))}
@@ -523,14 +601,58 @@ export default function ConfigCapacitacionesPage() {
         <div className="p-3 bg-sky-50 rounded-lg flex items-start gap-2 mb-4">
           <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
           <p className="text-sm text-sky-800">
-            Nota: Proviene del rol SST dentro de la razón social.{' '}
-            <Link href="/gestion-usuarios" className="underline font-medium hover:text-sky-900">
-              Haz click aquí para ver el detalle
+            Gerentes SST por razón social (solo lectura). Se configuran en{' '}
+            <Link href="/empresas" className="underline font-medium hover:text-sky-900">
+              Jerarquía Organizacional
             </Link>
+            .
           </p>
         </div>
-        <div className="space-y-3 text-slate-600"> 
-          <p className="text-sm">Los responsables de registro se configuran desde la gestión de usuarios, asignando el rol SST a los usuarios de cada razón social.</p>
+        <div className="space-y-6">
+          {empresas.length === 0 ? (
+            <p className="text-sm text-slate-500">No hay empresas registradas.</p>
+          ) : (
+            empresas.map((emp) => {
+              const gerentes = gerentesSstPorEmpresa[emp.id] ?? [];
+              return (
+                <div key={emp.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                    <p className="font-medium text-slate-900">{emp.nombre}</p>
+                    <p className="text-xs text-slate-600">{emp.ruc}</p>
+                  </div>
+                  <div className="p-4">
+                    {gerentes.length === 0 ? (
+                      <p className="text-sm text-slate-500">Sin gerente SST asignado</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {gerentes.map((g) => (
+                          <div
+                            key={g.id}
+                            className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg border border-slate-100"
+                          >
+                            {g.firma_url && (
+                              <img
+                                src={g.firma_url}
+                                alt="Firma"
+                                className="h-12 w-20 object-contain border rounded bg-white"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900">{g.nombre_completo}</p>
+                              <p className="text-sm text-slate-600">
+                                Cargo: {g.cargo} · N° doc: {g.numero_documento}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -538,10 +660,10 @@ export default function ConfigCapacitacionesPage() {
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Registro de Asistencia</h2>
         <p className="text-sm text-slate-600 mb-4">
-          Documento que muestra los registros de asistencia de los participantes de una capacitación.
+          Etiqueta metadato que se guarda en todos los registros de asistencia generados en el periodo establecido. Es opcional (no imprescindible para firmar), sirve para agrupar y etiquetar los registros en un periodo específico.
         </p>
         {form.registro_asistencia.map((r, i) => (
-          <div key={i} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 p-4 border rounded-lg mb-4">
+          <div key={i} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 p-4 border rounded-lg mb-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Código Documento *</label>
               <Input
@@ -580,6 +702,17 @@ export default function ConfigCapacitacionesPage() {
                 value={r.vigencia_fin}
                 onChange={(e) => updateRegistroAsistencia(i, 'vigencia_fin', e.target.value)}
               />
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                title="Eliminar"
+                onClick={() => removeRegistroAsistencia(i)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         ))}
