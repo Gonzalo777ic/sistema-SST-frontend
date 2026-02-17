@@ -65,6 +65,7 @@ export interface ExamenMedico {
   restricciones: string | null;
   observaciones: string | null;
   resultado_archivo_url: string | null;
+  resultado_archivo_existe?: boolean;
   estado: EstadoExamen;
   revisado_por_doctor: boolean;
   doctor_interno_id: string | null;

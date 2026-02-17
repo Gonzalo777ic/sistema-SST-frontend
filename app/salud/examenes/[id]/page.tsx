@@ -19,12 +19,14 @@ import {
   ArrowLeft,
   Save,
   User,
-  Plus,
   FileText,
   Download,
   AlertCircle,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { UsuarioRol } from '@/types';
 import { saludService, ExamenMedico } from '@/services/salud.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { configEmoService } from '@/services/config-emo.service';
@@ -75,7 +77,10 @@ function formatSexo(s: string | null) {
 export default function DetalleEmoPage() {
   const params = useParams();
   const router = useRouter();
+  const { hasAnyRole } = useAuth();
   const id = params.id as string;
+
+  const canViewMedicalData = hasAnyRole([UsuarioRol.MEDICO, UsuarioRol.CENTRO_MEDICO]);
 
   const [examen, setExamen] = useState<ExamenMedico | null>(null);
   const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
@@ -113,8 +118,8 @@ export default function DetalleEmoPage() {
         setRecomendaciones(e.recomendaciones_personalizadas || '');
         setResultado(e.resultado);
         setFechaResultado(e.fecha_realizado || '');
-        setRestricciones(e.restricciones || '');
-        setObservaciones(e.observaciones || '');
+        setRestricciones(e.restricciones ?? '');
+        setObservaciones(e.observaciones ?? '');
         return trabajadoresService.findOne(e.trabajador_id);
       })
       .then((t) => {
@@ -152,7 +157,7 @@ export default function DetalleEmoPage() {
     if (!examen) return;
     setSaving(true);
     try {
-      await saludService.updateExamen(examen.id, {
+      const payload: Record<string, unknown> = {
         estado,
         tipo_examen: tipoEmo,
         fecha_programada: fechaEmo,
@@ -160,11 +165,14 @@ export default function DetalleEmoPage() {
         proyecto: proyecto || undefined,
         adicionales: adicionales || undefined,
         recomendaciones_personalizadas: recomendaciones || undefined,
-        resultado: resultado as any,
-        fecha_realizado: fechaResultado || null,
-        restricciones: restricciones || undefined,
-        observaciones: observaciones || undefined,
-      });
+      };
+      if (canViewMedicalData) {
+        payload.resultado = resultado;
+        payload.fecha_realizado = fechaResultado || null;
+        payload.restricciones = restricciones || undefined;
+        payload.observaciones = observaciones || undefined;
+      }
+      await saludService.updateExamen(examen.id, payload as any);
       toast.success('Examen actualizado correctamente');
       const actualizado = await saludService.findOneExamen(examen.id);
       setExamen(actualizado);
@@ -534,7 +542,12 @@ export default function DetalleEmoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Aptitud de EMO
             </label>
-            <Select value={resultado} onChange={(e) => setResultado(e.target.value)}>
+            <Select
+              value={resultado}
+              onChange={(e) => setResultado(e.target.value)}
+              disabled={!canViewMedicalData}
+              className={!canViewMedicalData ? 'bg-gray-50' : ''}
+            >
               <option value="">Seleccione</option>
               {APTITUD_EMO.map((a) => (
                 <option key={a.value} value={a.value}>
@@ -547,7 +560,7 @@ export default function DetalleEmoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Aptitud altura estructural
             </label>
-            <Select>
+            <Select disabled={!canViewMedicalData} className={!canViewMedicalData ? 'bg-gray-50' : ''}>
               <option value="">No aplica</option>
               {APTITUD_ALTURA.map((a) => (
                 <option key={a.value} value={a.value}>
@@ -560,7 +573,7 @@ export default function DetalleEmoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Aptitud Anexo 16A
             </label>
-            <Select>
+            <Select disabled={!canViewMedicalData} className={!canViewMedicalData ? 'bg-gray-50' : ''}>
               <option value="">No aplica</option>
               {APTITUD_ALTURA.map((a) => (
                 <option key={a.value} value={a.value}>
@@ -577,6 +590,8 @@ export default function DetalleEmoPage() {
               type="date"
               value={fechaResultado}
               onChange={(e) => setFechaResultado(e.target.value)}
+              disabled={!canViewMedicalData}
+              className={!canViewMedicalData ? 'bg-gray-50' : ''}
             />
           </div>
           <div>
@@ -610,13 +625,22 @@ export default function DetalleEmoPage() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Diagnóstico encontrados - Códigos CIE10
           </label>
-          <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <AlertCircle className="h-4 w-4 text-gray-500" />
-            <span className="text-sm text-gray-600">No existen observaciones.</span>
-            <Button variant="link" size="sm" className="text-blue-600">
-              + Agregar Diagnóstico
-            </Button>
-          </div>
+          {canViewMedicalData ? (
+            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <AlertCircle className="h-4 w-4 text-gray-500" />
+              <span className="text-sm text-gray-600">No existen observaciones.</span>
+              <Button variant="link" size="sm" className="text-blue-600">
+                + Agregar Diagnóstico
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <Lock className="h-4 w-4 text-amber-600" />
+              <span className="text-sm text-amber-800">
+                Datos restringidos por privacidad. Solo visible para Médico Ocupacional o Centro Médico.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Resultados adicionales, Recomendaciones, Restricciones, Conclusiones */}
@@ -626,10 +650,11 @@ export default function DetalleEmoPage() {
               Recomendaciones generales tras evaluación
             </label>
             <textarea
-              className="w-full min-h-[80px] p-3 border border-gray-300 rounded-md text-sm"
+              className={`w-full min-h-[80px] p-3 border rounded-md text-sm ${!canViewMedicalData ? 'bg-gray-50 border-gray-200' : 'border-gray-300'}`}
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}
               placeholder="Recomendaciones..."
+              readOnly={!canViewMedicalData}
             />
           </div>
           <div>
@@ -637,10 +662,11 @@ export default function DetalleEmoPage() {
               Restricciones
             </label>
             <textarea
-              className="w-full min-h-[80px] p-3 border border-gray-300 rounded-md text-sm"
+              className={`w-full min-h-[80px] p-3 border rounded-md text-sm ${!canViewMedicalData ? 'bg-gray-50 border-gray-200' : 'border-gray-300'}`}
               value={restricciones}
               onChange={(e) => setRestricciones(e.target.value)}
               placeholder="Restricciones..."
+              readOnly={!canViewMedicalData}
             />
           </div>
           <div className="md:col-span-2">
@@ -648,8 +674,9 @@ export default function DetalleEmoPage() {
               Conclusiones
             </label>
             <textarea
-              className="w-full min-h-[80px] p-3 border border-gray-300 rounded-md text-sm"
+              className={`w-full min-h-[80px] p-3 border rounded-md text-sm ${!canViewMedicalData ? 'bg-gray-50 border-gray-200' : 'border-gray-300'}`}
               placeholder="Conclusiones..."
+              readOnly={!canViewMedicalData}
             />
           </div>
         </div>
@@ -677,9 +704,11 @@ export default function DetalleEmoPage() {
             </TableRow>
           </TableBody>
         </Table>
-        <Button variant="link" size="sm" className="mt-2 text-blue-600">
-          + Agregar Interconsulta
-        </Button>
+        {canViewMedicalData && (
+          <Button variant="link" size="sm" className="mt-2 text-blue-600">
+            + Agregar Interconsulta
+          </Button>
+        )}
       </div>
 
       {/* VIGILANCIA MÉDICA */}
@@ -704,28 +733,32 @@ export default function DetalleEmoPage() {
             </TableRow>
           </TableBody>
         </Table>
-        <Button variant="link" size="sm" className="mt-2 text-blue-600">
-          + Agregar Vigilancia Médica
-        </Button>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Programa de Vigilancia Médica
-          </label>
-          <Select className="w-[280px] inline-block">
-            <option value="">Seleccione</option>
-            <option value="psicologia">PSICOLOGÍA</option>
-            <option value="nutricion">NUTRICIÓN</option>
-            <option value="musculoesqueleticos">TRASTORNOS MUSCULOESQUELÉTICOS</option>
-            <option value="auditivos">AUDITIVOS</option>
-            <option value="respiratorios">RESPIRATORIOS</option>
-            <option value="oftalmologicos">OFTALMOLÓGICOS</option>
-            <option value="cronicos">ENFERMEDADES CRÓNICAS</option>
-          </Select>
-          <Button variant="link" size="sm" className="ml-2 text-blue-600">
-            + Agregar Programa
+        {canViewMedicalData && (
+          <Button variant="link" size="sm" className="mt-2 text-blue-600">
+            + Agregar Vigilancia Médica
           </Button>
-        </div>
+        )}
+
+        {canViewMedicalData && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Programa de Vigilancia Médica
+            </label>
+            <Select className="w-[280px] inline-block">
+              <option value="">Seleccione</option>
+              <option value="psicologia">PSICOLOGÍA</option>
+              <option value="nutricion">NUTRICIÓN</option>
+              <option value="musculoesqueleticos">TRASTORNOS MUSCULOESQUELÉTICOS</option>
+              <option value="auditivos">AUDITIVOS</option>
+              <option value="respiratorios">RESPIRATORIOS</option>
+              <option value="oftalmologicos">OFTALMOLÓGICOS</option>
+              <option value="cronicos">ENFERMEDADES CRÓNICAS</option>
+            </Select>
+            <Button variant="link" size="sm" className="ml-2 text-blue-600">
+              + Agregar Programa
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* DOCUMENTOS ADJUNTOS */}
@@ -735,11 +768,18 @@ export default function DetalleEmoPage() {
             Documentos Adjuntos
           </h2>
           <div className="flex gap-2">
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-              <FileText className="h-4 w-4 mr-2" />
-              Nuevo Documento
-            </Button>
-            <Button size="sm" variant="outline">
+            {canViewMedicalData && (
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <FileText className="h-4 w-4 mr-2" />
+                Nuevo Documento
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canViewMedicalData}
+              title={!canViewMedicalData ? 'Solo profesional de salud puede exportar el archivo EMO completo' : ''}
+            >
               Exportar CAMO
             </Button>
           </div>
@@ -752,21 +792,60 @@ export default function DetalleEmoPage() {
               <TableHead>Título</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Registrado Por</TableHead>
+              {canViewMedicalData && <TableHead>Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                No existen documentos.
-              </TableCell>
-            </TableRow>
+            {examen.resultado_archivo_existe && !examen.resultado_archivo_url && (
+              <TableRow>
+                <TableCell>1</TableCell>
+                <TableCell>-</TableCell>
+                <TableCell>Archivo EMO completo</TableCell>
+                <TableCell>Hoja de resultados</TableCell>
+                <TableCell colSpan={canViewMedicalData ? 2 : 1} className="text-amber-700">
+                  <span className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Documento subido. Solo descargable por Médico Ocupacional o Centro Médico.
+                  </span>
+                </TableCell>
+              </TableRow>
+            )}
+            {examen.resultado_archivo_url && (
+              <TableRow>
+                <TableCell>1</TableCell>
+                <TableCell>-</TableCell>
+                <TableCell>Archivo EMO completo</TableCell>
+                <TableCell>Hoja de resultados</TableCell>
+                <TableCell>-</TableCell>
+                {canViewMedicalData && (
+                  <TableCell>
+                    <a
+                      href={examen.resultado_archivo_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Descargar
+                    </a>
+                  </TableCell>
+                )}
+              </TableRow>
+            )}
+            {!examen.resultado_archivo_url && !examen.resultado_archivo_existe && (
+              <TableRow>
+                <TableCell colSpan={canViewMedicalData ? 6 : 5} className="text-center py-8 text-gray-500">
+                  No existen documentos.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
         <div className="mt-4 flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
           <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-800">
-            <strong>Nota:</strong> Los archivos CONFIDENCIALES solo pueden ser
-            descargados por usuarios con el ROL DE PROFESIONAL DE SALUD.
+            <strong>Nota:</strong> Los archivos CONFIDENCIALES (archivo EMO completo, diagnósticos CIE10)
+            solo pueden ser descargados por usuarios con el ROL DE PROFESIONAL DE SALUD (Médico Ocupacional / Centro Médico).
+            El administrador puede descargar únicamente la ficha de aptitud y el cargo de entrega.
           </p>
         </div>
       </div>
