@@ -72,6 +72,10 @@ export interface Trabajador {
   gerencia?: string | null;
   puesto_capacitacion?: string | null;
   protocolos_emo?: string | null;
+  cmp?: string | null;
+  rne?: string | null;
+  sello_url?: string | null;
+  titulo_sello?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -147,6 +151,19 @@ export interface UpdatePersonalDataDto {
   firma_digital_url?: string;
 }
 
+export interface UpdateMedicoPersonalDataDto {
+  cmp?: string;
+  rne?: string;
+  titulo_sello?: string;
+  firma_digital_url?: string;
+  firma_imagen_base64?: string;
+  sello_base64?: string;
+  talla_casco?: string;
+  talla_camisa?: string;
+  talla_pantalon?: string;
+  talla_calzado?: string;
+}
+
 export const trabajadoresService = {
   async findAll(empresaId?: string): Promise<Trabajador[]> {
     const params = empresaId ? { empresa_id: empresaId } : {};
@@ -208,6 +225,17 @@ export const trabajadoresService = {
   async updatePersonalData(id: string, data: UpdatePersonalDataDto): Promise<Trabajador> {
     const response = await apiClient.patch<Trabajador>(
       `/trabajadores/${id}/personal-data`,
+      data
+    );
+    return response.data;
+  },
+
+  async updateMedicoPersonalData(
+    id: string,
+    data: UpdateMedicoPersonalDataDto,
+  ): Promise<Trabajador> {
+    const response = await apiClient.patch<Trabajador>(
+      `/trabajadores/${id}/medico-personal-data`,
       data
     );
     return response.data;
