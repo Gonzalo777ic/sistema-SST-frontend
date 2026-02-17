@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Package, Plus, Search, Star } from 'lucide-react';
+import { EppImage } from '@/components/epp/EppImage';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
@@ -194,17 +195,12 @@ function EppCard({
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:border-blue-200 hover:shadow-md transition-all flex flex-col">
       <div className="flex gap-3">
-        {epp.imagen_url ? (
-          <img
-            src={epp.imagen_url}
-            alt={epp.nombre}
-            className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
-          />
-        ) : (
-          <div className="w-20 h-20 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-            <Package className="w-10 h-10 text-gray-400" />
-          </div>
-        )}
+        <EppImage
+          src={epp.imagen_url}
+          alt={epp.nombre}
+          className="w-20 h-20 object-cover rounded-lg flex-shrink-0"
+          placeholderClassName="bg-gray-100"
+        />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-gray-900 line-clamp-2">{epp.nombre}</h3>
           <p className="text-sm text-gray-600 mt-0.5">{epp.tipo_proteccion}</p>

@@ -9,6 +9,7 @@ import {
   IKardexListItem,
   IKardex,
   EstadoSolicitudEPP,
+  flattenEppItemsFromSolicitudes,
 } from '@/services/epp.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
 import { areasService, Area } from '@/services/areas.service';
@@ -599,9 +600,49 @@ export default function KardexPage() {
                   className="border-blue-200 text-blue-600 hover:bg-blue-50"
                 >
                   <History className="w-4 h-4 mr-2" />
-                  {showHistorialAuditoria ? 'Ocultar historial' : 'Ver todos los kardex'}
+                  {showHistorialAuditoria ? 'Ocultar historial' : 'Ver historial de solicitudes'}
                 </Button>
               </div>
+
+              {/* Lista de EPPs entregados (items desagregados) */}
+              {(() => {
+                const itemsEpp = flattenEppItemsFromSolicitudes(kardexData.historial);
+                if (itemsEpp.length === 0) return null;
+                return (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="font-semibold text-gray-900 mb-3">Lista de EPPs entregados</h4>
+                    <p className="text-sm text-gray-600 mb-3">Detalle de cada equipo de protección personal entregado</p>
+                    <div className="max-h-48 overflow-y-auto border rounded">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left">EPP</th>
+                            <th className="px-3 py-2 text-left">Tipo</th>
+                            <th className="px-3 py-2 text-left">Cant.</th>
+                            <th className="px-3 py-2 text-left">Vigencia</th>
+                            <th className="px-3 py-2 text-left">Fecha</th>
+                            <th className="px-3 py-2 text-left">Código</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {itemsEpp.map((item) => (
+                            <tr key={item.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium">{item.epp_nombre}</td>
+                              <td className="px-3 py-2">{item.epp_tipo_proteccion}</td>
+                              <td className="px-3 py-2">{item.cantidad}</td>
+                              <td className="px-3 py-2">{item.epp_vigencia || '-'}</td>
+                              <td className="px-3 py-2">
+                                {item.fecha_entrega ? new Date(item.fecha_entrega).toLocaleDateString('es-PE') : '-'}
+                              </td>
+                              <td className="px-3 py-2">{item.codigo_solicitud || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : null}
         </div>

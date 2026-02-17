@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -9,7 +9,7 @@ import {
   EstadoCapacitacion,
   TipoCapacitacion,
 } from '@/services/capacitaciones.service';
-import { empresasService, Empresa } from '@/services/empresas.service';
+import { empresasService, Empresa, FirmaGerente } from '@/services/empresas.service';
 import { areasService, Area } from '@/services/areas.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,10 @@ import {
   Upload,
   FolderOpen,
   ChevronDown,
+  Bell,
+  CheckCircle,
+  RotateCcw,
+  Lock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
@@ -311,9 +315,30 @@ export default function CapacitacionDetailPage() {
   const [jerarquiaSede, setJerarquiaSede] = useState('');
   const [modalAsignarJerarquia, setModalAsignarJerarquia] = useState(false);
   const [modalImportar, setModalImportar] = useState(false);
+  const [modalProgramar, setModalProgramar] = useState(false);
+  const [modalDuplicar, setModalDuplicar] = useState(false);
+  const [modalCompletar, setModalCompletar] = useState(false);
+  const [modalReabrir, setModalReabrir] = useState(false);
+  const [modalCerrar, setModalCerrar] = useState(false);
+  const [programando, setProgramando] = useState(false);
+  const [duplicando, setDuplicando] = useState(false);
+  const [completando, setCompletando] = useState(false);
+  const [reabriendo, setReabriendo] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
 
   const [adjuntos, setAdjuntos] = useState<{ id: string; titulo: string; fecha_registro: string; registrado_por: string; archivo_url: string }[]>([]);
   const [firmaCapacitador, setFirmaCapacitador] = useState<string | null>(null);
+  const [gerentesSst, setGerentesSst] = useState<FirmaGerente[]>([]);
+  const [gerentesRrhh, setGerentesRrhh] = useState<FirmaGerente[]>([]);
+  const [gerentesCertificacion, setGerentesCertificacion] = useState<FirmaGerente[]>([]);
+  const [responsableRrhhGerenteId, setResponsableRrhhGerenteId] = useState<string>('');
+  const [responsableRegistroGerenteId, setResponsableRegistroGerenteId] = useState<string>('');
+  const [responsableCertificacionGerenteId, setResponsableCertificacionGerenteId] = useState<string>('');
+  const [busquedaCapacitador, setBusquedaCapacitador] = useState('');
+  const [resultadosCapacitador, setResultadosCapacitador] = useState<Trabajador[]>([]);
+  const [mostrarDropdownCapacitador, setMostrarDropdownCapacitador] = useState(false);
+  const [buscandoCapacitador, setBuscandoCapacitador] = useState(false);
+  const capacitadorDropdownRef = useRef<HTMLDivElement>(null);
   const [adjuntoTitulo, setAdjuntoTitulo] = useState('');
   const [adjuntoFile, setAdjuntoFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
@@ -373,6 +398,12 @@ export default function CapacitacionDetailPage() {
         instructor: data.instructor || '',
       });
       setFirmaCapacitador(data.firma_capacitador_url || null);
+      setBusquedaCapacitador('');
+      setResultadosCapacitador([]);
+      setMostrarDropdownCapacitador(false);
+      setResponsableRrhhGerenteId(data.responsable_rrhh_gerente_id || '');
+      setResponsableRegistroGerenteId(data.responsable_registro_gerente_id || '');
+      setResponsableCertificacionGerenteId(data.responsable_certificacion_gerente_id || '');
       const inst = data.instrucciones && Array.isArray(data.instrucciones) ? data.instrucciones : [];
       const tienePasoFirma = inst.some((p: any) => p.firmaRegistro || p.id === ID_PASO_FIRMA);
       const pasosNormales = inst.filter((p: any) => !p.firmaRegistro && p.id !== ID_PASO_FIRMA).map((p: any) => ({
@@ -424,6 +455,57 @@ export default function CapacitacionDetailPage() {
   useEffect(() => {
     capacitacionesService.obtenerEvaluacionesFavoritas(capacitacion?.empresa_id).then(setEvaluacionesFavoritas).catch(() => []);
   }, [capacitacion?.empresa_id]);
+
+  useEffect(() => {
+    if (!capacitacion?.empresa_id) {
+      setGerentesSst([]);
+      setGerentesRrhh([]);
+      setGerentesCertificacion([]);
+      return;
+    }
+    empresasService.listarGerentes(capacitacion.empresa_id).then((gerentes) => {
+      setGerentesSst(gerentes.filter((g) => g.rol === 'SST' && g.activo));
+      setGerentesRrhh(gerentes.filter((g) => g.rol === 'RRHH' && g.activo));
+      setGerentesCertificacion(gerentes.filter((g) => g.rol === 'CERTIFICACION' && g.activo));
+    }).catch(() => {
+      setGerentesSst([]);
+      setGerentesRrhh([]);
+      setGerentesCertificacion([]);
+    });
+  }, [capacitacion?.empresa_id]);
+
+  // Búsqueda de capacitador (trabajadores del sistema)
+  useEffect(() => {
+    if (!capacitacion?.empresa_id || busquedaCapacitador.trim().length < 2) {
+      setResultadosCapacitador([]);
+      setMostrarDropdownCapacitador(false);
+      return;
+    }
+    const t = setTimeout(async () => {
+      setBuscandoCapacitador(true);
+      try {
+        const res = await trabajadoresService.buscar(capacitacion.empresa_id, busquedaCapacitador);
+        setResultadosCapacitador(res || []);
+        setMostrarDropdownCapacitador((res?.length ?? 0) > 0);
+      } catch {
+        setResultadosCapacitador([]);
+        setMostrarDropdownCapacitador(false);
+      } finally {
+        setBuscandoCapacitador(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busquedaCapacitador, capacitacion?.empresa_id]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (capacitadorDropdownRef.current && !capacitadorDropdownRef.current.contains(e.target as Node)) {
+        setMostrarDropdownCapacitador(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const participantes = capacitacion?.participantes || [];
   const asignados = participantes.length;
@@ -620,6 +702,9 @@ export default function CapacitacionDetailPage() {
         duracion_hhmm: formData.duracion_hhmm || undefined,
         instructor: formData.instructor || undefined,
         firma_capacitador_url: firmaCapacitador && firmaCapacitador.startsWith('data:') ? firmaCapacitador : firmaCapacitador || undefined,
+        responsable_rrhh_gerente_id: responsableRrhhGerenteId || undefined,
+        responsable_registro_gerente_id: responsableRegistroGerenteId || undefined,
+        responsable_certificacion_gerente_id: responsableCertificacionGerenteId || undefined,
       });
       toast.success('Cambios guardados correctamente');
       loadCapacitacion();
@@ -694,9 +779,116 @@ export default function CapacitacionDetailPage() {
 
   const handleExportarExcel = () => toast.info('Exportar Excel: Próximamente');
   const handleExportarRegistro = () => toast.info('Exportar registro: Próximamente');
-  const handleReabrir = () => toast.info('Reabrir: Próximamente');
-  const handleCerrar = () => toast.info('Cerrar: Próximamente');
-  const handleDuplicar = () => toast.info('Duplicar: Próximamente');
+
+  const handleProgramarConfirmado = async () => {
+    if (!capacitacion || !usuario) return;
+    setProgramando(true);
+    try {
+      await capacitacionesService.update(id, {
+        estado: EstadoCapacitacion.Programada,
+      });
+      toast.success('Capacitación programada correctamente');
+      setModalProgramar(false);
+      loadCapacitacion();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al programar');
+    } finally {
+      setProgramando(false);
+    }
+  };
+
+  const handleDuplicarConfirmado = async () => {
+    if (!capacitacion || !usuario) return;
+    setDuplicando(true);
+    try {
+      const duplicado = await capacitacionesService.create({
+        titulo: capacitacion.titulo,
+        descripcion: capacitacion.descripcion,
+        lugar: capacitacion.lugar ?? undefined,
+        tipo: capacitacion.tipo,
+        fecha: capacitacion.fecha,
+        fecha_fin: capacitacion.fecha_fin ?? undefined,
+        sede: capacitacion.sede ?? undefined,
+        unidad: capacitacion.unidad ?? undefined,
+        area: capacitacion.area ?? undefined,
+        grupo: capacitacion.grupo ?? undefined,
+        instrucciones: capacitacion.instrucciones ?? undefined,
+        hora_inicio: capacitacion.hora_inicio ?? undefined,
+        hora_fin: capacitacion.hora_fin ?? undefined,
+        duracion_hhmm: capacitacion.duracion_hhmm ?? undefined,
+        duracion_minutos: capacitacion.duracion_minutos ?? undefined,
+        instructor: capacitacion.instructor ?? undefined,
+        firma_capacitador_url: capacitacion.firma_capacitador_url ?? undefined,
+        estado: EstadoCapacitacion.Pendiente,
+        empresa_id: capacitacion.empresa_id,
+        creado_por_id: usuario.id,
+      });
+      toast.success('Capacitación duplicada correctamente');
+      setModalDuplicar(false);
+      router.push(`/capacitaciones/${duplicado.id}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al duplicar');
+    } finally {
+      setDuplicando(false);
+    }
+  };
+
+  const handleCompletarConfirmado = async () => {
+    if (!capacitacion || !usuario) return;
+    setCompletando(true);
+    try {
+      await capacitacionesService.update(id, {
+        estado: EstadoCapacitacion.Completada,
+      });
+      toast.success('Capacitación completada correctamente');
+      setModalCompletar(false);
+      loadCapacitacion();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al completar');
+    } finally {
+      setCompletando(false);
+    }
+  };
+
+  const handleReabrirConfirmado = async () => {
+    if (!capacitacion || !usuario) return;
+    setReabriendo(true);
+    try {
+      await capacitacionesService.update(id, {
+        estado: EstadoCapacitacion.Programada,
+      });
+      toast.success('Capacitación reabierta correctamente');
+      setModalReabrir(false);
+      loadCapacitacion();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al reabrir');
+    } finally {
+      setReabriendo(false);
+    }
+  };
+
+  const handleCerrarConfirmado = async () => {
+    if (!capacitacion || !usuario) return;
+    setCerrando(true);
+    try {
+      await capacitacionesService.update(id, {
+        estado: EstadoCapacitacion.Cancelada,
+      });
+      toast.success('Capacitación cerrada. Ya no se puede modificar.');
+      setModalCerrar(false);
+      loadCapacitacion();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Error al cerrar');
+    } finally {
+      setCerrando(false);
+    }
+  };
+
+  const handleEnviarRecordatorio = () => {
+    toast.info('Enviar recordatorio: Próximamente (notificación o correo electrónico)');
+  };
+
+  const esCerrada = capacitacion?.estado === EstadoCapacitacion.Cancelada;
 
   if (isLoading) {
     return (
@@ -730,30 +922,50 @@ export default function CapacitacionDetailPage() {
             <Download className="w-4 h-4 mr-2" />
             Exportar registro de asistencia
           </Button>
-          <Button variant="primary" size="sm" onClick={handleGuardar} disabled={isSaving}>
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Guardando...' : 'Guardar'}
-          </Button>
+          {!esCerrada && (
+            <Button variant="primary" size="sm" onClick={handleGuardar} disabled={isSaving}>
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Estado + Reabrir/Cerrar */}
+      {/* Estado + Botones según estado */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-slate-600">Estado:</span>
           {getEstadoBadge(capacitacion.estado)}
         </div>
-        <div className="flex gap-2">
-          <Button variant="primary" size="sm" onClick={handleReabrir}>
-            Reabrir capacitación
+        {capacitacion.estado === EstadoCapacitacion.Pendiente && (
+          <Button variant="primary" size="sm" onClick={() => setModalProgramar(true)}>
+            Programar capacitación
           </Button>
-          <Button variant="primary" size="sm" onClick={handleCerrar}>
-            Cerrar capacitación
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleDuplicar}>
-            Duplicar capacitación
-          </Button>
-        </div>
+        )}
+        {capacitacion.estado === EstadoCapacitacion.Programada && (
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" onClick={handleEnviarRecordatorio}>
+              <Bell className="w-4 h-4 mr-2" />
+              Enviar recordatorio
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setModalCompletar(true)}>
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Completar capacitación
+            </Button>
+          </div>
+        )}
+        {capacitacion.estado === EstadoCapacitacion.Completada && (
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" onClick={() => setModalReabrir(true)}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reabrir capacitación
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setModalCerrar(true)}>
+              <Lock className="w-4 h-4 mr-2" />
+              Cerrar capacitación
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Participación de trabajadores */}
@@ -845,10 +1057,18 @@ export default function CapacitacionDetailPage() {
         <div className="space-y-8">
           {/* Datos Generales */}
           <div className="bg-white rounded-lg border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">Datos Generales</h2>
-            <p className="text-sm text-slate-600 mb-4">
-              Ingresa los detalles iniciales de la capacitación. El tipo y el grupo permitirán agrupar los indicadores de cumplimiento.
-            </p>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-2">Datos Generales</h2>
+                <p className="text-sm text-slate-600">
+                  Ingresa los detalles iniciales de la capacitación. El tipo y el grupo permitirán agrupar los indicadores de cumplimiento.
+                </p>
+              </div>
+              <Button variant="primary" size="sm" onClick={() => setModalDuplicar(true)}>
+                Duplicar capacitación
+              </Button>
+            </div>
+            <fieldset disabled={esCerrada} className="border-0 p-0 m-0 min-w-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Tipo *</label>
@@ -922,12 +1142,15 @@ export default function CapacitacionDetailPage() {
                   onChange={(e) => setFormData((f) => ({ ...f, descripcion: e.target.value }))}
                   rows={4}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={esCerrada}
                 />
               </div>
             </div>
+            </fieldset>
           </div>
 
           {/* Programación */}
+          <fieldset disabled={esCerrada} className="border-0 p-0 m-0 min-w-0">
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-2">Programación</h2>
             <p className="text-sm text-slate-600 mb-4">
@@ -971,27 +1194,140 @@ export default function CapacitacionDetailPage() {
           <div className="bg-white rounded-lg border border-slate-200 p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-2">Responsables</h2>
             <p className="text-sm text-slate-600 mb-4">
-              Ingresa los nombres de los responsables que figurarán en el Registro de Asistencia.
+              Ingresa los nombres de los responsables que figurarán en el Registro de Asistencia y en el certificado.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Gerente de RRHH</label>
+                <p className="text-xs text-slate-500 mb-2">Seleccione entre los gerentes RRHH configurados en Jerarquía Organizacional (Empresas)</p>
+                {gerentesRrhh.length === 0 && capacitacion?.empresa_id && (
+                  <p className="text-xs text-amber-600 mb-2">No hay gerentes RRHH. Configure en Empresas → Jerarquía Organizacional (rol RRHH).</p>
+                )}
+                <Select
+                  value={responsableRrhhGerenteId}
+                  onChange={(e) => setResponsableRrhhGerenteId(e.target.value)}
+                  className="w-full"
+                >
+                  <option value="">Sin asignar</option>
+                  {gerentesRrhh.map((g) => (
+                    <option key={g.id} value={g.id}>{g.nombre_completo} - {g.cargo}</option>
+                  ))}
+                </Select>
+                {responsableRrhhGerenteId && gerentesRrhh.find((g) => g.id === responsableRrhhGerenteId)?.firma_url && (
+                  <div className="mt-2 w-32 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={gerentesRrhh.find((g) => g.id === responsableRrhhGerenteId)?.firma_url || ''}
+                      alt="Firma"
+                      className="max-w-full max-h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Responsable del registro</label>
-                <Input defaultValue={capacitacion.creado_por || ''} placeholder="Nombre" className="w-full" />
+                <p className="text-xs text-slate-500 mb-2">Seleccione entre los gerentes SST configurados en Jerarquía Organizacional (Empresas)</p>
+                {gerentesSst.length === 0 && capacitacion?.empresa_id && (
+                  <p className="text-xs text-amber-600 mb-2">No hay gerentes SST. Configure en Empresas → Jerarquía Organizacional.</p>
+                )}
+                <Select
+                  value={responsableRegistroGerenteId}
+                  onChange={(e) => setResponsableRegistroGerenteId(e.target.value)}
+                  className="w-full"
+                >
+                  <option value="">Sin asignar</option>
+                  {gerentesSst.map((g) => (
+                    <option key={g.id} value={g.id}>{g.nombre_completo} - {g.cargo}</option>
+                  ))}
+                </Select>
+                {responsableRegistroGerenteId && gerentesSst.find((g) => g.id === responsableRegistroGerenteId)?.firma_url && (
+                  <div className="mt-2 w-32 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={gerentesSst.find((g) => g.id === responsableRegistroGerenteId)?.firma_url || ''}
+                      alt="Firma"
+                      className="max-w-full max-h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Responsable de certificación</label>
-                <Input placeholder="Nombre" className="w-full" />
+                <p className="text-xs text-slate-500 mb-2">Seleccione entre los responsables de certificación configurados en Jerarquía Organizacional (Empresas)</p>
+                {gerentesCertificacion.length === 0 && capacitacion?.empresa_id && (
+                  <p className="text-xs text-amber-600 mb-2">No hay responsables de certificación. Configure en Empresas → Jerarquía Organizacional (rol CERTIFICACION).</p>
+                )}
+                <Select
+                  value={responsableCertificacionGerenteId}
+                  onChange={(e) => setResponsableCertificacionGerenteId(e.target.value)}
+                  className="w-full"
+                >
+                  <option value="">Sin asignar</option>
+                  {gerentesCertificacion.map((g) => (
+                    <option key={g.id} value={g.id}>{g.nombre_completo} - {g.cargo}</option>
+                  ))}
+                </Select>
+                {responsableCertificacionGerenteId && gerentesCertificacion.find((g) => g.id === responsableCertificacionGerenteId)?.firma_url && (
+                  <div className="mt-2 w-32 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <img
+                      src={gerentesCertificacion.find((g) => g.id === responsableCertificacionGerenteId)?.firma_url || ''}
+                      alt="Firma"
+                      className="max-w-full max-h-full object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
               </div>
-              <div>
+              <div className="md:col-span-2 relative" ref={capacitadorDropdownRef}>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Capacitador</label>
-                <Input value={formData.instructor} onChange={(e) => setFormData((f) => ({ ...f, instructor: e.target.value }))} placeholder="Nombre" className="w-full" />
+                <p className="text-xs text-slate-500 mb-2">Busque por nombre si está en el sistema (se cargará su firma) o escriba manualmente para capacitadores externos.</p>
+                <Input
+                  value={formData.instructor}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData((f) => ({ ...f, instructor: v }));
+                    setBusquedaCapacitador(v);
+                  }}
+                  onFocus={() => busquedaCapacitador.length >= 2 && resultadosCapacitador.length > 0 && setMostrarDropdownCapacitador(true)}
+                  placeholder="Buscar por nombre o escribir manualmente"
+                  className="w-full"
+                />
+                {mostrarDropdownCapacitador && resultadosCapacitador.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full max-w-md rounded-lg border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                    {resultadosCapacitador.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between gap-2"
+                        onClick={() => {
+                          setFormData((f) => ({ ...f, instructor: t.nombre_completo }));
+                          setFirmaCapacitador(t.firma_digital_url || null);
+                          setBusquedaCapacitador('');
+                          setResultadosCapacitador([]);
+                          setMostrarDropdownCapacitador(false);
+                        }}
+                      >
+                        <span>{t.nombre_completo}</span>
+                        {t.firma_digital_url ? (
+                          <span className="text-xs text-green-600">Con firma</span>
+                        ) : (
+                          <span className="text-xs text-amber-600">Sin firma</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {buscandoCapacitador && (
+                  <p className="text-xs text-slate-500 mt-1">Buscando...</p>
+                )}
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Registrar firma del capacitador</label>
+                <p className="text-xs text-slate-500 mb-2">Si seleccionó del sistema y tiene firma, se cargó automáticamente. Si es externo o no tiene firma, suba la imagen.</p>
                 <div className="flex items-center gap-3">
                   <div className="w-32 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
                     {firmaCapacitador ? (
-                      <img src={firmaCapacitador} alt="Firma" className="max-w-full max-h-full object-contain" />
+                      <img src={firmaCapacitador} alt="Firma" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-slate-400 text-xs">Firma</span>
                     )}
@@ -1023,7 +1359,7 @@ export default function CapacitacionDetailPage() {
                   Agregar evidencias, fotos, videos, recursos de capacitación para trazabilidad. Formatos: Excel, Word, PDF, PNG, JPEG. Máx. 10 MB.
                 </p>
               </div>
-              <Button variant="primary" size="sm" onClick={() => setModalAdjunto(true)}>
+              <Button variant="primary" size="sm" onClick={() => setModalAdjunto(true)} disabled={esCerrada}>
                 <Plus className="w-4 h-4 mr-2" />
                 Nuevo Documento
               </Button>
@@ -1057,7 +1393,7 @@ export default function CapacitacionDetailPage() {
                         <a href={a.archivo_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline mr-2">
                           Ver
                         </a>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600" onClick={() => handleEliminarAdjunto(a.id)}>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-600" onClick={() => handleEliminarAdjunto(a.id)} disabled={esCerrada}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </TableCell>
@@ -1067,11 +1403,13 @@ export default function CapacitacionDetailPage() {
               </TableBody>
             </Table>
           </div>
+          </fieldset>
         </div>
       )}
 
       {/* Tab Instrucciones */}
       {activeTab === 'instrucciones' && (
+        <fieldset disabled={esCerrada} className="border-0 p-0 m-0 min-w-0">
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <div className="flex items-center gap-3 mb-4">
             <label className="relative inline-flex items-center cursor-pointer">
@@ -1086,6 +1424,7 @@ export default function CapacitacionDetailPage() {
             variant="outline"
             size="sm"
             className="mb-6"
+            disabled={esCerrada}
             onClick={() => {
               const pasosSinFirma = pasosInstruccion.filter((p: any) => !p.firmaRegistro && p.id !== ID_PASO_FIRMA);
               const pasoFirma = pasosInstruccion.find((p: any) => p.firmaRegistro || p.id === ID_PASO_FIRMA);
@@ -1204,6 +1543,7 @@ export default function CapacitacionDetailPage() {
             )}
           </div>
         </div>
+        </fieldset>
       )}
 
       {/* Tab Trabajadores */}
@@ -1211,22 +1551,22 @@ export default function CapacitacionDetailPage() {
         <div className="bg-white rounded-lg border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-2">Asignación de trabajadores</h2>
           <p className="text-sm text-slate-600 mb-4">
-            Usa la asignación individual o grupal de trabajadores con los botones azules de la derecha. Las notificaciones se envían automáticamente cuando el trabajador es asignado, y también cuando transcurren semanas y aún no ha completado su firma.
+            Usa la asignación individual o grupal de trabajadores con los botones azules de la derecha. Los trabajadores asignados verán esta capacitación en &quot;Mis capacitaciones&quot; solo cuando esté en estado Programada. Las notificaciones se envían automáticamente cuando el trabajador es asignado, y también cuando transcurren semanas y aún no ha completado su firma.
           </p>
           <div className="flex flex-wrap gap-2 mb-6">
-            <Button variant="primary" size="sm" onClick={() => setModalAsignarNombre(true)}>
+            <Button variant="primary" size="sm" onClick={() => setModalAsignarNombre(true)} disabled={esCerrada}>
               Asignar por nombre
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setModalAsignarJerarquia(true)}>
+            <Button variant="primary" size="sm" onClick={() => setModalAsignarJerarquia(true)} disabled={esCerrada}>
               Asignar por jerarquía
             </Button>
-            <Button variant="primary" size="sm" onClick={handleAsignarTodos}>
+            <Button variant="primary" size="sm" onClick={handleAsignarTodos} disabled={esCerrada}>
               Asignar a todos
             </Button>
-            <Button variant="outline" size="sm" onClick={handleRetirarTodos} disabled={eventoYaPasó || participantes.some((p) => (p as any).rendio_examen)}>
+            <Button variant="outline" size="sm" onClick={handleRetirarTodos} disabled={esCerrada || eventoYaPasó || participantes.some((p) => (p as any).rendio_examen)}>
               Retirar a todos
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setModalImportar(true)}>
+            <Button variant="primary" size="sm" onClick={() => setModalImportar(true)} disabled={esCerrada}>
               Importar
             </Button>
           </div>
@@ -1262,6 +1602,7 @@ export default function CapacitacionDetailPage() {
                         value={p.asistencia ? 'si' : 'no'}
                         onChange={(e) => handleActualizarParticipante(p.trabajador_id, 'asistencia', e.target.value === 'si')}
                         className="w-28 h-8 text-xs"
+                        disabled={esCerrada}
                       >
                         <option value="si">Asistió</option>
                         <option value="no">No asistió</option>
@@ -1273,6 +1614,7 @@ export default function CapacitacionDetailPage() {
                           value={p.aprobado ? 'si' : 'no'}
                           onChange={(e) => handleActualizarParticipante(p.trabajador_id, 'aprobado', e.target.value === 'si')}
                           className="w-24 h-8 text-xs"
+                          disabled={esCerrada}
                         >
                           <option value="si">Aprobó</option>
                           <option value="no">No aprobó</option>
@@ -1290,6 +1632,7 @@ export default function CapacitacionDetailPage() {
                           }}
                           className="w-14 h-8 text-xs"
                           placeholder="Nota"
+                          disabled={esCerrada}
                         />
                       </div>
                     </TableCell>
@@ -1298,6 +1641,7 @@ export default function CapacitacionDetailPage() {
                         value={firmo ? 'si' : 'no'}
                         onChange={(e) => handleActualizarParticipante(p.trabajador_id, 'firmo', e.target.value === 'si')}
                         className="w-28 h-8 text-xs"
+                        disabled={esCerrada}
                       >
                         <option value="si">Firmó</option>
                         <option value="no">No firmó</option>
@@ -1315,7 +1659,7 @@ export default function CapacitacionDetailPage() {
                           variant="ghost"
                           size="sm"
                           className="h-8 w-8 p-0 text-red-600"
-                          disabled={!puedeRetirar(p)}
+                          disabled={esCerrada || !puedeRetirar(p)}
                           onClick={async () => {
                             if (!puedeRetirar(p)) return;
                             try {
@@ -1527,6 +1871,84 @@ export default function CapacitacionDetailPage() {
           <div className="border-2 border-dashed rounded-lg p-8 text-center">
             <Upload className="w-12 h-12 mx-auto text-slate-400 mb-2" />
             <p className="text-sm text-slate-600">Arrastre el archivo o haga clic para seleccionar</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Completar capacitación */}
+      <Modal isOpen={modalCompletar} onClose={() => setModalCompletar(false)} title="Mensaje de confirmación" size="sm">
+        <div className="space-y-6">
+          <p className="text-slate-600">¿Desea completar la capacitación?</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setModalCompletar(false)} disabled={completando}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleCompletarConfirmado} disabled={completando}>
+              {completando ? 'Completando...' : 'Sí'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Reabrir capacitación */}
+      <Modal isOpen={modalReabrir} onClose={() => setModalReabrir(false)} title="Mensaje de confirmación" size="sm">
+        <div className="space-y-6">
+          <p className="text-slate-600">¿Desea reabrir la capacitación? El estado volverá a Programada.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setModalReabrir(false)} disabled={reabriendo}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleReabrirConfirmado} disabled={reabriendo}>
+              {reabriendo ? 'Reabriendo...' : 'Sí'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Cerrar capacitación */}
+      <Modal isOpen={modalCerrar} onClose={() => setModalCerrar(false)} title="Mensaje de confirmación" size="sm">
+        <div className="space-y-6">
+          <p className="text-slate-600">
+            ¿Desea cerrar la capacitación? Una vez cerrada no podrá modificar ni regresar a un estado anterior.
+          </p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setModalCerrar(false)} disabled={cerrando}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleCerrarConfirmado} disabled={cerrando}>
+              {cerrando ? 'Cerrando...' : 'Sí'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Programar capacitación */}
+      <Modal isOpen={modalProgramar} onClose={() => setModalProgramar(false)} title="Mensaje de confirmación" size="sm">
+        <div className="space-y-6">
+          <p className="text-slate-600">¿Desea programar la capacitación?</p>
+          <p className="text-xs text-slate-500">Se requiere: Responsable del registro, Responsable de certificación y Capacitador, los 3 con su firma.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setModalProgramar(false)} disabled={programando}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleProgramarConfirmado} disabled={programando}>
+              {programando ? 'Programando...' : 'Sí'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Duplicar capacitación */}
+      <Modal isOpen={modalDuplicar} onClose={() => setModalDuplicar(false)} title="Mensaje de confirmación" size="sm">
+        <div className="space-y-6">
+          <p className="text-slate-600">¿Desea duplicar la capacitación? Se creará un nuevo registro con los mismos datos y estado Pendiente.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setModalDuplicar(false)} disabled={duplicando}>
+              Cancelar
+            </Button>
+            <Button variant="primary" onClick={handleDuplicarConfirmado} disabled={duplicando}>
+              {duplicando ? 'Duplicando...' : 'Sí'}
+            </Button>
           </div>
         </div>
       </Modal>

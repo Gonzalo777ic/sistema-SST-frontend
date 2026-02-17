@@ -174,8 +174,9 @@ export default function NuevaFichaEPPPage() {
       toast.success('Ficha EPP creada correctamente');
       router.push('/epp/fichas');
     } catch (error: any) {
+      const msg = error.response?.data?.message || 'No se pudo crear la ficha';
       toast.error('Error al crear ficha EPP', {
-        description: error.response?.data?.message || 'No se pudo crear la ficha',
+        description: msg,
       });
     } finally {
       setIsSaving(false);

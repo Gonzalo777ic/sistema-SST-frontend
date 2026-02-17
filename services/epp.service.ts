@@ -105,6 +105,46 @@ export interface ISolicitudEPPDetalle {
   agregado_por_nombre: string | null;
 }
 
+/** Item EPP desagregado (una fila por detalle de entrega) */
+export interface IEppItemEntregado {
+  id: string;
+  epp_nombre: string;
+  epp_tipo_proteccion: string;
+  epp_vigencia: string | null;
+  cantidad: number;
+  fecha_entrega: string | null;
+  codigo_solicitud: string | null;
+  solicitud_id: string;
+}
+
+/** Aplana solicitudes entregadas en lista de items EPP */
+export function flattenEppItemsFromSolicitudes(
+  solicitudes: { id: string; codigo_correlativo: string | null; fecha_entrega: string | null; detalles?: ISolicitudEPPDetalle[] }[]
+): IEppItemEntregado[] {
+  const items: IEppItemEntregado[] = [];
+  for (const sol of solicitudes) {
+    const detalles = sol.detalles?.filter((d) => !d.exceptuado) ?? [];
+    for (const det of detalles) {
+      items.push({
+        id: `${sol.id}-${det.id}`,
+        epp_nombre: det.epp_nombre,
+        epp_tipo_proteccion: det.epp_tipo_proteccion,
+        epp_vigencia: det.epp_vigencia,
+        cantidad: det.cantidad,
+        fecha_entrega: sol.fecha_entrega,
+        codigo_solicitud: sol.codigo_correlativo,
+        solicitud_id: sol.id,
+      });
+    }
+  }
+  items.sort((a, b) => {
+    const dA = a.fecha_entrega ? new Date(a.fecha_entrega).getTime() : 0;
+    const dB = b.fecha_entrega ? new Date(b.fecha_entrega).getTime() : 0;
+    return dB - dA;
+  });
+  return items;
+}
+
 export interface SolicitudEPP {
   id: string;
   codigo_correlativo: string | null;

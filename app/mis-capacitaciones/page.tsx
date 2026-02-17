@@ -144,6 +144,9 @@ export default function MisCapacitacionesPage() {
           <div className="p-12 text-center bg-white border border-slate-200 rounded-lg">
             <GraduationCap className="h-16 w-16 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600">No hay capacitaciones registradas</p>
+            <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
+              Si te asignaron una capacitación en estado Programada y no aparece aquí, verifica con tu administrador que tu usuario tenga un trabajador vinculado y que te hayan asignado en la pestaña &quot;Asignación de trabajadores&quot; de la capacitación.
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

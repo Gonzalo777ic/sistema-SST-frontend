@@ -7,6 +7,7 @@ import {
   eppService,
   SolicitudEPP,
   EstadoSolicitudEPP,
+  flattenEppItemsFromSolicitudes,
 } from '@/services/epp.service';
 import { authService } from '@/services/auth.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
@@ -640,6 +641,53 @@ export default function EPPPage() {
         </div>
       </div>
 
+      {/* Histórico de EPPs entregados (desagregado) - solo para empleado */}
+      {esSoloEmpleado && (() => {
+        const solicitudesEntregadas = solicitudes.filter((s) => s.estado === EstadoSolicitudEPP.Entregada);
+        const itemsEntregados = flattenEppItemsFromSolicitudes(solicitudesEntregadas);
+        if (itemsEntregados.length === 0) return null;
+        return (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Histórico de EPPs entregados</h2>
+              <p className="text-sm text-gray-600 mt-0.5">Lista de equipos de protección personal que te han sido entregados</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">EPP</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Cantidad</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Vigencia</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Fecha entrega</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Código</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {itemsEntregados.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 text-gray-900 font-medium">{item.epp_nombre}</td>
+                      <td className="px-3 py-3 text-gray-600">{item.epp_tipo_proteccion}</td>
+                      <td className="px-3 py-3 text-gray-600">{item.cantidad}</td>
+                      <td className="px-3 py-3 text-gray-600">{item.epp_vigencia || '-'}</td>
+                      <td className="px-3 py-3 text-gray-600">
+                        {item.fecha_entrega ? new Date(item.fecha_entrega).toLocaleDateString('es-PE') : '-'}
+                      </td>
+                      <td className="px-3 py-3 text-gray-600">
+                        <Link href={`/epp/${item.solicitud_id}`} className="text-blue-600 hover:underline">
+                          {item.codigo_solicitud || '-'}
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Modales de confirmación (renderizados en body para evitar problemas de z-index) */}
       {typeof window !== 'undefined' &&
         modalEstado &&
@@ -802,7 +850,16 @@ export default function EPPPage() {
                         src={modalEstado.solicitud.solicitante_firma_digital_url}
                         alt="Firma del solicitante"
                         className="max-w-[280px] h-[100px] object-contain"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                          if (fallback) fallback.classList.remove('hidden');
+                        }}
                       />
+                      <div className="hidden max-w-[280px] h-[100px] flex items-center justify-center bg-slate-100 rounded text-xs text-slate-600 text-center px-2">
+                        La firma no se pudo cargar. Ingrese la firma manualmente abajo para continuar.
+                      </div>
                     </div>
                     <p className="text-xs text-amber-600 mt-1">
                       Si la firma está vacía o desea cambiarla, ingrese una nueva abajo.

@@ -71,6 +71,8 @@ export default function ConfigCapacitacionesPage() {
     loadConfig();
   }, []);
 
+  const [gerentesRrhhPorEmpresa, setGerentesRrhhPorEmpresa] = useState<Record<string, FirmaGerente[]>>({});
+
   useEffect(() => {
     empresasService.findAll().then((list) => {
       setEmpresas(list);
@@ -78,7 +80,12 @@ export default function ConfigCapacitacionesPage() {
         empresasService.listarGerentes(emp.id).then((gerentes) => {
           const sst = gerentes.filter((g) => g.rol === 'SST' && g.activo);
           setGerentesSstPorEmpresa((prev) => ({ ...prev, [emp.id]: sst }));
-        }).catch(() => setGerentesSstPorEmpresa((prev) => ({ ...prev, [emp.id]: [] })));
+          const rrhh = gerentes.filter((g) => g.rol === 'RRHH' && g.activo);
+          setGerentesRrhhPorEmpresa((prev) => ({ ...prev, [emp.id]: rrhh }));
+        }).catch(() => {
+          setGerentesSstPorEmpresa((prev) => ({ ...prev, [emp.id]: [] }));
+          setGerentesRrhhPorEmpresa((prev) => ({ ...prev, [emp.id]: [] }));
+        });
       });
     }).catch(() => {});
   }, []);
@@ -524,6 +531,67 @@ export default function ConfigCapacitacionesPage() {
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Gerente de RRHH */}
+      <div className="bg-white rounded-lg border border-slate-200 p-6">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Gerente de RRHH</h2>
+        <div className="p-3 bg-sky-50 rounded-lg flex items-start gap-2 mb-4">
+          <Info className="w-5 h-5 text-sky-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-sky-800">
+            Gerentes de RRHH por razón social (solo lectura). Se configuran en{' '}
+            <Link href="/empresas" className="underline font-medium hover:text-sky-900">
+              Jerarquía Organizacional
+            </Link>
+            .
+          </p>
+        </div>
+        <div className="space-y-6">
+          {empresas.length === 0 ? (
+            <p className="text-sm text-slate-500">No hay empresas registradas.</p>
+          ) : (
+            empresas.map((emp) => {
+              const gerentes = gerentesRrhhPorEmpresa[emp.id] ?? [];
+              return (
+                <div key={emp.id} className="border border-slate-200 rounded-lg overflow-hidden">
+                  <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+                    <p className="font-medium text-slate-900">{emp.nombre}</p>
+                    <p className="text-xs text-slate-600">{emp.ruc}</p>
+                  </div>
+                  <div className="p-4">
+                    {gerentes.length === 0 ? (
+                      <p className="text-sm text-slate-500">Sin gerente de RRHH asignado</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {gerentes.map((g) => (
+                          <div
+                            key={g.id}
+                            className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg border border-slate-100"
+                          >
+                            {g.firma_url && (
+                              <img
+                                src={g.firma_url}
+                                alt="Firma"
+                                className="h-12 w-20 object-contain border rounded bg-white"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900">{g.nombre_completo}</p>
+                              <p className="text-sm text-slate-600">
+                                Cargo: {g.cargo} · N° doc: {g.numero_documento}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 

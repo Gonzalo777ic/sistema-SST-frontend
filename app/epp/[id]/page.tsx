@@ -1052,7 +1052,16 @@ export default function DetalleSolicitudEPPPage() {
                         src={solicitud.solicitante_firma_digital_url}
                         alt="Firma del solicitante"
                         className="max-w-[280px] h-[100px] object-contain"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                          if (fallback) fallback.classList.remove('hidden');
+                        }}
                       />
+                      <div className="hidden max-w-[280px] h-[100px] flex items-center justify-center bg-slate-100 rounded text-xs text-slate-600 text-center px-2">
+                        La firma no se pudo cargar. Ingrese la firma manualmente abajo para continuar.
+                      </div>
                     </div>
                     <p className="text-xs text-amber-600 mt-1">
                       Si la firma está vacía o desea cambiarla, ingrese una nueva abajo.

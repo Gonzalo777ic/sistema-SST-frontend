@@ -86,6 +86,11 @@ export interface Capacitacion {
   lugar: string | null;
   tipo: TipoCapacitacion;
   firma_capacitador_url?: string | null;
+  responsable_registro_nombre?: string | null;
+  responsable_registro_firma_url?: string | null;
+  responsable_rrhh_gerente_id?: string | null;
+  responsable_registro_gerente_id?: string | null;
+  responsable_certificacion_gerente_id?: string | null;
   fecha: string;
   fecha_fin: string | null;
   sede: string | null;
@@ -131,6 +136,11 @@ export interface CreateCapacitacionDto {
   instructor?: string;
   instructor_id?: string;
   firma_capacitador_url?: string;
+  responsable_registro_nombre?: string;
+  responsable_registro_firma_url?: string;
+  responsable_rrhh_gerente_id?: string;
+  responsable_registro_gerente_id?: string;
+  responsable_certificacion_gerente_id?: string;
   material_url?: string;
   certificado_url?: string;
   estado?: EstadoCapacitacion;

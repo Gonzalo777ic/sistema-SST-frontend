@@ -27,6 +27,7 @@ import {
   Sparkles,
   Grid3X3,
 } from 'lucide-react';
+import { EppImage } from '@/components/epp/EppImage';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { UsuarioRol } from '@/types';
@@ -190,13 +191,7 @@ export default function NuevaSolicitudEmpleadoPage() {
       onClick={() => handleAgregarEPP(epp)}
       className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left flex items-start gap-3"
     >
-      {epp.imagen_url && (
-        <img
-          src={epp.imagen_url}
-          alt={epp.nombre}
-          className="w-16 h-16 object-cover rounded"
-        />
-      )}
+      <EppImage src={epp.imagen_url} alt={epp.nombre} className="w-16 h-16 object-cover rounded flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <h3 className="font-medium text-gray-900">{epp.nombre}</h3>
         <p className="text-sm text-gray-600">{epp.tipo_proteccion}</p>
@@ -341,13 +336,7 @@ export default function NuevaSolicitudEmpleadoPage() {
                         >
                           <td className="py-3 px-2">
                             <div className="flex items-center gap-2">
-                              {epp?.imagen_url && (
-                                <img
-                                  src={epp.imagen_url}
-                                  alt={epp.nombre}
-                                  className="w-12 h-12 object-cover rounded"
-                                />
-                              )}
+                              <EppImage src={epp?.imagen_url} alt={epp?.nombre || 'EPP'} className="w-12 h-12 object-cover rounded flex-shrink-0" />
                               <span className="font-medium">{epp?.nombre || 'EPP'}</span>
                             </div>
                           </td>
