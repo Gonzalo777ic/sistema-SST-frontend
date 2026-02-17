@@ -381,17 +381,15 @@ export default function ExamenesMedicosPage() {
                       <TableCell>{getEstadoBadge(examen.estado)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => {
-                              // TODO: Implementar ver detalle
-                              toast.info('Funcionalidad en desarrollo');
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <Link href={`/salud/examenes/${examen.id}`}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
                           <Button
                             variant="ghost"
                             size="sm"

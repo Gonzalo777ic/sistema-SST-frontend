@@ -52,6 +52,10 @@ export interface ExamenMedico {
   proyecto?: string | null;
   sede?: string | null;
   tipo_examen: TipoExamen;
+  hora_programacion?: string | null;
+  perfil_emo_id?: string | null;
+  adicionales?: string | null;
+  recomendaciones_personalizadas?: string | null;
   fecha_programada: string;
   fecha_realizado: string | null;
   fecha_vencimiento: string | null;
@@ -144,6 +148,30 @@ export const saludService = {
 
   async findOneExamen(id: string): Promise<ExamenMedico> {
     const response = await apiClient.get<ExamenMedico>(`/salud/examenes/${id}`);
+    return response.data;
+  },
+
+  async updateExamen(
+    id: string,
+    dto: Partial<{
+      tipo_examen: string;
+      fecha_programada: string;
+      fecha_realizado: string | null;
+      fecha_vencimiento: string | null;
+      centro_medico: string;
+      medico_evaluador: string;
+      hora_programacion: string;
+      perfil_emo_id: string | null;
+      proyecto: string;
+      adicionales: string;
+      recomendaciones_personalizadas: string;
+      resultado: string;
+      restricciones: string;
+      observaciones: string;
+      estado: string;
+    }>,
+  ): Promise<ExamenMedico> {
+    const response = await apiClient.patch<ExamenMedico>(`/salud/examenes/${id}`, dto);
     return response.data;
   },
 
