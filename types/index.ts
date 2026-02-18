@@ -29,6 +29,7 @@ export interface Usuario {
   ultimoAcceso: Date | null;
   empresaId: string | null;
   trabajadorId: string | null;
+  centroMedicoId?: string | null;
   perfil_completado?: boolean;
   createdAt: Date;
 }

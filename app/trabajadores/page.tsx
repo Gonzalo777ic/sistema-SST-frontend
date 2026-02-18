@@ -44,10 +44,8 @@ const LABEL_TIPO_DOC: Record<TipoDocumento, string> = {
 const ROLES_ASIGNABLES: UsuarioRol[] = [
   UsuarioRol.INGENIERO_SST,
   UsuarioRol.SUPERVISOR,
-  UsuarioRol.MEDICO,
   UsuarioRol.EMPLEADO,
   UsuarioRol.AUDITOR,
-  UsuarioRol.CENTRO_MEDICO,
 ];
 
 const LABEL_ROL: Record<UsuarioRol, string> = {

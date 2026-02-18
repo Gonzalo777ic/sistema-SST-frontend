@@ -7,6 +7,7 @@ export interface CreateUsuarioDto {
   roles: UsuarioRol[];
   empresaId?: string;
   trabajadorId?: string;
+  centroMedicoId?: string;
 }
 
 export interface UpdateUsuarioDto {
@@ -14,6 +15,7 @@ export interface UpdateUsuarioDto {
   activo?: boolean;
   empresaId?: string;
   trabajadorId?: string | null;
+  centroMedicoId?: string | null;
   perfil_completado?: boolean;
   debe_cambiar_password?: boolean;
 }

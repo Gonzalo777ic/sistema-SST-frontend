@@ -53,6 +53,7 @@ export interface Trabajador {
   talla_calzado?: number | null;
   empresa_id: string;
   empresa_nombre?: string | null;
+  acceso_todas_empresas?: boolean;
   usuario_id: string | null;
   sede?: string | null;
   unidad?: string | null;
@@ -100,6 +101,7 @@ export interface CreateTrabajadorDto {
   sede?: string;
   unidad?: string;
   empresa_id: string;
+  acceso_todas_empresas?: boolean;
 }
 
 export interface UpdateTrabajadorDto {

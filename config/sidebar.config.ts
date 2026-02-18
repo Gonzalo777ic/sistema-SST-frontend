@@ -259,6 +259,30 @@ export const sidebarConfig: SidebarGroup[] = [
         roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
       },
       {
+        label: 'Trabajadores',
+        href: '/trabajadores',
+        icon: Users,
+        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+      },
+      {
+        label: 'Médicos Ocupacionales',
+        href: '/medicos-ocupacionales',
+        icon: Stethoscope,
+        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+      },
+      {
+        label: 'Auditores',
+        href: '/auditores',
+        icon: ShieldAlert,
+        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+      },
+      {
+        label: 'Usuarios Centro Médico',
+        href: '/usuarios-centro-medico',
+        icon: Building2,
+        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+      },
+      {
         label: 'Alertas',
         href: '/dashboard/config/alertas',
         icon: Bell,
