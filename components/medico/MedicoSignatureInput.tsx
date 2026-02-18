@@ -33,10 +33,9 @@ export function MedicoSignatureInput({
     setProcessing(true);
     try {
       const processed = await processSignatureImage(file, {
-        backgroundThreshold: 200,
+        whiteThreshold: 220,  // <-- CLAVE: Sube esto (antes era backgroundThreshold ~190)
         inkColor: 'black',
-        contrastFactor: 1.8,
-        strokeThickness: 0,
+        strokeThickness: 1,   // Mantiene el trazo sólido
       });
       onUploadedChange?.(processed);
     } catch (err) {
