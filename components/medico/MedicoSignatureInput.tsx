@@ -2,12 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { Upload, Lock } from 'lucide-react';
-import { processSignatureImage, type ProcessedImageOptions } from '@/lib/image-signature-processing';
-
-type ProcessingMode = ProcessedImageOptions['mode'];
+import { SignatureImageAdjuster } from '@/components/ui/signature-image-adjuster';
 
 interface MedicoSignatureInputProps {
   drawnValue?: string | null;
@@ -24,30 +21,26 @@ export function MedicoSignatureInput({
   onUploadedChange,
   disabled = false,
 }: MedicoSignatureInputProps) {
-  const [processing, setProcessing] = useState(false);
-  const [processingMode, setProcessingMode] = useState<ProcessingMode>('auto');
+  const [fileToAdjust, setFileToAdjust] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const effectiveSignature = uploadedValue || drawnValue;
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) return;
-    setProcessing(true);
-    try {
-      const processed = await processSignatureImage(file, {
-        mode: processingMode,
-        inkColor: 'black',
-        strokeThickness: 1,
-      });
-      onUploadedChange?.(processed);
-    } catch (err) {
-      console.error('Error procesando firma:', err);
-    } finally {
-      setProcessing(false);
-      e.target.value = '';
-    }
+    setFileToAdjust(file);
+    e.target.value = '';
+  };
+
+  const handleAdjustConfirm = (dataUrl: string) => {
+    onUploadedChange?.(dataUrl);
+    setFileToAdjust(null);
+  };
+
+  const handleAdjustCancel = () => {
+    setFileToAdjust(null);
   };
 
   const handleClearUploaded = () => {
@@ -71,6 +64,18 @@ export function MedicoSignatureInput({
         </div>
       )}
 
+      {fileToAdjust && (
+        <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm font-medium text-slate-700 mb-3">Ajustar nivel de limpieza</p>
+          <SignatureImageAdjuster
+            file={fileToAdjust}
+            onConfirm={handleAdjustConfirm}
+            onCancel={handleAdjustCancel}
+            disabled={disabled}
+          />
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-2">
           Cargar firma manuscrita (PNG, JPG)
@@ -88,32 +93,19 @@ export function MedicoSignatureInput({
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || processing}
+            disabled={disabled || !!fileToAdjust}
           >
             <Upload className="h-4 w-4 mr-2" />
-            {processing ? 'Procesando...' : 'Subir imagen de firma'}
+            Subir imagen de firma
           </Button>
-          {uploadedValue && (
+          {uploadedValue && !fileToAdjust && (
             <Button type="button" variant="ghost" size="sm" onClick={handleClearUploaded} disabled={disabled}>
               Quitar imagen
             </Button>
           )}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-xs text-slate-500">Ajuste:</span>
-            <Select
-              value={processingMode ?? 'auto'}
-              onChange={(e) => setProcessingMode((e.target.value as ProcessingMode) || 'auto')}
-              className="h-8 text-xs w-[180px]"
-            >
-              <option value="auto">Automático</option>
-              <option value="conservative">Firma clara o azul</option>
-              <option value="aggressive">Con sello o fondo</option>
-            </Select>
-          </div>
         </div>
         <p className="text-xs text-slate-500 mt-1">
-          Foto de su firma manuscrita. Se procesará para limpiar fondo y mejorar contraste.
-          Si el resultado no es correcto, cambie el ajuste y vuelva a subir la imagen.
+          Foto de su firma manuscrita. Tras subirla, podrá ajustar el nivel de limpieza en tiempo real hasta lograr el resultado deseado.
         </p>
       </div>
 

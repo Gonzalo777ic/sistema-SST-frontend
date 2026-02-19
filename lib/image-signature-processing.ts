@@ -14,11 +14,76 @@ export type ProcessedImageOptions = {
    * - 'aggressive': Umbral más alto, elimina más fondo/sellos */
   mode?: 'auto' | 'conservative' | 'aggressive';
 
+  /** Nivel de limpieza 0-100. 0=conservador (menos fondo eliminado), 50=automático, 100=agresivo (más fondo eliminado). */
+  sensitivity?: number;
+
   /** Color de la tinta resultante */
   inkColor?: 'black' | 'dark_blue';
 
   /** Grosor artificial (0 = original, 1-3 = más grueso) */
   strokeThickness?: number;
+};
+
+/** Resultado de carga para ajuste en tiempo real */
+export type SignatureLoadResult = {
+  rawData: Uint8ClampedArray;
+  width: number;
+  height: number;
+  otsuThreshold: number;
+  isBlueInk: boolean;
+};
+
+/** Parámetros multi-dimensionales para procesamiento de firmas */
+export interface SignatureProcessingParams {
+  /** Contraste trazo/fondo (0-100). Mayor = más fondo eliminado, trazos más definidos. */
+  threshold: number;
+  /** Grosor/continuidad del trazo (0-100). Mayor = trazos más gruesos y continuos. */
+  strokeStrength: number;
+  /** Suavidad de bordes (0-100). Mayor = bordes más suaves, menos dentados. */
+  edgeSmoothness: number;
+  /** Eliminación de ruido (0-100). Mayor = más artefactos aislados eliminados. */
+  noiseRemoval: number;
+  /** Filtro anti-sello (0-100). Mayor = más agresivo contra grises/sellos. */
+  saturationFilter: number;
+}
+
+/** Presets adaptados a distintos tipos de firma */
+export const SIGNATURE_PRESETS: Record<string, SignatureProcessingParams> = {
+  clara: {
+    threshold: 35,
+    strokeStrength: 55,
+    edgeSmoothness: 40,
+    noiseRemoval: 35,
+    saturationFilter: 25,
+  },
+  oscura: {
+    threshold: 68,
+    strokeStrength: 50,
+    edgeSmoothness: 35,
+    noiseRemoval: 55,
+    saturationFilter: 65,
+  },
+  escaneada: {
+    threshold: 52,
+    strokeStrength: 60,
+    edgeSmoothness: 55,
+    noiseRemoval: 75,
+    saturationFilter: 70,
+  },
+  digital: {
+    threshold: 58,
+    strokeStrength: 35,
+    edgeSmoothness: 25,
+    noiseRemoval: 25,
+    saturationFilter: 50,
+  },
+  personalizado: {
+    threshold: 50,
+    strokeStrength: 50,
+    edgeSmoothness: 35,
+    noiseRemoval: 50,
+    saturationFilter: 50,
+  },
 };
 
 const DARK_BLUE = { r: 0, g: 51, b: 102 };
@@ -111,11 +176,79 @@ function applyThreshold(
   }
 }
 
+/** Mapea saturationFilter 0-100 a saturationMin (0 = sin filtro, 100 = 0.18) */
+function saturationMinFromParam(param: number): number {
+  if (param < 5) return 1;
+  return (param / 100) * 0.18;
+}
+
 /** Cuenta pixeles con tinta (alpha > 50) */
 function countInkPixels(data: Uint8ClampedArray): number {
   let n = 0;
   for (let i = 3; i < data.length; i += 4) if (data[i] > 50) n++;
   return n;
+}
+
+/** Calcula umbral a partir de sensibilidad 0-100 y Otsu base */
+function thresholdFromSensitivity(otsuT: number, sensitivity: number, isBlueInk: boolean): number {
+  const base = isBlueInk ? Math.min(otsuT + 15, 220) : otsuT;
+  const delta = (sensitivity - 50) * 1.5;
+  return Math.max(50, Math.min(250, base + delta));
+}
+
+/** Mapea threshold 0-100 a umbral absoluto (0-255) usando Otsu como base */
+function thresholdFromParam(otsuT: number, param: number, isBlueInk: boolean): number {
+  const base = isBlueInk ? Math.min(otsuT + 15, 220) : otsuT;
+  const delta = (param - 50) * 2.2;
+  return Math.max(40, Math.min(245, base + delta));
+}
+
+/** Blur 3x3 suave en luminancia para suavizar bordes antes del umbral */
+function applyPreBlur(data: Uint8ClampedArray, w: number, h: number, strength: number): void {
+  if (strength < 5) return;
+  const radius = strength > 60 ? 2 : 1;
+  const src = new Uint8ClampedArray(data);
+  const size = (radius * 2 + 1) ** 2;
+  for (let y = radius; y < h - radius; y++) {
+    for (let x = radius; x < w - radius; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const i = ((y + dy) * w + (x + dx)) * 4;
+          r += src[i];
+          g += src[i + 1];
+          b += src[i + 2];
+        }
+      }
+      const i = (y * w + x) * 4;
+      data[i] = Math.round(r / size);
+      data[i + 1] = Math.round(g / size);
+      data[i + 2] = Math.round(b / size);
+    }
+  }
+}
+
+/** Elimina pixeles aislados (ruido) - requiere vecinos con tinta */
+function applyNoiseRemoval(data: Uint8ClampedArray, w: number, h: number, strength: number): void {
+  if (strength < 5) return;
+  const minNeighbors = strength > 70 ? 2 : 1;
+  const src = new Uint8ClampedArray(data);
+  const dx = [-1, 0, 1, -1, 1, -1, 0, 1];
+  const dy = [-1, -1, -1, 0, 0, 1, 1, 1];
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = (y * w + x) * 4;
+      if (src[idx + 3] < 80) continue;
+      let neighbors = 0;
+      for (let d = 0; d < 8; d++) {
+        const ni = ((y + dy[d]) * w + (x + dx[d])) * 4 + 3;
+        if (src[ni] > 80) neighbors++;
+      }
+      if (neighbors < minNeighbors) {
+        data[idx + 3] = 0;
+      }
+    }
+  }
 }
 
 export async function processSignatureImage(
@@ -125,6 +258,7 @@ export async function processSignatureImage(
   const {
     whiteThreshold: fixedThreshold,
     mode = 'auto',
+    sensitivity,
     inkColor = 'black',
     strokeThickness = 1,
   } = options;
@@ -167,6 +301,10 @@ export async function processSignatureImage(
           threshold = fixedThreshold;
           useSaturationFilter = false;
           saturationMin = 0;
+        } else if (sensitivity !== undefined && sensitivity >= 0 && sensitivity <= 100) {
+          threshold = thresholdFromSensitivity(otsuT, sensitivity, isBlueInk);
+          useSaturationFilter = true;
+          saturationMin = 0.08;
         } else if (mode === 'auto') {
           threshold = isBlueInk ? Math.min(otsuT + 15, 220) : otsuT;
           useSaturationFilter = true;
@@ -219,6 +357,114 @@ export async function processSignatureImage(
       reader.readAsDataURL(source);
     }
   });
+}
+
+/**
+ * Carga una imagen para ajuste en tiempo real. Retorna los datos crudos y el umbral Otsu.
+ */
+export function loadImageForAdjustment(source: File | string): Promise<SignatureLoadResult> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) {
+          reject(new Error('Error de contexto Canvas'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        const luminances: number[] = [];
+        for (let i = 0; i < data.length; i += 4) {
+          luminances.push(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+        }
+        const otsuT = otsuThreshold(luminances);
+        const isBlueInk = hasBlueInkDominance(data);
+        resolve({
+          rawData: new Uint8ClampedArray(data),
+          width: canvas.width,
+          height: canvas.height,
+          otsuThreshold: otsuT,
+          isBlueInk,
+        });
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error('Error cargando imagen'));
+    if (typeof source === 'string') {
+      img.src = source;
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => { img.src = reader.result as string; };
+      reader.onerror = () => reject(new Error('Error leyendo archivo'));
+      reader.readAsDataURL(source);
+    }
+  });
+}
+
+/**
+ * Procesa la firma con un nivel de sensibilidad dado (0-100). Síncrono, para preview en tiempo real.
+ * Mantiene compatibilidad; internamente usa params con preset personalizado.
+ */
+export function processSignatureWithSensitivity(
+  loadResult: SignatureLoadResult,
+  sensitivity: number,
+  options: { inkColor?: 'black' | 'dark_blue'; strokeThickness?: number } = {}
+): string {
+  const params: SignatureProcessingParams = {
+    ...SIGNATURE_PRESETS.personalizado,
+    threshold: sensitivity,
+    strokeStrength: 50,
+  };
+  return processSignatureWithParams(loadResult, params, options);
+}
+
+/**
+ * Procesa la firma con parámetros multi-dimensionales. Síncrono, para preview en tiempo real.
+ */
+export function processSignatureWithParams(
+  loadResult: SignatureLoadResult,
+  params: SignatureProcessingParams,
+  options: { inkColor?: 'black' | 'dark_blue' } = {}
+): string {
+  const { rawData, width, height, otsuThreshold, isBlueInk } = loadResult;
+  const { inkColor = 'black' } = options;
+  const targetColor = inkColor === 'dark_blue' ? DARK_BLUE : BLACK;
+
+  const data = new Uint8ClampedArray(rawData);
+
+  // 1. Pre-blur para suavidad de bordes (antes del umbral)
+  applyPreBlur(data, width, height, params.edgeSmoothness);
+
+  // 2. Umbral según contraste
+  const threshold = thresholdFromParam(otsuThreshold, params.threshold, isBlueInk);
+  const useSaturation = params.saturationFilter >= 5;
+  const saturationMin = saturationMinFromParam(params.saturationFilter);
+  applyThreshold(data, threshold, targetColor, useSaturation, saturationMin);
+
+  // 3. Eliminación de ruido (pixeles aislados)
+  applyNoiseRemoval(data, width, height, params.noiseRemoval);
+
+  // 4. Grosor/continuidad del trazo (dilatación)
+  const dilatePasses = params.strokeStrength >= 75 ? 2 : params.strokeStrength >= 35 ? 1 : 0;
+  if (dilatePasses > 0) {
+    applyDilate(data, width, height, dilatePasses, targetColor);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('No contexto');
+  const imageData = new ImageData(data, width, height);
+  ctx.putImageData(imageData, 0, 0);
+  return canvas.toDataURL('image/png');
 }
 
 /**

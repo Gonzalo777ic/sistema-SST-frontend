@@ -53,7 +53,7 @@ import Link from 'next/link';
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
 import { SignaturePad } from '@/components/ui/signature-pad';
-import { processSignatureImage } from '@/lib/image-signature-processing';
+import { SignatureImageAdjuster } from '@/components/ui/signature-image-adjuster';
 
 const TIPOS = Object.values(TipoCapacitacion);
 const NOTA_MINIMA_APROBATORIA = 11;
@@ -346,7 +346,7 @@ export default function CapacitacionDetailPage() {
   const [resultadosCapacitador, setResultadosCapacitador] = useState<Trabajador[]>([]);
   const [mostrarDropdownCapacitador, setMostrarDropdownCapacitador] = useState(false);
   const [buscandoCapacitador, setBuscandoCapacitador] = useState(false);
-  const [procesandoFirmaCapacitador, setProcesandoFirmaCapacitador] = useState(false);
+  const [firmaCapacitadorFileToAdjust, setFirmaCapacitadorFileToAdjust] = useState<File | null>(null);
   const capacitadorDropdownRef = useRef<HTMLDivElement>(null);
   const firmaCapacitadorInputRef = useRef<HTMLInputElement>(null);
   const [adjuntoTitulo, setAdjuntoTitulo] = useState('');
@@ -785,7 +785,7 @@ export default function CapacitacionDetailPage() {
     }
   };
 
-  const handleFirmaCapacitadorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFirmaCapacitadorFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
@@ -796,22 +796,18 @@ export default function CapacitacionDetailPage() {
       toast.error('La imagen no debe superar 5 MB');
       return;
     }
-    setProcesandoFirmaCapacitador(true);
-    try {
-      const processed = await processSignatureImage(file, {
-        mode: 'auto',
-        inkColor: 'black',
-        strokeThickness: 1,
-      });
-      setFirmaCapacitadorUploaded(processed);
-      setFirmaCapacitadorDrawn(null);
-    } catch (err) {
-      console.error('Error procesando firma:', err);
-      toast.error('Error al procesar la imagen de firma');
-    } finally {
-      setProcesandoFirmaCapacitador(false);
-      e.target.value = '';
-    }
+    setFirmaCapacitadorFileToAdjust(file);
+    e.target.value = '';
+  };
+
+  const handleFirmaCapacitadorAdjustConfirm = (dataUrl: string) => {
+    setFirmaCapacitadorUploaded(dataUrl);
+    setFirmaCapacitadorDrawn(null);
+    setFirmaCapacitadorFileToAdjust(null);
+  };
+
+  const handleFirmaCapacitadorAdjustCancel = () => {
+    setFirmaCapacitadorFileToAdjust(null);
   };
 
   const handleClearFirmaCapacitadorUpload = () => {
@@ -1487,25 +1483,36 @@ export default function CapacitacionDetailPage() {
                     )}
                   </div>
                 )}
+                {firmaCapacitadorFileToAdjust && (
+                  <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4 mb-3">
+                    <p className="text-sm font-medium text-slate-700 mb-3">Ajustar nivel de limpieza de la firma</p>
+                    <SignatureImageAdjuster
+                      file={firmaCapacitadorFileToAdjust}
+                      onConfirm={handleFirmaCapacitadorAdjustConfirm}
+                      onCancel={handleFirmaCapacitadorAdjustCancel}
+                      disabled={esCerrada}
+                    />
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2 items-center mb-3">
                   <input
                     ref={firmaCapacitadorInputRef}
                     type="file"
                     accept="image/png,image/jpeg,image/jpg"
                     className="hidden"
-                    onChange={handleFirmaCapacitadorUpload}
+                    onChange={handleFirmaCapacitadorFileSelect}
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => firmaCapacitadorInputRef.current?.click()}
-                    disabled={esCerrada || procesandoFirmaCapacitador}
+                    disabled={esCerrada || !!firmaCapacitadorFileToAdjust}
                   >
                     <Upload className="w-4 h-4 mr-2" />
-                    {procesandoFirmaCapacitador ? 'Procesando...' : '↑ Cargar'}
+                    ↑ Cargar
                   </Button>
-                  {firmaCapacitadorUploaded && (
+                  {firmaCapacitadorUploaded && !firmaCapacitadorFileToAdjust && (
                     <Button
                       type="button"
                       variant="ghost"
