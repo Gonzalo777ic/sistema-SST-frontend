@@ -480,8 +480,8 @@ export default function EmpresasPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/empresas/${empresa.id}/areas`)}
-                            title="Gestionar áreas"
+                            onClick={() => router.push(`/empresas/${empresa.id}/estructura`)}
+                            title="Estructura organizacional (Unidades, Sedes, Gerencias, Áreas)"
                           >
                             <Building2 className="w-4 h-4" />
                           </Button>

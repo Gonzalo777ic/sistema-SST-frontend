@@ -63,12 +63,6 @@ export const sidebarConfig: SidebarGroup[] = [
     title: 'TRABAJADORES',
     items: [
       {
-        label: 'Trabajadores activos',
-        href: '/trabajadores',
-        icon: Users,
-        roles: ROLES_NO_EMPLEADO,
-      },
-      {
         label: 'Capacitaciones',
         href: '/capacitaciones',
         icon: GraduationCap,
@@ -253,34 +247,40 @@ export const sidebarConfig: SidebarGroup[] = [
     title: 'CONFIGURACIÓN',
     items: [
       {
-        label: 'Usuarios',
-        href: '/gestion-usuarios',
-        icon: UserCog,
-        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
-      },
-      {
-        label: 'Trabajadores',
-        href: '/trabajadores',
+        label: 'Usuarios y Accesos',
         icon: Users,
-        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
-      },
-      {
-        label: 'Médicos Ocupacionales',
-        href: '/medicos-ocupacionales',
-        icon: Stethoscope,
-        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
-      },
-      {
-        label: 'Auditores',
-        href: '/auditores',
-        icon: ShieldAlert,
-        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
-      },
-      {
-        label: 'Usuarios Centro Médico',
-        href: '/usuarios-centro-medico',
-        icon: Building2,
-        roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+        items: [
+          {
+            label: 'Usuarios',
+            href: '/gestion-usuarios',
+            icon: UserCog,
+            roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+          },
+          {
+            label: 'Trabajadores',
+            href: '/trabajadores',
+            icon: Users,
+            roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+          },
+          {
+            label: 'Médicos Ocupacionales',
+            href: '/medicos-ocupacionales',
+            icon: Stethoscope,
+            roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+          },
+          {
+            label: 'Auditores',
+            href: '/auditores',
+            icon: ShieldAlert,
+            roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+          },
+          {
+            label: 'Usuarios Centro Médico',
+            href: '/usuarios-centro-medico',
+            icon: Building2,
+            roles: [UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA],
+          },
+        ],
       },
       {
         label: 'Alertas',

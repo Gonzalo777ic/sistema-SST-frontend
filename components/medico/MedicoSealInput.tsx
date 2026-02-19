@@ -47,12 +47,6 @@ export function MedicoSealInput({
   const sealHeight = 170;
 
   useEffect(() => {
-    if (mode === 'sistema') {
-      renderSystemSeal();
-    }
-  }, [mode, nombreCompleto, cmp, tituloSello, firmaDataUrl]);
-
-  useEffect(() => {
     if (mode === 'custom' && customUpload) {
       applySealColor(customUpload, customColor).then((sealUrl) => {
         if (agregarFirma && firmaDataUrl) {
@@ -64,21 +58,10 @@ export function MedicoSealInput({
     }
   }, [mode, customUpload, customColor, agregarFirma, firmaDataUrl]);
 
-  const renderSystemSeal = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    canvas.width = sealWidth;
-    canvas.height = sealHeight;
-    ctx.clearRect(0, 0, sealWidth, sealHeight);
-
+  const drawSealText = (ctx: CanvasRenderingContext2D) => {
     ctx.strokeStyle = '#003366';
     ctx.lineWidth = 2;
     ctx.strokeRect(8, 8, sealWidth - 16, sealHeight - 16);
-
     ctx.fillStyle = '#003366';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
@@ -86,42 +69,87 @@ export function MedicoSealInput({
     ctx.font = '10px sans-serif';
     ctx.fillText((tituloSello || 'MÉDICO OCUPACIONAL').toUpperCase(), sealWidth / 2, 50);
     ctx.fillText(`C.M.P ${cmp || ''}`, sealWidth / 2, 68);
-
-    const zonaFirmaY = 95;
-    const zonaFirmaH = sealHeight - zonaFirmaY - 12;
-
-    const drawSignature = () => {
-      if (firmaDataUrl) {
-        const img = new Image();
-        img.onload = () => {
-          const maxW = 120;
-          const maxH = zonaFirmaH;
-          let w = img.width;
-          let h = img.height;
-          if (w > maxW || h > maxH) {
-            const ratio = Math.min(maxW / w, maxH / h);
-            w *= ratio;
-            h *= ratio;
-          }
-          const x = (sealWidth - w) / 2;
-          const y = zonaFirmaY + (zonaFirmaH - h) / 2;
-          ctx.drawImage(img, x, y, w, h);
-          onChange?.(canvas.toDataURL('image/png'));
-        };
-        img.onerror = () => onChange?.(canvas.toDataURL('image/png'));
-        img.src = firmaDataUrl;
-      } else {
-        onChange?.(canvas.toDataURL('image/png'));
-      }
-    };
-    drawSignature();
   };
 
   useEffect(() => {
-    if (mode === 'sistema') {
-      renderSystemSeal();
+    if (mode !== 'sistema') return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let cancelled = false;
+    const zonaFirmaY = 95;
+    const zonaFirmaH = sealHeight - zonaFirmaY - 12;
+
+    const outputSealOnly = () => {
+      if (cancelled) return;
+      try {
+        onChange?.(canvas.toDataURL('image/png'));
+      } catch {
+        // Fallback si el canvas está tainted
+      }
+    };
+
+    const drawSignature = (signatureDataUrl: string) => {
+      const img = new Image();
+      img.onload = () => {
+        if (cancelled) return;
+        const maxW = 120;
+        const maxH = zonaFirmaH;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w *= ratio;
+          h *= ratio;
+        }
+        const x = (sealWidth - w) / 2;
+        const y = zonaFirmaY + (zonaFirmaH - h) / 2;
+        ctx.drawImage(img, x, y, w, h);
+        try {
+          onChange?.(canvas.toDataURL('image/png'));
+        } catch {
+          outputSealOnly();
+        }
+      };
+      img.onerror = outputSealOnly;
+      img.src = signatureDataUrl;
+    };
+
+    canvas.width = sealWidth;
+    canvas.height = sealHeight;
+    ctx.clearRect(0, 0, sealWidth, sealHeight);
+    drawSealText(ctx);
+
+    if (firmaDataUrl && firmaDataUrl.startsWith('data:')) {
+      drawSignature(firmaDataUrl);
+    } else if (firmaDataUrl && (firmaDataUrl.startsWith('http://') || firmaDataUrl.startsWith('https://'))) {
+      fetch(firmaDataUrl, { mode: 'cors' })
+        .then((r) => (cancelled ? null : r.blob()))
+        .then((blob) => {
+          if (cancelled || !blob) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (cancelled) return;
+            drawSignature(reader.result as string);
+          };
+          reader.onerror = outputSealOnly;
+          reader.readAsDataURL(blob);
+        })
+        .catch(() => {
+          if (!cancelled) outputSealOnly();
+        });
+    } else {
+      outputSealOnly();
     }
-  }, [nombreCompleto, cmp, tituloSello, firmaDataUrl, mode]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, nombreCompleto, cmp, tituloSello, firmaDataUrl]);
 
   const handleCustomFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -130,9 +158,8 @@ export function MedicoSealInput({
     setProcessing(true);
     try {
       const processed = await processSignatureImage(file, {
-        backgroundThreshold: 200,
+        mode: 'auto',
         inkColor: 'black',
-        contrastFactor: 1.8,
         strokeThickness: 0,
       });
       setCustomUpload(processed);

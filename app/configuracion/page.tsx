@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usuariosService, UpdatePerfilAdminDto } from '@/services/usuarios.service';
-import { trabajadoresService, Trabajador, UpdatePersonalDataDto } from '@/services/trabajadores.service';
+import { trabajadoresService, Trabajador, UpdatePersonalDataDto, UpdateMedicoPersonalDataDto } from '@/services/trabajadores.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -14,6 +14,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { SignaturePad } from '@/components/ui/signature-pad';
+import { MedicoSignatureInput } from '@/components/medico/MedicoSignatureInput';
+import { MedicoSealInput } from '@/components/medico/MedicoSealInput';
 import { Modal } from '@/components/ui/modal';
 
 const changePasswordSchema = z.object({
@@ -45,8 +47,14 @@ const adminPerfilSchema = z.object({
   password_actual: z.string().min(1, 'La contraseña es obligatoria para guardar cambios'),
 });
 
+const medicoPerfilSchema = z.object({
+  titulo_sello: z.string().optional(),
+  password_actual: z.string().min(1, 'La contraseña es obligatoria para guardar cambios'),
+});
+
 type PersonalDataFormData = z.infer<typeof personalDataSchema>;
 type AdminPerfilFormData = z.infer<typeof adminPerfilSchema>;
+type MedicoPerfilFormData = z.infer<typeof medicoPerfilSchema>;
 
 const tallasCasco = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 const tallasRopa = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -58,11 +66,18 @@ function isAdminSinTrabajador(u: { roles?: string[]; trabajadorId?: string | nul
   return !!esAdmin && !u.trabajadorId;
 }
 
+function isMedicoOcupacional(u: { roles?: string[]; trabajadorId?: string | null } | null): boolean {
+  if (!u) return false;
+  const esMedico = u.roles?.includes(UsuarioRol.MEDICO) || u.roles?.includes(UsuarioRol.CENTRO_MEDICO);
+  return !!esMedico && !!u.trabajadorId;
+}
+
 export default function ConfiguracionPage() {
   const { usuario: currentUser, refreshUserProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmittingPersonal, setIsSubmittingPersonal] = useState(false);
   const [isSubmittingAdmin, setIsSubmittingAdmin] = useState(false);
+  const [isSubmittingMedico, setIsSubmittingMedico] = useState(false);
   const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
   const [usuarioCompleto, setUsuarioCompleto] = useState<{
     nombres?: string | null;
@@ -77,9 +92,13 @@ export default function ConfiguracionPage() {
   const [showPasswordPersonal, setShowPasswordPersonal] = useState(false);
   const [showPasswordAdmin, setShowPasswordAdmin] = useState(false);
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
+  const [medicoFirmaDibujada, setMedicoFirmaDibujada] = useState('');
+  const [medicoFirmaImagen, setMedicoFirmaImagen] = useState('');
+  const [medicoSello, setMedicoSello] = useState('');
 
   const esAdmin = currentUser?.roles?.includes(UsuarioRol.SUPER_ADMIN) || currentUser?.roles?.includes(UsuarioRol.ADMIN_EMPRESA);
   const esAdminSinTrabajador = isAdminSinTrabajador(currentUser ?? null);
+  const esMedico = isMedicoOcupacional(currentUser ?? null);
 
   const {
     register,
@@ -115,6 +134,14 @@ export default function ConfiguracionPage() {
       apellido_materno: '',
       dni: '',
       firma_digital_url: '',
+      password_actual: '',
+    },
+  });
+
+  const medicoPerfilForm = useForm<MedicoPerfilFormData>({
+    resolver: zodResolver(medicoPerfilSchema),
+    defaultValues: {
+      titulo_sello: 'MÉDICO OCUPACIONAL',
       password_actual: '',
     },
   });
@@ -162,9 +189,18 @@ export default function ConfiguracionPage() {
         firma_digital_url: '',
         password_actual: '',
       });
+      if (esMedico) {
+        medicoPerfilForm.reset({
+          titulo_sello: trabajador.titulo_sello ?? 'MÉDICO OCUPACIONAL',
+          password_actual: '',
+        });
+        setMedicoFirmaDibujada('');
+        setMedicoFirmaImagen('');
+        setMedicoSello('');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trabajador?.id]);
+  }, [trabajador?.id, esMedico]);
 
   const onSubmitPersonalData = async (data: PersonalDataFormData) => {
     if (!currentUser?.trabajadorId) return;
@@ -221,6 +257,73 @@ export default function ConfiguracionPage() {
       });
     } finally {
       setIsSubmittingPersonal(false);
+    }
+  };
+
+  const onSubmitMedicoPerfil = async (data: MedicoPerfilFormData) => {
+    if (!currentUser?.trabajadorId || !trabajador) return;
+    const tieneFirma = trabajador.firma_digital_url || medicoFirmaImagen || medicoFirmaDibujada;
+    const tieneSello = trabajador.sello_url || medicoSello;
+    if (!tieneFirma) {
+      toast.error('Debe registrar su firma digital');
+      return;
+    }
+    if (!tieneSello) {
+      toast.error('Debe generar o subir su sello digital');
+      return;
+    }
+
+    setIsSubmittingMedico(true);
+    try {
+      const { authService } = await import('@/services/auth.service');
+      try {
+        await authService.login({
+          dni: currentUser.dni,
+          password: data.password_actual,
+        });
+      } catch {
+        toast.error('Contraseña incorrecta', {
+          description: 'La contraseña actual no es válida',
+        });
+        setIsSubmittingMedico(false);
+        return;
+      }
+
+      const firmaFinal = medicoFirmaImagen || medicoFirmaDibujada;
+      if (firmaFinal) {
+        const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+        if (!isValidSignature(firmaFinal)) {
+          toast.error(getSignatureValidationError());
+          setIsSubmittingMedico(false);
+          return;
+        }
+      }
+
+      const payload: UpdateMedicoPersonalDataDto = {
+        titulo_sello: data.titulo_sello || 'MÉDICO OCUPACIONAL',
+        firma_imagen_base64: medicoFirmaImagen || undefined,
+        firma_digital_url: !medicoFirmaImagen ? medicoFirmaDibujada : undefined,
+        sello_base64: medicoSello || undefined,
+      };
+
+      await trabajadoresService.updateMedicoPersonalData(currentUser.trabajadorId, payload);
+      const updated = await trabajadoresService.findOne(currentUser.trabajadorId);
+      setTrabajador(updated);
+
+      toast.success('Firma y sello actualizados', {
+        description: 'Sus datos han sido guardados correctamente',
+      });
+
+      medicoPerfilForm.reset({
+        ...medicoPerfilForm.getValues(),
+        password_actual: '',
+      });
+    } catch (error: any) {
+      toast.error('Error al actualizar', {
+        description: error.response?.data?.message || 'No se pudieron guardar los cambios',
+      });
+    } finally {
+      setIsSubmittingMedico(false);
     }
   };
 
@@ -602,8 +705,127 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      {/* Tallas y Firma - Solo empleado con trabajador vinculado */}
-      {currentUser.trabajadorId && (
+      {/* Firma y Sello - Solo médico ocupacional */}
+      {currentUser.trabajadorId && trabajador && esMedico && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <FileSignature className="w-5 h-5" />
+            Firma y Sello
+          </h2>
+          <p className="text-slate-600 text-sm mb-4">
+            Puedes ver y actualizar tu firma digital y sello. Se requiere tu contraseña para guardar cambios.
+          </p>
+          <form onSubmit={medicoPerfilForm.handleSubmit(onSubmitMedicoPerfil)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Firma guardada</p>
+                {(trabajador.firma_digital_url || medicoFirmaImagen || medicoFirmaDibujada) ? (
+                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 min-h-[100px] flex items-center justify-center">
+                    <img
+                      src={
+                        medicoFirmaImagen || medicoFirmaDibujada ||
+                        trabajador.firma_digital_url!
+                      }
+                      alt="Firma actual"
+                      className="max-h-24 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">Aún no has registrado una firma</p>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-slate-700 mb-2">Sello guardado</p>
+                {trabajador.sello_url && !medicoSello ? (
+                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50 min-h-[100px] flex items-center justify-center">
+                    <img
+                      src={trabajador.sello_url}
+                      alt="Sello actual"
+                      className="max-h-24 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : medicoSello ? (
+                  <p className="text-sm text-slate-500 italic">El sello se previsualiza abajo al generarlo</p>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">Aún no has registrado un sello</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Actualizar firma digital</label>
+              <MedicoSignatureInput
+                drawnValue={medicoFirmaDibujada || undefined}
+                uploadedValue={medicoFirmaImagen || undefined}
+                onDrawnChange={(url) => setMedicoFirmaDibujada(url)}
+                onUploadedChange={(url) => setMedicoFirmaImagen(url || '')}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Actualizar sello digital</label>
+              <MedicoSealInput
+                nombreCompleto={trabajador.nombre_completo || ''}
+                cmp={trabajador.cmp || ''}
+                tituloSello={medicoPerfilForm.watch('titulo_sello') || 'MÉDICO OCUPACIONAL'}
+                firmaDataUrl={medicoFirmaImagen || medicoFirmaDibujada || trabajador.firma_digital_url || undefined}
+                value={medicoSello || undefined}
+                onChange={(url) => setMedicoSello(url)}
+                onTituloSelloChange={(v) => medicoPerfilForm.setValue('titulo_sello', v)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Contraseña actual <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Input
+                  {...medicoPerfilForm.register('password_actual')}
+                  type={showPasswordPersonal ? 'text' : 'password'}
+                  placeholder="Ingresa tu contraseña para confirmar"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordPersonal(!showPasswordPersonal)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                >
+                  {showPasswordPersonal ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {medicoPerfilForm.formState.errors.password_actual && (
+                <p className="mt-1 text-sm text-red-600">
+                  {medicoPerfilForm.formState.errors.password_actual.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  medicoPerfilForm.reset({
+                    titulo_sello: trabajador.titulo_sello ?? 'MÉDICO OCUPACIONAL',
+                    password_actual: '',
+                  })
+                }
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmittingMedico}>
+                {isSubmittingMedico ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Tallas y Firma - Solo empleado con trabajador (no médico) */}
+      {currentUser.trabajadorId && trabajador && !esMedico && (
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
             <FileSignature className="w-5 h-5" />
@@ -612,135 +834,138 @@ export default function ConfiguracionPage() {
           <p className="text-slate-600 text-sm mb-4">
             Puedes modificar tus tallas de EPP y tu firma digital. Se requiere tu contraseña para guardar cambios.
           </p>
-          {trabajador ? (
-            <form onSubmit={personalDataForm.handleSubmit(onSubmitPersonalData)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Casco</label>
-                  <Select {...personalDataForm.register('talla_casco')} className="w-full">
-                    <option value="">Seleccione una talla</option>
-                    {tallasCasco.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Camisa</label>
-                  <Select {...personalDataForm.register('talla_camisa')} className="w-full">
-                    <option value="">Seleccione una talla</option>
-                    {tallasRopa.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Pantalón</label>
-                  <Select {...personalDataForm.register('talla_pantalon')} className="w-full">
-                    <option value="">Seleccione una talla</option>
-                    {tallasRopa.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Calzado</label>
-                  <Select {...personalDataForm.register('talla_calzado')} className="w-full">
-                    <option value="">Seleccione una talla</option>
-                    {tallasCalzado.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </Select>
-                </div>
-              </div>
-
+          <form onSubmit={personalDataForm.handleSubmit(onSubmitPersonalData)} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Firma digital</label>
-                <p className="text-xs text-slate-500 mb-2">
-                  Dibuje su firma. Se usará en registros de entrega de EPP.
-                </p>
-                {(trabajador.firma_digital_url || personalDataForm.watch('firma_digital_url')?.startsWith('data:')) && (
-                  <div className="mb-3 space-y-2">
-                    <p className="text-xs text-slate-600 font-medium">Firma actual:</p>
-                    <div className="border border-slate-200 rounded-lg p-2 bg-slate-50 inline-block min-h-[80px]">
-                      <img
-                        src={
-                          personalDataForm.watch('firma_digital_url')?.startsWith('data:')
-                            ? personalDataForm.watch('firma_digital_url')!
-                            : trabajador.firma_digital_url!
-                        }
-                        alt="Firma registrada"
-                        className="max-h-24 object-contain"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500">Dibuje abajo para reemplazar la firma.</p>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Casco</label>
+                <Select {...personalDataForm.register('talla_casco')} className="w-full">
+                  <option value="">Seleccione una talla</option>
+                  {tallasCasco.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Camisa</label>
+                <Select {...personalDataForm.register('talla_camisa')} className="w-full">
+                  <option value="">Seleccione una talla</option>
+                  {tallasRopa.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Pantalón</label>
+                <Select {...personalDataForm.register('talla_pantalon')} className="w-full">
+                  <option value="">Seleccione una talla</option>
+                  {tallasRopa.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Talla de Calzado</label>
+                <Select {...personalDataForm.register('talla_calzado')} className="w-full">
+                  <option value="">Seleccione una talla</option>
+                  {tallasCalzado.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Firma digital</label>
+              <p className="text-xs text-slate-500 mb-2">
+                Dibuje su firma. Se usará en registros de entrega de EPP.
+              </p>
+              {(trabajador.firma_digital_url || personalDataForm.watch('firma_digital_url')?.startsWith('data:')) && (
+                <div className="mb-3 space-y-2">
+                  <p className="text-xs text-slate-600 font-medium">Firma actual:</p>
+                  <div className="border border-slate-200 rounded-lg p-2 bg-slate-50 inline-block min-h-[80px]">
+                    <img
+                      src={
+                        personalDataForm.watch('firma_digital_url')?.startsWith('data:')
+                          ? personalDataForm.watch('firma_digital_url')!
+                          : trabajador.firma_digital_url!
+                      }
+                      alt="Firma registrada"
+                      className="max-h-24 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
-                )}
-                <SignaturePad
-                  value={
-                    personalDataForm.watch('firma_digital_url')?.startsWith('data:')
-                      ? personalDataForm.watch('firma_digital_url')!
-                      : undefined
-                  }
-                  onChange={(url) => personalDataForm.setValue('firma_digital_url', url)}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Contraseña actual <span className="text-red-500">*</span>
-                </label>
-                <div className="relative">
-                  <Input
-                    {...personalDataForm.register('password_actual')}
-                    type={showPasswordPersonal ? 'text' : 'password'}
-                    placeholder="Ingresa tu contraseña para confirmar"
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswordPersonal(!showPasswordPersonal)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
-                  >
-                    {showPasswordPersonal ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
+                  <p className="text-xs text-slate-500">Dibuje abajo para reemplazar la firma.</p>
                 </div>
-                {personalDataForm.formState.errors.password_actual && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {personalDataForm.formState.errors.password_actual.message}
-                  </p>
-                )}
-              </div>
+              )}
+              <SignaturePad
+                value={
+                  personalDataForm.watch('firma_digital_url')?.startsWith('data:')
+                    ? personalDataForm.watch('firma_digital_url')!
+                    : undefined
+                }
+                onChange={(url) => personalDataForm.setValue('firma_digital_url', url)}
+              />
+            </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
-                <Button
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Contraseña actual <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Input
+                  {...personalDataForm.register('password_actual')}
+                  type={showPasswordPersonal ? 'text' : 'password'}
+                  placeholder="Ingresa tu contraseña para confirmar"
+                  className="pr-10"
+                />
+                <button
                   type="button"
-                  variant="outline"
-                  onClick={() =>
-                    personalDataForm.reset({
-                      talla_casco: trabajador.talla_casco ?? '',
-                      talla_camisa: trabajador.talla_camisa ?? '',
-                      talla_pantalon: trabajador.talla_pantalon ?? '',
-                      talla_calzado: trabajador.talla_calzado != null ? String(trabajador.talla_calzado) : '',
-                      firma_digital_url: '',
-                      password_actual: '',
-                    })
-                  }
+                  onClick={() => setShowPasswordPersonal(!showPasswordPersonal)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
                 >
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isSubmittingPersonal}>
-                  {isSubmittingPersonal ? 'Guardando...' : 'Guardar cambios'}
-                </Button>
+                  {showPasswordPersonal ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
+                </button>
               </div>
-            </form>
-          ) : (
-            <p className="text-slate-500 text-sm">Cargando datos...</p>
-          )}
+              {personalDataForm.formState.errors.password_actual && (
+                <p className="mt-1 text-sm text-red-600">
+                  {personalDataForm.formState.errors.password_actual.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  personalDataForm.reset({
+                    talla_casco: trabajador.talla_casco ?? '',
+                    talla_camisa: trabajador.talla_camisa ?? '',
+                    talla_pantalon: trabajador.talla_pantalon ?? '',
+                    talla_calzado: trabajador.talla_calzado != null ? String(trabajador.talla_calzado) : '',
+                    firma_digital_url: '',
+                    password_actual: '',
+                  })
+                }
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmittingPersonal}>
+                {isSubmittingPersonal ? 'Guardando...' : 'Guardar cambios'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Cargando cuando hay trabajadorId pero no trabajador aún */}
+      {currentUser.trabajadorId && !trabajador && (
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <p className="text-slate-500 text-sm">Cargando datos...</p>
         </div>
       )}
 
