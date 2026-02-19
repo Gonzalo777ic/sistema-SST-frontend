@@ -315,6 +315,31 @@ export const capacitacionesService = {
     return response.data;
   },
 
+  async getCumplimientoAnual(
+    empresaId: string,
+    anio?: number,
+    filtros?: { unidad?: string; area?: string; sede?: string; gerencia?: string },
+  ): Promise<{
+    total_trabajadores_activos: number;
+    trabajadores: Array<{
+      trabajador_id: string;
+      nombre: string;
+      documento: string;
+      area: string | null;
+      cantidad_certificados: number;
+      capacitaciones: Array<{ titulo: string; fecha: string; tipo: string }>;
+    }>;
+  }> {
+    const params: Record<string, string> = { empresa_id: empresaId };
+    if (anio) params.anio = String(anio);
+    if (filtros?.unidad) params.unidad = filtros.unidad;
+    if (filtros?.area) params.area = filtros.area;
+    if (filtros?.sede) params.sede = filtros.sede;
+    if (filtros?.gerencia) params.gerencia = filtros.gerencia;
+    const response = await apiClient.get('/capacitaciones/reportes/cumplimiento-anual', { params });
+    return response.data;
+  },
+
   async eliminarEvaluacionFavorita(id: string): Promise<void> {
     await apiClient.delete(`/capacitaciones/evaluaciones-favoritas/${id}`);
   },

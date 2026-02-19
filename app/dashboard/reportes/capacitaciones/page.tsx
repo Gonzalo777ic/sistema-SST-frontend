@@ -74,8 +74,52 @@ export default function ReportesCapacitacionesPage() {
   });
 
   const [capacitaciones, setCapacitaciones] = useState<Capacitacion[]>([]);
+  const [cumplimientoAnual, setCumplimientoAnual] = useState<{
+    total_trabajadores_activos: number;
+    trabajadores: Array<{
+      trabajador_id: string;
+      nombre: string;
+      documento: string;
+      area: string | null;
+      cantidad_certificados: number;
+      capacitaciones: Array<{ titulo: string; fecha: string; tipo: string }>;
+    }>;
+  } | null>(null);
+  const [anioCumplimiento, setAnioCumplimiento] = useState(new Date().getFullYear());
+  const [umbralMinimo, setUmbralMinimo] = useState(4);
+  const [sliceCumplimientoActivo, setSliceCumplimientoActivo] = useState<string | null>(null);
+  const [loadingCumplimiento, setLoadingCumplimiento] = useState(false);
+  const [trabajadorDetalleExpandido, setTrabajadorDetalleExpandido] = useState<{
+    trabajador_id: string;
+    nombre: string;
+    capacitaciones: Array<{ titulo: string; fecha: string; tipo: string }>;
+  } | null>(null);
 
   const empresaId = filtros.empresa_id || usuario?.empresaId || '';
+  const empresasParaCumplimiento =
+    filtros.empresa_id
+      ? [filtros.empresa_id]
+      : empresas.length > 0
+        ? empresas.map((e) => e.id)
+        : usuario?.empresaId
+          ? [usuario.empresaId]
+          : [];
+
+  const trabajadoresSinUmbral = cumplimientoAnual?.trabajadores.filter((t) => t.cantidad_certificados < umbralMinimo) ?? [];
+  const trabajadoresConUmbral = cumplimientoAnual?.trabajadores.filter((t) => t.cantidad_certificados >= umbralMinimo) ?? [];
+  const todosTrabajadores = [...trabajadoresSinUmbral, ...trabajadoresConUmbral];
+  const trabajadoresFiltrados =
+    sliceCumplimientoActivo === 'nocumplen'
+      ? trabajadoresSinUmbral
+      : sliceCumplimientoActivo === 'cumplen'
+        ? trabajadoresConUmbral
+        : todosTrabajadores;
+  const pieCumplimientoData = cumplimientoAnual
+    ? [
+        { name: `Cumplen (≥${umbralMinimo})`, value: trabajadoresConUmbral.length, fill: COLORS.success },
+        { name: `No cumplen (<${umbralMinimo})`, value: trabajadoresSinUmbral.length, fill: COLORS.danger },
+      ].filter((d) => d.value > 0)
+    : [];
 
   useEffect(() => {
     empresasService.findAll().then(setEmpresas).catch(() => []);
@@ -87,25 +131,27 @@ export default function ReportesCapacitacionesPage() {
     }).catch(() => setConfigGrupos([]));
   }, []);
 
+  const empresaIdParaEstructura = empresaId || (empresas.length > 0 ? empresas[0].id : '');
+
   useEffect(() => {
-    if (!empresaId) {
+    if (!empresaIdParaEstructura) {
       setAreas([]);
       return;
     }
-    areasService.findAll(empresaId).then(setAreas).catch(() => []);
-  }, [empresaId]);
+    areasService.findAll(empresaIdParaEstructura).then(setAreas).catch(() => []);
+  }, [empresaIdParaEstructura]);
 
   useEffect(() => {
-    if (!empresaId) {
+    if (!empresaIdParaEstructura) {
       setUnidades([]);
       setSedes([]);
       setGerencias([]);
       return;
     }
     Promise.all([
-      estructuraService.findUnidades(empresaId),
-      estructuraService.findSedes(empresaId),
-      estructuraService.findGerencias(empresaId),
+      estructuraService.findUnidades(empresaIdParaEstructura),
+      estructuraService.findSedes(empresaIdParaEstructura),
+      estructuraService.findGerencias(empresaIdParaEstructura),
     ]).then(([u, s, g]) => {
       setUnidades(u);
       setSedes(s);
@@ -115,11 +161,44 @@ export default function ReportesCapacitacionesPage() {
       setSedes([]);
       setGerencias([]);
     });
-  }, [empresaId]);
+  }, [empresaIdParaEstructura]);
 
   useEffect(() => {
     loadCapacitaciones();
   }, [fechaDesde, fechaHasta, filtros, usuario?.empresaId]);
+
+  useEffect(() => {
+    if (empresasParaCumplimiento.length > 0) {
+      setLoadingCumplimiento(true);
+      const filtrosCumplimiento = {
+        unidad: filtros.unidad || undefined,
+        area: filtros.area || undefined,
+        sede: filtros.sede || undefined,
+        gerencia: filtros.gerencia || undefined,
+      };
+      Promise.all(
+        empresasParaCumplimiento.map((empId) =>
+          capacitacionesService.getCumplimientoAnual(empId, anioCumplimiento, filtrosCumplimiento),
+        ),
+      )
+        .then((results) => {
+          const merged = {
+            total_trabajadores_activos: results.reduce((s, r) => s + r.total_trabajadores_activos, 0),
+            trabajadores: results.flatMap((r) => r.trabajadores),
+          };
+          setCumplimientoAnual(merged);
+        })
+        .catch(() => setCumplimientoAnual(null))
+        .finally(() => setLoadingCumplimiento(false));
+    } else {
+      setCumplimientoAnual(null);
+    }
+  }, [empresasParaCumplimiento.join(','), anioCumplimiento, filtros.unidad, filtros.area, filtros.sede, filtros.gerencia]);
+
+  // Limpiar detalle expandido cuando cambian los datos
+  useEffect(() => {
+    setTrabajadorDetalleExpandido(null);
+  }, [cumplimientoAnual, umbralMinimo]);
 
   const loadCapacitaciones = async () => {
     try {
@@ -204,12 +283,13 @@ export default function ReportesCapacitacionesPage() {
     cantidad: m.cantidad,
   }));
 
-  // 4. Estado de capacitaciones
+  // 4. Estado de capacitaciones (Cancelada se muestra como Cerrada)
   const porEstado = (() => {
     const counts: Record<string, number> = {};
     capacitaciones.forEach((c) => {
       const e = c.estado || 'Sin estado';
-      counts[e] = (counts[e] || 0) + 1;
+      const displayEstado = e === 'Cancelada' ? 'Cerrada' : e;
+      counts[displayEstado] = (counts[displayEstado] || 0) + 1;
     });
     return Object.entries(counts).map(([estado, cantidad]) => ({ estado, cantidad }));
   })();
@@ -356,6 +436,222 @@ export default function ReportesCapacitacionesPage() {
           </Button>
         </div>
       </div>
+
+      {/* Cumplimiento anual: 4 capacitaciones con certificado (regla SUNAFIL) */}
+      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">
+            Cumplimiento anual por trabajador (Plan Anual)
+          </h2>
+          <p className="text-sm text-slate-600 mb-4">
+            Regla: cada trabajador debe completar al menos 4 capacitaciones anuales con certificado (año calendario). Haga clic en cada segmento del gráfico para filtrar la tabla (cumplen / no cumplen). Vuelva a hacer clic para mostrar todos.
+          </p>
+          <div className="flex flex-wrap gap-4 items-center mb-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Año calendario</label>
+              <Select
+                value={String(anioCumplimiento)}
+                onChange={(e) => setAnioCumplimiento(parseInt(e.target.value, 10))}
+                className="w-28"
+              >
+                {[new Date().getFullYear(), new Date().getFullYear() - 1, new Date().getFullYear() - 2].map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Umbral mínimo de capacitaciones: {umbralMinimo}
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={umbralMinimo}
+                onChange={(e) => setUmbralMinimo(Number(e.target.value))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-xs text-slate-500 mt-1">
+                <span>1</span>
+                <span>10</span>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              {loadingCumplimiento ? (
+                <Skeleton className="h-64 w-full" />
+              ) : cumplimientoAnual && cumplimientoAnual.total_trabajadores_activos === 0 ? (
+                <div className="h-64 flex items-center justify-center text-slate-400">
+                  No hay trabajadores activos en la empresa
+                </div>
+              ) : pieCumplimientoData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={pieCumplimientoData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(data: any) => {
+                        const name = data?.name ?? '';
+                        if (name.includes('No cumplen')) {
+                          setSliceCumplimientoActivo((prev) => (prev === 'nocumplen' ? null : 'nocumplen'));
+                        } else if (name.includes('Cumplen')) {
+                          setSliceCumplimientoActivo((prev) => (prev === 'cumplen' ? null : 'cumplen'));
+                        }
+                      }}
+                    >
+                      {pieCumplimientoData.map((entry, i) => {
+                        const esNoCumplen = entry.name.includes('No cumplen');
+                        const esCumplen = entry.name.includes('Cumplen');
+                        const seleccionado = sliceCumplimientoActivo === 'nocumplen' ? esNoCumplen : sliceCumplimientoActivo === 'cumplen' ? esCumplen : true;
+                        const opacidad = seleccionado ? 1 : 0.35;
+                        return (
+                          <Cell
+                            key={i}
+                            fill={entry.fill}
+                            fillOpacity={opacidad}
+                            stroke="#fff"
+                            strokeWidth={2}
+                          />
+                        );
+                      })}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [`${value} trabajadores`, '']}
+                      contentStyle={{ fontSize: '13px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-slate-400">
+                  {empresasParaCumplimiento.length > 0 ? 'No hay datos de cumplimiento' : 'Seleccione una empresa para ver el cumplimiento'}
+                </div>
+              )}
+            </div>
+            <div>
+              {todosTrabajadores.length > 0 ? (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <p className="bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+                    {sliceCumplimientoActivo === 'nocumplen'
+                      ? `No cumplen (${trabajadoresSinUmbral.length})`
+                      : sliceCumplimientoActivo === 'cumplen'
+                        ? `Cumplen (${trabajadoresConUmbral.length})`
+                        : `Trabajadores (${todosTrabajadores.length}) — ${trabajadoresConUmbral.length} cumplen, ${trabajadoresSinUmbral.length} no cumplen`}
+                  </p>
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 sticky top-0 z-10 shadow-[0_1px_0_0_rgba(0,0,0,0.05)]">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-slate-600">Trabajador</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-600">Área</th>
+                          <th className="px-3 py-2 text-center font-medium text-slate-600 w-20">Cantidad</th>
+                          <th className="px-3 py-2 text-center font-medium text-slate-600">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {trabajadoresFiltrados.map((t) => {
+                          const cumple = t.cantidad_certificados >= umbralMinimo;
+                          return (
+                            <tr
+                              key={t.trabajador_id}
+                              className={`hover:bg-slate-50 cursor-pointer ${trabajadorDetalleExpandido?.trabajador_id === t.trabajador_id ? 'bg-slate-100' : ''}`}
+                              onClick={() =>
+                                setTrabajadorDetalleExpandido((prev) =>
+                                  prev?.trabajador_id === t.trabajador_id ? null : { trabajador_id: t.trabajador_id, nombre: t.nombre, capacitaciones: t.capacitaciones },
+                                )
+                              }
+                            >
+                              <td className="px-3 py-2">{t.nombre} ({t.documento})</td>
+                              <td className="px-3 py-2">{t.area || '-'}</td>
+                              <td className="px-3 py-2 text-center align-middle w-20">
+                                <div className="relative group inline-block w-8">
+                                  <span
+                                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-medium cursor-help shrink-0 ${
+                                      cumple ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    {t.cantidad_certificados}
+                                  </span>
+                                  <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-50 w-64 max-h-48 overflow-y-auto bg-slate-800 text-white text-xs rounded-lg shadow-xl p-3 pointer-events-none">
+                                    <p className="font-semibold mb-2">Capacitaciones completadas:</p>
+                                    {t.capacitaciones.length > 0 ? (
+                                      <ul className="space-y-1">
+                                        {t.capacitaciones.map((c, i) => (
+                                          <li key={i}>• {c.titulo} ({c.fecha}) — {c.tipo}</li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-slate-400">Sin capacitaciones</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${cumple ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                                  {cumple ? 'Cumple' : 'No cumple'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-slate-500 px-4 py-2 border-t border-slate-100">
+                    Pase el cursor sobre la cantidad para ver las capacitaciones. Haga clic en una fila para ver el detalle.
+                  </p>
+                  {trabajadorDetalleExpandido && (
+                    <div className="border-t border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-medium text-slate-700 mb-2">
+                        Detalle de capacitaciones — {trabajadorDetalleExpandido.nombre}
+                      </p>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200">
+                            <th className="px-3 py-2 text-left font-medium text-slate-600">Capacitación</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-600">Fecha de realización</th>
+                            <th className="px-3 py-2 text-left font-medium text-slate-600">Tipo</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {trabajadorDetalleExpandido.capacitaciones.length > 0 ? (
+                            trabajadorDetalleExpandido.capacitaciones.map((c, i) => (
+                              <tr key={i}>
+                                <td className="px-3 py-2">{c.titulo}</td>
+                                <td className="px-3 py-2">{c.fecha}</td>
+                                <td className="px-3 py-2">{c.tipo}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={3} className="px-3 py-2 text-slate-500">
+                                Sin capacitaciones registradas
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              ) : cumplimientoAnual && cumplimientoAnual.total_trabajadores_activos === 0 ? (
+                <div className="h-64 flex items-center justify-center text-slate-500 border border-slate-200 rounded-lg">
+                  No hay trabajadores activos
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                  Haga clic en el gráfico para ver la lista de trabajadores
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
       {isLoading ? (
         <div className="space-y-4">

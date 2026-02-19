@@ -227,13 +227,14 @@ export default function CapacitacionesPage() {
       PENDIENTE: 'bg-amber-100 text-amber-800',
       PROGRAMADA: 'bg-sky-100 text-sky-800',
       COMPLETADA: 'bg-green-100 text-green-800',
-      Cancelada: 'bg-red-100 text-red-800',
+      Cancelada: 'bg-slate-200 text-slate-700',
     };
+    const label = estado === 'Cancelada' ? 'Cerrada' : estado;
     return (
       <span
         className={`px-2 py-1 rounded-full text-xs font-medium ${styles[estado] || 'bg-gray-100 text-gray-800'}`}
       >
-        {estado}
+        {label}
       </span>
     );
   };
