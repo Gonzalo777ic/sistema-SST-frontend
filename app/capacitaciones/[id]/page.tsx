@@ -52,6 +52,8 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
+import { SignaturePad } from '@/components/ui/signature-pad';
+import { processSignatureImage } from '@/lib/image-signature-processing';
 
 const TIPOS = Object.values(TipoCapacitacion);
 const NOTA_MINIMA_APROBATORIA = 11;
@@ -332,7 +334,8 @@ export default function CapacitacionDetailPage() {
   const [cerrando, setCerrando] = useState(false);
 
   const [adjuntos, setAdjuntos] = useState<{ id: string; titulo: string; fecha_registro: string; registrado_por: string; archivo_url: string }[]>([]);
-  const [firmaCapacitador, setFirmaCapacitador] = useState<string | null>(null);
+  const [firmaCapacitadorUploaded, setFirmaCapacitadorUploaded] = useState<string | null>(null);
+  const [firmaCapacitadorDrawn, setFirmaCapacitadorDrawn] = useState<string | null>(null);
   const [gerentesSst, setGerentesSst] = useState<FirmaGerente[]>([]);
   const [gerentesRrhh, setGerentesRrhh] = useState<FirmaGerente[]>([]);
   const [gerentesCertificacion, setGerentesCertificacion] = useState<FirmaGerente[]>([]);
@@ -343,7 +346,9 @@ export default function CapacitacionDetailPage() {
   const [resultadosCapacitador, setResultadosCapacitador] = useState<Trabajador[]>([]);
   const [mostrarDropdownCapacitador, setMostrarDropdownCapacitador] = useState(false);
   const [buscandoCapacitador, setBuscandoCapacitador] = useState(false);
+  const [procesandoFirmaCapacitador, setProcesandoFirmaCapacitador] = useState(false);
   const capacitadorDropdownRef = useRef<HTMLDivElement>(null);
+  const firmaCapacitadorInputRef = useRef<HTMLInputElement>(null);
   const [adjuntoTitulo, setAdjuntoTitulo] = useState('');
   const [adjuntoFile, setAdjuntoFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
@@ -402,7 +407,8 @@ export default function CapacitacionDetailPage() {
         duracion_hhmm: data.duracion_hhmm || '02:00',
         instructor: data.instructor || '',
       });
-      setFirmaCapacitador(data.firma_capacitador_url || null);
+      setFirmaCapacitadorUploaded(data.firma_capacitador_url || null);
+      setFirmaCapacitadorDrawn(null);
       setBusquedaCapacitador('');
       setResultadosCapacitador([]);
       setMostrarDropdownCapacitador(false);
@@ -737,7 +743,10 @@ export default function CapacitacionDetailPage() {
         hora_fin: formData.hora_fin || undefined,
         duracion_hhmm: formData.duracion_hhmm || undefined,
         instructor: formData.instructor || undefined,
-        firma_capacitador_url: firmaCapacitador && firmaCapacitador.startsWith('data:') ? firmaCapacitador : firmaCapacitador || undefined,
+        firma_capacitador_url: (() => {
+          const sig = firmaCapacitadorUploaded || firmaCapacitadorDrawn;
+          return sig && sig.startsWith('data:') ? sig : sig || undefined;
+        })(),
         responsable_rrhh_gerente_id: responsableRrhhGerenteId || undefined,
         responsable_registro_gerente_id: responsableRegistroGerenteId || undefined,
         responsable_certificacion_gerente_id: responsableCertificacionGerenteId || undefined,
@@ -764,6 +773,8 @@ export default function CapacitacionDetailPage() {
       setResponsableRrhhGerenteId(data.responsable_rrhh_gerente_id || '');
       setResponsableRegistroGerenteId(data.responsable_registro_gerente_id || '');
       setResponsableCertificacionGerenteId(data.responsable_certificacion_gerente_id || '');
+      setFirmaCapacitadorUploaded(data.firma_capacitador_url || null);
+      setFirmaCapacitadorDrawn(null);
       toast.success('Cambios guardados correctamente');
     } catch (error: any) {
       toast.error('Error al guardar', {
@@ -774,10 +785,10 @@ export default function CapacitacionDetailPage() {
     }
   };
 
-  const handleFirmaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFirmaCapacitadorUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
       toast.error('Solo se permiten imágenes (PNG, JPG, JPEG)');
       return;
     }
@@ -785,10 +796,26 @@ export default function CapacitacionDetailPage() {
       toast.error('La imagen no debe superar 5 MB');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setFirmaCapacitador(reader.result as string);
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    setProcesandoFirmaCapacitador(true);
+    try {
+      const processed = await processSignatureImage(file, {
+        mode: 'auto',
+        inkColor: 'black',
+        strokeThickness: 1,
+      });
+      setFirmaCapacitadorUploaded(processed);
+      setFirmaCapacitadorDrawn(null);
+    } catch (err) {
+      console.error('Error procesando firma:', err);
+      toast.error('Error al procesar la imagen de firma');
+    } finally {
+      setProcesandoFirmaCapacitador(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleClearFirmaCapacitadorUpload = () => {
+    setFirmaCapacitadorUploaded(null);
   };
 
   const handleGuardarAdjunto = async (titulo: string, file: File | null) => {
@@ -1396,7 +1423,7 @@ export default function CapacitacionDetailPage() {
               </div>
               <div className="md:col-span-2 relative" ref={capacitadorDropdownRef}>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Capacitador</label>
-                <p className="text-xs text-slate-500 mb-2">Busque por nombre si está en el sistema (se cargará su firma) o escriba manualmente para capacitadores externos.</p>
+                <p className="text-xs text-slate-500 mb-2">Escriba el nombre o busque y seleccione un trabajador registrado (se cargará su firma). Para capacitadores externos, admin o supervisor SST, escriba manualmente.</p>
                 <Input
                   value={formData.instructor}
                   onChange={(e) => {
@@ -1417,7 +1444,8 @@ export default function CapacitacionDetailPage() {
                         className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center justify-between gap-2"
                         onClick={() => {
                           setFormData((f) => ({ ...f, instructor: t.nombre_completo }));
-                          setFirmaCapacitador(t.firma_digital_url || null);
+                          setFirmaCapacitadorUploaded(t.firma_digital_url || null);
+                          setFirmaCapacitadorDrawn(null);
                           setBusquedaCapacitador('');
                           setResultadosCapacitador([]);
                           setMostrarDropdownCapacitador(false);
@@ -1439,28 +1467,68 @@ export default function CapacitacionDetailPage() {
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Registrar firma del capacitador</label>
-                <p className="text-xs text-slate-500 mb-2">Si seleccionó del sistema y tiene firma, se cargó automáticamente. Si es externo o no tiene firma, suba la imagen.</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-32 h-16 border border-slate-200 rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden">
-                    {firmaCapacitador ? (
-                      <img src={firmaCapacitador} alt="Firma" className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="text-slate-400 text-xs">Firma</span>
+                <p className="text-xs text-slate-500 mb-2">Si seleccionó del sistema y tiene firma, se cargó automáticamente. Si es externo o no tiene firma, suba la imagen o dibuje abajo.</p>
+                {(firmaCapacitadorUploaded || firmaCapacitadorDrawn) && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 mb-3">
+                    <p className="text-xs font-medium text-slate-600 mb-2">Previsualización de firma</p>
+                    <div className="flex justify-center items-center min-h-[80px] bg-white rounded border border-slate-200 p-2">
+                      <img
+                        src={firmaCapacitadorUploaded || firmaCapacitadorDrawn || ''}
+                        alt="Firma"
+                        className="max-h-24 object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    {firmaCapacitadorUploaded && (
+                      <p className="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                        <Lock className="h-3 w-3" />
+                        Firma por imagen (prevalece sobre dibujo)
+                      </p>
                     )}
                   </div>
-                  <div>
-                    <input
-                      type="file"
-                      id="firma-capacitador"
-                      accept="image/png,image/jpeg,image/jpg"
-                      className="hidden"
-                      onChange={handleFirmaChange}
-                    />
-                    <Button variant="outline" size="sm" type="button" onClick={() => document.getElementById('firma-capacitador')?.click()}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Cargar
+                )}
+                <div className="flex flex-wrap gap-2 items-center mb-3">
+                  <input
+                    ref={firmaCapacitadorInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    className="hidden"
+                    onChange={handleFirmaCapacitadorUpload}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => firmaCapacitadorInputRef.current?.click()}
+                    disabled={esCerrada || procesandoFirmaCapacitador}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {procesandoFirmaCapacitador ? 'Procesando...' : '↑ Cargar'}
+                  </Button>
+                  {firmaCapacitadorUploaded && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearFirmaCapacitadorUpload}
+                      disabled={esCerrada}
+                    >
+                      Quitar imagen
                     </Button>
-                  </div>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-700 mb-2">O dibuje su firma</p>
+                  <SignaturePad
+                    value={firmaCapacitadorUploaded ? '' : firmaCapacitadorDrawn ?? ''}
+                    onChange={(url) => setFirmaCapacitadorDrawn(url || null)}
+                    width={400}
+                    height={120}
+                    disabled={esCerrada || !!firmaCapacitadorUploaded}
+                  />
+                  {firmaCapacitadorUploaded && (
+                    <p className="text-xs text-amber-600 mt-1">La imagen subida prevalece. Quite la imagen para poder dibujar.</p>
+                  )}
                 </div>
               </div>
             </div>
