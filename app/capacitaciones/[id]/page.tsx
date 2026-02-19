@@ -11,6 +11,8 @@ import {
 } from '@/services/capacitaciones.service';
 import { empresasService, Empresa, FirmaGerente } from '@/services/empresas.service';
 import { areasService, Area } from '@/services/areas.service';
+import { estructuraService, EstructuraItem } from '@/services/estructura.service';
+import { configCapacitacionesService } from '@/services/config-capacitaciones.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +54,6 @@ import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
 
 const TIPOS = Object.values(TipoCapacitacion);
-const GRUPOS = ['Otros', 'Inducción', 'EPP', 'Seguridad', 'Salud'];
 const NOTA_MINIMA_APROBATORIA = 11;
 const ID_PASO_FIRMA = 'firma-registro-participacion';
 
@@ -300,6 +301,10 @@ export default function CapacitacionDetailPage() {
 
   const [capacitacion, setCapacitacion] = useState<Capacitacion | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [unidades, setUnidades] = useState<EstructuraItem[]>([]);
+  const [sedes, setSedes] = useState<EstructuraItem[]>([]);
+  const [configGrupos, setConfigGrupos] = useState<string[]>([]);
+  const [configUbicaciones, setConfigUbicaciones] = useState<string[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -359,7 +364,7 @@ export default function CapacitacionDetailPage() {
     instructor: '',
   });
   const [pasosInstruccion, setPasosInstruccion] = useState<
-    { id: string; descripcion: string; esEvaluacion: boolean; imagenUrl?: string }[]
+    { id: string; descripcion: string; esEvaluacion: boolean; imagenUrl?: string; firmaRegistro?: boolean }[]
   >([]);
   const [pasoEvaluacionActivo, setPasoEvaluacionActivo] = useState<string | null>(null);
   const [evaluacionPreguntas, setEvaluacionPreguntas] = useState<PreguntaEvaluacion[]>(() =>
@@ -441,10 +446,37 @@ export default function CapacitacionDetailPage() {
   }, []);
 
   useEffect(() => {
-    if (capacitacion?.empresa_id) {
-      areasService.findAll(capacitacion.empresa_id).then(setAreas).catch(() => []);
+    configCapacitacionesService.getConfig().then((c) => {
+      setConfigGrupos(c.grupos ?? []);
+      setConfigUbicaciones(c.ubicaciones ?? []);
+    }).catch(() => {
+      setConfigGrupos([]);
+      setConfigUbicaciones([]);
+    });
+  }, []);
+
+  useEffect(() => {
+    const empresaId = formData.empresa_id || capacitacion?.empresa_id;
+    if (!empresaId) {
+      setAreas([]);
+      setUnidades([]);
+      setSedes([]);
+      return;
     }
-  }, [capacitacion?.empresa_id]);
+    Promise.all([
+      areasService.findAll(empresaId),
+      estructuraService.findUnidades(empresaId),
+      estructuraService.findSedes(empresaId),
+    ]).then(([a, u, s]) => {
+      setAreas(a);
+      setUnidades(u);
+      setSedes(s);
+    }).catch(() => {
+      setAreas([]);
+      setUnidades([]);
+      setSedes([]);
+    });
+  }, [formData.empresa_id, capacitacion?.empresa_id]);
 
   useEffect(() => {
     if (capacitacion?.empresa_id) {
@@ -593,9 +625,9 @@ export default function CapacitacionDetailPage() {
   ) => {
     const p = participantes.find((x) => x.trabajador_id === trabajadorId);
     if (!p) return;
-    let asistencia = p.asistencia;
-    let aprobado = p.aprobado;
-    let firmo = (p as any).firmo ?? false;
+    let asistencia: boolean = p.asistencia ?? false;
+    let aprobado: boolean = p.aprobado ?? false;
+    let firmo: boolean = (p as any).firmo ?? false;
     let calificacion = p.calificacion ?? null;
     if (campo === 'asistencia') asistencia = valor as boolean;
     if (campo === 'aprobado') aprobado = valor as boolean;
@@ -672,9 +704,13 @@ export default function CapacitacionDetailPage() {
 
   const handleGuardar = async () => {
     if (!capacitacion || !usuario) return;
+    if (!formData.empresa_id?.trim()) {
+      toast.error('Razón Social (Empresa) es obligatoria');
+      return;
+    }
     setIsSaving(true);
     try {
-      await capacitacionesService.update(id, {
+      const payload = {
         titulo: formData.titulo,
         descripcion: formData.descripcion,
         tipo: formData.tipo as any,
@@ -683,7 +719,7 @@ export default function CapacitacionDetailPage() {
         sede: formData.sede || undefined,
         unidad: formData.unidad || undefined,
         lugar: formData.lugar || undefined,
-        empresa_id: formData.empresa_id || undefined,
+        empresa_id: formData.empresa_id,
         area: formData.area || undefined,
         grupo: formData.grupo || undefined,
         instrucciones: pasosInstruccion.map((p) => {
@@ -705,9 +741,30 @@ export default function CapacitacionDetailPage() {
         responsable_rrhh_gerente_id: responsableRrhhGerenteId || undefined,
         responsable_registro_gerente_id: responsableRegistroGerenteId || undefined,
         responsable_certificacion_gerente_id: responsableCertificacionGerenteId || undefined,
+      };
+      const data = await capacitacionesService.update(id, payload);
+      setCapacitacion(data);
+      setFormData({
+        titulo: data.titulo,
+        descripcion: data.descripcion,
+        tipo: data.tipo,
+        fecha: data.fecha,
+        fecha_fin: data.fecha_fin || data.fecha,
+        sede: data.sede || '',
+        unidad: data.unidad || '',
+        lugar: data.lugar || '',
+        empresa_id: data.empresa_id || '',
+        area: data.area || '',
+        grupo: data.grupo || '',
+        hora_inicio: data.hora_inicio || '09:00',
+        hora_fin: data.hora_fin || '11:00',
+        duracion_hhmm: data.duracion_hhmm || '02:00',
+        instructor: data.instructor || '',
       });
+      setResponsableRrhhGerenteId(data.responsable_rrhh_gerente_id || '');
+      setResponsableRegistroGerenteId(data.responsable_registro_gerente_id || '');
+      setResponsableCertificacionGerenteId(data.responsable_certificacion_gerente_id || '');
       toast.success('Cambios guardados correctamente');
-      loadCapacitacion();
     } catch (error: any) {
       toast.error('Error al guardar', {
         description: error.response?.data?.message || 'No se pudieron guardar los cambios',
@@ -1071,32 +1128,69 @@ export default function CapacitacionDetailPage() {
             <fieldset disabled={esCerrada} className="border-0 p-0 m-0 min-w-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo *</label>
-                <Select value={formData.tipo} onChange={(e) => setFormData((f) => ({ ...f, tipo: e.target.value }))} className="w-full">
-                  {TIPOS.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label>
-                <Input value={formData.unidad} onChange={(e) => setFormData((f) => ({ ...f, unidad: e.target.value }))} placeholder="Unidad" className="w-full" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Razón Social *</label>
-                <Select value={formData.empresa_id} onChange={(e) => setFormData((f) => ({ ...f, empresa_id: e.target.value }))} className="w-full">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Razón Social (Empresa) *</label>
+                <Select
+                  value={formData.empresa_id}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData((f) => ({ ...f, empresa_id: v, unidad: '', sede: '', area: '' }));
+                  }}
+                  className="w-full"
+                >
+                  <option value="">Seleccione empresa</option>
                   {empresas.map((e) => (
                     <option key={e.id} value={e.id}>{e.nombre}</option>
                   ))}
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Registro *</label>
-                <Input type="date" value={formData.fecha} onChange={(e) => setFormData((f) => ({ ...f, fecha: e.target.value }))} className="w-full" />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Unidad</label>
+                <Select
+                  value={formData.unidad}
+                  onChange={(e) => setFormData((f) => ({ ...f, unidad: e.target.value }))}
+                  className="w-full"
+                  disabled={!formData.empresa_id}
+                >
+                  <option value="">Seleccione unidad</option>
+                  {unidades.map((u) => (
+                    <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                  ))}
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Sede</label>
-                <Input value={formData.sede} onChange={(e) => setFormData((f) => ({ ...f, sede: e.target.value }))} placeholder="Sede" className="w-full" />
+                <Select
+                  value={formData.sede}
+                  onChange={(e) => setFormData((f) => ({ ...f, sede: e.target.value }))}
+                  className="w-full"
+                  disabled={!formData.empresa_id}
+                >
+                  <option value="">Seleccione sede</option>
+                  {sedes.map((s) => (
+                    <option key={s.id} value={s.nombre}>{s.nombre}</option>
+                  ))}
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fecha de Registro</label>
+                <Input
+                  type="text"
+                  value={capacitacion?.createdAt
+                    ? new Date(capacitacion.createdAt).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
+                    : new Date().toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}
+                  readOnly
+                  disabled
+                  className="w-full bg-slate-100 cursor-not-allowed"
+                  title="Campo bloqueado: fecha y hora actual del registro"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo *</label>
+                <Select value={formData.tipo} onChange={(e) => setFormData((f) => ({ ...f, tipo: e.target.value }))} className="w-full">
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </Select>
               </div>
               <div className="flex items-center gap-2 pt-6">
                 <input type="checkbox" id="sede-tercera" className="w-4 h-4" />
@@ -1118,10 +1212,17 @@ export default function CapacitacionDetailPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Grupo</label>
                 <Select value={formData.grupo} onChange={(e) => setFormData((f) => ({ ...f, grupo: e.target.value }))} className="w-full">
-                  {GRUPOS.map((g) => (
+                  <option value="">Seleccione</option>
+                  {[
+                    ...configGrupos,
+                    ...(formData.grupo && !configGrupos.includes(formData.grupo) ? [formData.grupo] : []),
+                  ].map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </Select>
+                {configGrupos.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Configure grupos en Configuración → Capacitaciones</p>
+                )}
               </div>
               <div className="flex items-center gap-2 pt-6">
                 <input type="checkbox" id="induccion" className="w-4 h-4" />
@@ -1185,7 +1286,22 @@ export default function CapacitacionDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Ubicación *</label>
-                <Input value={formData.lugar} onChange={(e) => setFormData((f) => ({ ...f, lugar: e.target.value }))} placeholder="Ubicación" className="w-full" />
+                <Select
+                  value={formData.lugar}
+                  onChange={(e) => setFormData((f) => ({ ...f, lugar: e.target.value }))}
+                  className="w-full"
+                >
+                  <option value="">Seleccione ubicación</option>
+                  {[
+                    ...configUbicaciones,
+                    ...(formData.lugar && !configUbicaciones.includes(formData.lugar) ? [formData.lugar] : []),
+                  ].map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </Select>
+                {configUbicaciones.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Configure ubicaciones en Configuración → Capacitaciones</p>
+                )}
               </div>
             </div>
           </div>
