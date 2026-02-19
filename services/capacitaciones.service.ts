@@ -183,6 +183,8 @@ export const capacitacionesService = {
     area?: string;
     responsable?: string;
     unidad?: string;
+    sede?: string;
+    gerencia?: string;
   }): Promise<Capacitacion[]> {
     const params: Record<string, string> = {};
     if (filters?.empresaId) params.empresa_id = filters.empresaId;
@@ -196,6 +198,8 @@ export const capacitacionesService = {
     if (filters?.area) params.area = filters.area;
     if (filters?.responsable) params.responsable = filters.responsable;
     if (filters?.unidad) params.unidad = filters.unidad;
+    if (filters?.sede) params.sede = filters.sede;
+    if (filters?.gerencia) params.gerencia = filters.gerencia;
     const response = await apiClient.get<Capacitacion[]>('/capacitaciones', { params });
     return response.data;
   },

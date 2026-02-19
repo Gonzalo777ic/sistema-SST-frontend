@@ -374,10 +374,12 @@ export default function CapacitacionesPage() {
 
       {/* C. BARRA DE HERRAMIENTAS */}
       <div className="flex flex-wrap gap-2">
-        <Button variant="primary">
-          <FileText className="h-4 w-4 mr-2" />
-          Reporte
-        </Button>
+        <Link href="/dashboard/reportes/capacitaciones">
+          <Button variant="primary">
+            <FileText className="h-4 w-4 mr-2" />
+            Reporte
+          </Button>
+        </Link>
         <Link href="/configuracion/capacitaciones">
           <Button variant="primary">
             <Settings className="h-4 w-4 mr-2" />
