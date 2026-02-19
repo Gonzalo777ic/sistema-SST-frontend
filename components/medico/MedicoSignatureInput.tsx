@@ -2,9 +2,12 @@
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { Upload, Lock } from 'lucide-react';
-import { processSignatureImage } from '@/lib/image-signature-processing';
+import { processSignatureImage, type ProcessedImageOptions } from '@/lib/image-signature-processing';
+
+type ProcessingMode = ProcessedImageOptions['mode'];
 
 interface MedicoSignatureInputProps {
   drawnValue?: string | null;
@@ -22,6 +25,7 @@ export function MedicoSignatureInput({
   disabled = false,
 }: MedicoSignatureInputProps) {
   const [processing, setProcessing] = useState(false);
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('auto');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const effectiveSignature = uploadedValue || drawnValue;
@@ -33,9 +37,9 @@ export function MedicoSignatureInput({
     setProcessing(true);
     try {
       const processed = await processSignatureImage(file, {
-        whiteThreshold: 220,  // <-- CLAVE: Sube esto (antes era backgroundThreshold ~190)
+        mode: processingMode,
         inkColor: 'black',
-        strokeThickness: 1,   // Mantiene el trazo sólido
+        strokeThickness: 1,
       });
       onUploadedChange?.(processed);
     } catch (err) {
@@ -71,7 +75,7 @@ export function MedicoSignatureInput({
         <label className="block text-sm font-medium text-slate-700 mb-2">
           Cargar firma manuscrita (PNG, JPG)
         </label>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center mb-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -94,9 +98,22 @@ export function MedicoSignatureInput({
               Quitar imagen
             </Button>
           )}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-slate-500">Ajuste:</span>
+            <Select
+              value={processingMode ?? 'auto'}
+              onChange={(e) => setProcessingMode((e.target.value as ProcessingMode) || 'auto')}
+              className="h-8 text-xs w-[180px]"
+            >
+              <option value="auto">Automático</option>
+              <option value="conservative">Firma clara o azul</option>
+              <option value="aggressive">Con sello o fondo</option>
+            </Select>
+          </div>
         </div>
         <p className="text-xs text-slate-500 mt-1">
           Foto de su firma manuscrita. Se procesará para limpiar fondo y mejorar contraste.
+          Si el resultado no es correcto, cambie el ajuste y vuelva a subir la imagen.
         </p>
       </div>
 
