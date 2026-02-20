@@ -53,8 +53,19 @@ export const configEmoService = {
     return data;
   },
 
-  async createCentro(dto: { nombre: string; direccion?: string; archivo_pdf_base64?: string }): Promise<CentroMedico> {
-    const { data } = await apiClient.post<CentroMedico>('/config-emo/centros', dto);
+  async createCentro(dto: {
+    nombre: string;
+    direccion?: string;
+    archivo_pdf_base64?: string;
+    usuario_crear?: {
+      dni: string;
+      password?: string;
+      nombres?: string;
+      apellido_paterno?: string;
+      apellido_materno?: string;
+    };
+  }): Promise<CentroMedico & { usuario_creado?: { dni: string; mensaje: string } }> {
+    const { data } = await apiClient.post('/config-emo/centros', dto);
     return data;
   },
 

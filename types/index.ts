@@ -15,6 +15,15 @@ export enum UsuarioRol {
   CENTRO_MEDICO = 'CENTRO_MEDICO',
 }
 
+export interface ParticipacionCentroInfo {
+  id: string;
+  centroMedicoId: string;
+  centroMedicoNombre: string;
+  estado: string;
+  fechaInicio: string;
+  fechaFin: string | null;
+}
+
 export interface Usuario {
   id: string;
   dni: string;
@@ -30,6 +39,8 @@ export interface Usuario {
   empresaId: string | null;
   trabajadorId: string | null;
   centroMedicoId?: string | null;
+  centroMedicoNombre?: string | null;
+  participacionesCentroMedico?: ParticipacionCentroInfo[];
   perfil_completado?: boolean;
   createdAt: Date;
 }

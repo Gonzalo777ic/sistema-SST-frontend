@@ -2,10 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { usuariosService, CreateUsuarioDto } from '@/services/usuarios.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { empresasService, Empresa } from '@/services/empresas.service';
+import { configEmoService, CentroMedico } from '@/services/config-emo.service';
+import { usuarioCentroMedicoService, ParticipacionConUsuarioInfo } from '@/services/usuario-centro-medico.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -24,6 +27,7 @@ import {
   UserCheck,
   Link as LinkIcon,
   Unlink,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { UsuarioRol, Usuario } from '@/types';
@@ -34,7 +38,9 @@ import { z } from 'zod';
 interface UsuarioConTrabajador extends Usuario {
   trabajador_nombre?: string | null;
   trabajador_dni?: string | null;
-  trabajador_estado?: string | null; // Estado laboral del trabajador vinculado
+  trabajador_estado?: string | null;
+  centro_medico_nombre?: string | null;
+  participacionesCentroMedico?: Array<{ id: string; centroMedicoId: string; centroMedicoNombre: string; estado: string }>;
 }
 
 const createUsuarioSchema = z.object({
@@ -63,6 +69,11 @@ export default function GestionUsuariosPage() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [linkingUsuario, setLinkingUsuario] = useState<UsuarioConTrabajador | null>(null);
   const [selectedTrabajadorToLink, setSelectedTrabajadorToLink] = useState<string>('');
+  const [centrosMedicos, setCentrosMedicos] = useState<CentroMedico[]>([]);
+  const [selectedCentroMedicoToLink, setSelectedCentroMedicoToLink] = useState<string>('');
+  const [selectedRegistroAccion, setSelectedRegistroAccion] = useState<string>(''); // participacionId
+  const [participacionesCompletas, setParticipacionesCompletas] = useState<Array<{ id: string; centroMedicoId: string; centroMedicoNombre: string; estado: string; fechaInicio?: string }>>([]);
+  const [participacionesPorCentro, setParticipacionesPorCentro] = useState<ParticipacionConUsuarioInfo[]>([]);
   // Modales de confirmación
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isToggleActivoModalOpen, setIsToggleActivoModalOpen] = useState(false);
@@ -147,12 +158,12 @@ export default function GestionUsuariosPage() {
       // Mapeo directo de la relación precargada desde el backend
       const usuariosConTrabajador = data.map((u: any) => ({
         ...u,
-        // Extraemos los datos directamente del objeto 'trabajador' que viene del API
         trabajador_nombre: u.trabajador?.nombreCompleto || null,
         trabajador_dni: u.trabajador?.documentoIdentidad || null,
         trabajador_estado: u.trabajador?.estado || null,
-        // Mantenemos el ID para futuras acciones de desvinculación o edición
-        trabajadorId: u.trabajadorId || u.trabajador?.id || null, 
+        centro_medico_nombre: u.centroMedicoNombre || u.participacionesCentroMedico?.[0]?.centroMedicoNombre || null,
+        trabajadorId: u.trabajadorId || u.trabajador?.id || null,
+        participacionesCentroMedico: u.participacionesCentroMedico || [],
       }));
   
       setUsuarios(usuariosConTrabajador);
@@ -181,11 +192,13 @@ export default function GestionUsuariosPage() {
       filtrados = filtrados.filter((u) => u.activo === false);
     }
 
-    // Filtro por vinculación
+    // Filtro por vinculación (trabajador o centro médico)
+    const tieneVinculo = (u: UsuarioConTrabajador) =>
+      !!(u.trabajadorId || u.centroMedicoId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
     if (filtroVinculacion === 'vinculado') {
-      filtrados = filtrados.filter((u) => u.trabajadorId !== null);
+      filtrados = filtrados.filter(tieneVinculo);
     } else if (filtroVinculacion === 'sin-vinculacion') {
-      filtrados = filtrados.filter((u) => u.trabajadorId === null);
+      filtrados = filtrados.filter((u) => !tieneVinculo(u));
     }
 
     setUsuariosFiltrados(filtrados);
@@ -358,8 +371,108 @@ export default function GestionUsuariosPage() {
   const handleOpenLinkModal = async (usuario: UsuarioConTrabajador) => {
     setLinkingUsuario(usuario);
     setSelectedTrabajadorToLink('');
-    await loadTrabajadoresDisponibles(usuario);
+    setSelectedCentroMedicoToLink('');
+    setSelectedRegistroAccion('');
+    setParticipacionesCompletas([]);
+    setParticipacionesPorCentro([]);
+    const esCentroMedico = usuario.roles.includes(UsuarioRol.CENTRO_MEDICO);
+    if (esCentroMedico) {
+      try {
+        const [centros, participaciones] = await Promise.all([
+          configEmoService.getCentros(),
+          usuarioCentroMedicoService.getParticipaciones(usuario.id, true),
+        ]);
+        setCentrosMedicos(centros);
+        setParticipacionesCompletas(participaciones);
+      } catch (err: any) {
+        toast.error('Error al cargar centros médicos', {
+          description: err.response?.data?.message || 'No se pudieron cargar los centros. Verifique en Usuarios Centro Médico.',
+        });
+        setCentrosMedicos([]);
+        setParticipacionesCompletas([]);
+      }
+    } else {
+      await loadTrabajadoresDisponibles(usuario);
+    }
     setIsLinkModalOpen(true);
+  };
+
+  const handleLinkCentroMedico = async () => {
+    if (!linkingUsuario) return;
+    if (!selectedCentroMedicoToLink || !selectedRegistroAccion) {
+      toast.error('Debe seleccionar un centro médico y un usuario centro médico');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await usuarioCentroMedicoService.vincularUsuarioARegistro(
+        selectedRegistroAccion,
+        linkingUsuario.id,
+      );
+      toast.success('Usuario vinculado al registro');
+      setSelectedCentroMedicoToLink('');
+      setSelectedRegistroAccion('');
+      setParticipacionesPorCentro([]);
+      loadUsuarios();
+      const participaciones = await usuarioCentroMedicoService.getParticipaciones(linkingUsuario.id, true);
+      setParticipacionesCompletas(participaciones);
+      const data = await usuariosService.findAll();
+      const actualizado = data.find((u: any) => u.id === linkingUsuario.id);
+      if (actualizado) {
+        setLinkingUsuario({
+          ...linkingUsuario,
+          ...actualizado,
+          participacionesCentroMedico: actualizado.participacionesCentroMedico || [],
+          centro_medico_nombre: actualizado.centroMedicoNombre || actualizado.participacionesCentroMedico?.[0]?.centroMedicoNombre,
+        });
+      }
+    } catch (error: any) {
+      toast.error('Error al vincular', { description: error.response?.data?.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRevocarParticipacion = async (participacionId: string) => {
+    if (!linkingUsuario) return;
+    setIsSubmitting(true);
+    try {
+      await usuarioCentroMedicoService.revocarParticipacion(participacionId);
+      toast.success('Participación revocada');
+      loadUsuarios();
+      const participaciones = await usuarioCentroMedicoService.getParticipaciones(linkingUsuario.id, true);
+      setParticipacionesCompletas(participaciones);
+      const data = await usuariosService.findAll();
+      const actualizado = data.find((u: any) => u.id === linkingUsuario.id);
+      if (actualizado) {
+        setLinkingUsuario({
+          ...linkingUsuario,
+          ...actualizado,
+          participacionesCentroMedico: actualizado.participacionesCentroMedico || [],
+        });
+      }
+    } catch (error: any) {
+      toast.error('Error al revocar', { description: error.response?.data?.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDesvincularCentroLegado = async () => {
+    if (!linkingUsuario?.centroMedicoId) return;
+    setIsSubmitting(true);
+    try {
+      await usuariosService.update(linkingUsuario.id, { centroMedicoId: null });
+      toast.success('Centro médico desvinculado');
+      setIsLinkModalOpen(false);
+      setLinkingUsuario(null);
+      setSelectedCentroMedicoToLink('');
+      loadUsuarios();
+    } catch (error: any) {
+      toast.error('Error al desvincular', { description: error.response?.data?.message });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleLinkTrabajador = async () => {
@@ -524,8 +637,8 @@ export default function GestionUsuariosPage() {
                 onChange={(e) => setFiltroVinculacion(e.target.value as 'todos' | 'vinculado' | 'sin-vinculacion')}
               >
                 <option value="todos">Todos</option>
-                <option value="vinculado">Con Trabajador</option>
-                <option value="sin-vinculacion">Sin Trabajador</option>
+                <option value="vinculado">Con vinculación</option>
+                <option value="sin-vinculacion">Sin vinculación</option>
               </Select>
             </div>
           </div>
@@ -557,7 +670,7 @@ export default function GestionUsuariosPage() {
                       DNI
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
-                      Trabajador Vinculado
+                      Trabajador / Centro Vinculado
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-700 uppercase tracking-wider">
                       Roles
@@ -594,6 +707,15 @@ export default function GestionUsuariosPage() {
                           <div className="flex items-center gap-2">
                             <UserCheck className="w-4 h-4 text-green-600" />
                             <span className="text-sm text-slate-900">{u.trabajador_nombre}</span>
+                          </div>
+                        ) : (u.centro_medico_nombre || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0)) ? (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-teal-600 shrink-0" />
+                            <span className="text-sm text-slate-900">
+                              {u.participacionesCentroMedico?.length
+                                ? u.participacionesCentroMedico.map((p) => p.centroMedicoNombre).join(', ')
+                                : u.centro_medico_nombre}
+                            </span>
                           </div>
                         ) : (
                           <span className="text-sm text-slate-400">Sin vinculación</span>
@@ -726,20 +848,25 @@ export default function GestionUsuariosPage() {
                             // Solo SUPER_ADMIN puede editar otros usuarios administrativos
                             const canEditRoles = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
                             const canToggleActivo = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
-                            const canLinkTrabajador = !isSuperAdmin; // Permitir vincular/desvincular siempre excepto para SUPER_ADMIN
+                            const canLink = !isSuperAdmin;
+                            const esCentroMedico = u.roles.includes(UsuarioRol.CENTRO_MEDICO);
+                            const tieneVinculo = !!(u.trabajadorId || u.centroMedicoId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
+                            const linkTitle = esCentroMedico
+                              ? "Gestionar usuario centro médico"
+                              : (u.trabajadorId ? "Desvincular trabajador" : "Vincular trabajador");
                             
                             return (
                               <>
-                                {/* Vincular/Desvincular trabajador */}
-                                {canLinkTrabajador && (
+                                {/* Vincular/Desvincular trabajador o centro médico */}
+                                {canLink && (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => handleOpenLinkModal(u)}
-                                    title={u.trabajadorId ? "Desvincular trabajador" : "Vincular trabajador"}
-                                    className={u.trabajadorId ? "text-red-600 hover:text-red-700" : "text-blue-600 hover:text-blue-700"}
+                                    title={linkTitle}
+                                    className={tieneVinculo ? "text-red-600 hover:text-red-700" : "text-blue-600 hover:text-blue-700"}
                                   >
-                                    {u.trabajadorId ? <Unlink className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+                                    {tieneVinculo ? <Unlink className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
                                   </Button>
                                 )}
                                 
@@ -1047,15 +1174,22 @@ export default function GestionUsuariosPage() {
         </div>
       </Modal>
 
-      {/* Modal de Vinculación/Desvinculación de Trabajador */}
+      {/* Modal de Vinculación/Desvinculación de Trabajador o Centro Médico */}
       <Modal
         isOpen={isLinkModalOpen}
         onClose={() => {
           setIsLinkModalOpen(false);
           setLinkingUsuario(null);
           setSelectedTrabajadorToLink('');
+          setSelectedCentroMedicoToLink('');
+          setSelectedRegistroAccion('');
+          setParticipacionesPorCentro([]);
         }}
-        title={linkingUsuario?.trabajadorId ? "Desvincular Trabajador" : "Vincular Trabajador"}
+        title={
+          linkingUsuario?.roles.includes(UsuarioRol.CENTRO_MEDICO)
+            ? "Gestionar Usuario Centro Médico"
+            : (linkingUsuario?.trabajadorId ? "Desvincular Trabajador" : "Vincular Trabajador")
+        }
         size="md"
       >
         <div className="space-y-6">
@@ -1076,7 +1210,143 @@ export default function GestionUsuariosPage() {
             </div>
           )}
 
-          {linkingUsuario?.trabajadorId ? (
+          {linkingUsuario?.roles.includes(UsuarioRol.CENTRO_MEDICO) ? (
+            <div className="space-y-4">
+              {/* Revocar: directo (un solo usuario centro médico vinculado) */}
+              {participacionesCompletas.filter((p) => p.estado === 'activo').length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Usuario centro médico vinculado</label>
+                  <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                    <span className="text-sm">
+                      {participacionesCompletas.find((p) => p.estado === 'activo')?.centroMedicoNombre}
+                      {participacionesCompletas.find((p) => p.estado === 'activo')?.fechaInicio && (
+                        <span className="text-slate-500 ml-2">
+                          (desde {new Date(participacionesCompletas.find((p) => p.estado === 'activo')!.fechaInicio).toLocaleDateString('es-PE')})
+                        </span>
+                      )}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const activa = participacionesCompletas.find((p) => p.estado === 'activo');
+                        if (activa) handleRevocarParticipacion(activa.id);
+                      }}
+                      disabled={isSubmitting}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      {isSubmitting ? '...' : 'Revocar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {/* Centro legacy (sin participaciones migradas) */}
+              {linkingUsuario.centroMedicoId && participacionesCompletas.length === 0 && (
+                <div className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                  <span className="text-sm">{linkingUsuario.centro_medico_nombre ?? 'Centro vinculado (legacy)'}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDesvincularCentroLegado}
+                    disabled={isSubmitting}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    {isSubmitting ? '...' : 'Revocar'}
+                  </Button>
+                </div>
+              )}
+              {/* Vincular: centro médico + usuario centro médico (solo si no tiene participación activa) */}
+              {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 &&
+                !(linkingUsuario.centroMedicoId && participacionesCompletas.length === 0) && (
+              <div className="space-y-4 pt-2 border-t border-slate-200">
+                <label className="block text-sm font-medium text-slate-700">Vincular a usuario centro médico</label>
+                <p className="text-xs text-slate-500">Seleccione el centro médico y el registro de usuario centro médico al que vincular.</p>
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">1. Centro médico</label>
+                  <Select
+                    value={selectedCentroMedicoToLink}
+                    onChange={async (e) => {
+                      const centroId = e.target.value;
+                      setSelectedCentroMedicoToLink(centroId);
+                      setSelectedRegistroAccion('');
+                      if (centroId) {
+                        try {
+                          const list = await usuarioCentroMedicoService.getParticipacionesPorCentro(centroId);
+                          setParticipacionesPorCentro(list);
+                        } catch {
+                          setParticipacionesPorCentro([]);
+                        }
+                      } else {
+                        setParticipacionesPorCentro([]);
+                      }
+                    }}
+                  >
+                    <option value="">Seleccione un centro médico</option>
+                    {centrosMedicos.map((c) => (
+                      <option key={c.id} value={c.id}>{c.centro_medico}</option>
+                    ))}
+                  </Select>
+                </div>
+                {selectedCentroMedicoToLink && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-600 mb-2">2. Usuario centro médico</label>
+                    <Select
+                      value={selectedRegistroAccion}
+                      onChange={(e) => setSelectedRegistroAccion(e.target.value)}
+                    >
+                      <option value="">Seleccione un registro...</option>
+                      {participacionesPorCentro.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          DNI {p.usuarioDni} — {p.estado} (desde {p.fechaInicio ? new Date(p.fechaInicio).toLocaleDateString('es-PE') : '-'})
+                        </option>
+                      ))}
+                    </Select>
+                    {participacionesPorCentro.length === 0 && (
+                      <p className="mt-2 text-sm text-slate-500">
+                        No hay registros de usuario centro médico en este centro. Cree uno en{' '}
+                        <Link href="/usuarios-centro-medico" className="text-blue-600 hover:underline">
+                          Usuarios Centro Médico
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
+                )}
+                {centrosMedicos.length === 0 && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    No hay centros médicos registrados. Cree centros en{' '}
+                    <Link href="/usuarios-centro-medico" className="text-blue-600 hover:underline">
+                      Usuarios Centro Médico
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
+              )}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsLinkModalOpen(false);
+                    setLinkingUsuario(null);
+                    setSelectedCentroMedicoToLink('');
+                    setSelectedRegistroAccion('');
+                  }}
+                >
+                  Cerrar
+                </Button>
+                {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 &&
+                  !(linkingUsuario?.centroMedicoId && participacionesCompletas.length === 0) && (
+                <Button
+                  onClick={handleLinkCentroMedico}
+                  disabled={isSubmitting || !selectedCentroMedicoToLink || !selectedRegistroAccion}
+                >
+                  {isSubmitting ? 'Vinculando...' : 'Vincular'}
+                </Button>
+                )}
+              </div>
+            </div>
+          ) : linkingUsuario?.trabajadorId ? (
             <div className="space-y-4">
               <p className="text-sm text-slate-700">
                 Este usuario tiene un trabajador vinculado. ¿Deseas desvincularlo?
