@@ -15,6 +15,7 @@ import {
 import { ArrowLeft, Upload, Trash2, ExternalLink, CheckCircle, FileCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { saludService, ExamenMedico } from '@/services/salud.service';
+import { Modal } from '@/components/ui/modal';
 
 /** Archivo pendiente con prueba médica seleccionada (desde maestro dinámico) */
 interface FileConTipo {
@@ -43,6 +44,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
   const [loading, setLoading] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [notificando, setNotificando] = useState(false);
+  const [modalCerrarAtencion, setModalCerrarAtencion] = useState(false);
 
   const cargarDocumentos = useCallback(async () => {
     if (!examen?.id) return;
@@ -156,13 +158,14 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
   };
 
   const handleNotificar = async () => {
+    setModalCerrarAtencion(false);
     setNotificando(true);
     try {
       const actualizado = await saludService.notificarResultadosListos(examen.id);
       onExamenActualizado?.(actualizado);
-      toast.success('Resultados notificados. El examen está marcado como Realizado.');
+      toast.success('Atención cerrada. El examen está marcado como Realizado.');
     } catch (err: any) {
-      toast.error('Error al notificar', {
+      toast.error('Error al cerrar atención', {
         description: err.response?.data?.message || err.message,
       });
     } finally {
@@ -353,17 +356,53 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
 
       {/* Cerrar atención del trabajador (marca examen como Realizado) */}
       {!yaRealizado && (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-col items-end gap-1">
+          <p className="text-sm text-slate-500">
+            Cuando termine de subir todos los resultados, cierre la atención para notificar al médico.
+          </p>
           <Button
-            onClick={handleNotificar}
+            onClick={() => setModalCerrarAtencion(true)}
             disabled={notificando}
             variant="outline"
             className="gap-2"
           >
+            <FileCheck className="h-4 w-4" />
             {notificando ? 'Procesando...' : 'Cerrar Atención del Trabajador'}
           </Button>
         </div>
       )}
+
+      <Modal
+        isOpen={modalCerrarAtencion}
+        onClose={() => setModalCerrarAtencion(false)}
+        title="¿Cerrar atención del trabajador?"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-slate-600">
+            Esta acción es irreversible. Una vez cerrada la atención, no se podrán modificar ni agregar documentos a este examen.
+          </p>
+          <p className="text-sm text-slate-500">
+            El examen quedará marcado como <strong>Realizado</strong> y se notificará al médico ocupacional.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setModalCerrarAtencion(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleNotificar}
+              disabled={notificando}
+              className="gap-2"
+            >
+              <FileCheck className="h-4 w-4" />
+              {notificando ? 'Procesando...' : 'Sí, cerrar atención'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {yaRealizado && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-2">

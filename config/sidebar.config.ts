@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   CalendarDays,
   ListTodo,
+  ListChecks,
 } from 'lucide-react';
 import { UsuarioRol } from '@/types';
 
@@ -58,7 +59,7 @@ const ROLES_NO_EMPLEADO: UsuarioRol[] = [
   UsuarioRol.CENTRO_MEDICO,
 ];
 
-/** Sidebar mínimo para usuario centro médico: solo Citas y Configuración. */
+/** Sidebar mínimo para usuario centro médico: Citas, Pruebas Médicas y Configuración. */
 export const centroMedicoSidebarConfig: SidebarGroup[] = [
   {
     title: 'CENTRO MÉDICO',
@@ -67,6 +68,12 @@ export const centroMedicoSidebarConfig: SidebarGroup[] = [
         label: 'Citas',
         href: '/salud/citas',
         icon: CalendarDays,
+        roles: [UsuarioRol.CENTRO_MEDICO],
+      },
+      {
+        label: 'Pruebas Médicas',
+        href: '/salud/pruebas-medicas',
+        icon: ListChecks,
         roles: [UsuarioRol.CENTRO_MEDICO],
       },
     ],

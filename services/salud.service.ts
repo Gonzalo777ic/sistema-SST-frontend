@@ -181,8 +181,22 @@ export const saludService = {
     return response.data;
   },
 
-  async getPruebasMedicas(): Promise<Array<{ id: string; nombre: string }>> {
-    const response = await apiClient.get<Array<{ id: string; nombre: string }>>('/salud/pruebas-medicas');
+  async getPruebasMedicas(incluirInactivos = false): Promise<Array<{ id: string; nombre: string; activo?: boolean }>> {
+    const params = incluirInactivos ? { incluir_inactivos: 'true' } : {};
+    const response = await apiClient.get<Array<{ id: string; nombre: string; activo?: boolean }>>('/salud/pruebas-medicas', { params });
+    return response.data;
+  },
+
+  async createPruebaMedica(nombre: string): Promise<{ id: string; nombre: string; activo: boolean }> {
+    const response = await apiClient.post<{ id: string; nombre: string; activo: boolean }>('/salud/pruebas-medicas', { nombre });
+    return response.data;
+  },
+
+  async updatePruebaMedica(
+    id: string,
+    dto: { nombre?: string; activo?: boolean },
+  ): Promise<{ id: string; nombre: string; activo: boolean }> {
+    const response = await apiClient.patch<{ id: string; nombre: string; activo: boolean }>(`/salud/pruebas-medicas/${id}`, dto);
     return response.data;
   },
 
