@@ -181,8 +181,20 @@ export const saludService = {
     return response.data;
   },
 
+  async getPruebasMedicas(): Promise<Array<{ id: string; nombre: string }>> {
+    const response = await apiClient.get<Array<{ id: string; nombre: string }>>('/salud/pruebas-medicas');
+    return response.data;
+  },
+
   async findDocumentosExamen(examenId: string): Promise<
-    Array<{ id: string; tipo_etiqueta: string; nombre_archivo: string; url: string; created_at: string }>
+    Array<{
+      id: string;
+      tipo_etiqueta: string;
+      prueba_medica?: { id: string; nombre: string };
+      nombre_archivo: string;
+      url: string;
+      created_at: string;
+    }>
   > {
     const response = await apiClient.get(`/salud/examenes/${examenId}/documentos`);
     return response.data;
@@ -191,11 +203,11 @@ export const saludService = {
   async uploadDocumentoExamen(
     examenId: string,
     file: File,
-    tipoEtiqueta: string,
+    pruebaMedicaId: string,
   ): Promise<{ id: string; url: string }> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('tipo_etiqueta', tipoEtiqueta);
+    formData.append('prueba_medica_id', pruebaMedicaId);
     const response = await apiClient.post<{ id: string; url: string }>(
       `/salud/examenes/${examenId}/documentos`,
       formData,

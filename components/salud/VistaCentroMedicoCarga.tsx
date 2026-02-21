@@ -12,16 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { ArrowLeft, Upload, Trash2, ExternalLink, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Upload, Trash2, ExternalLink, CheckCircle, FileCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { saludService } from '@/services/salud.service';
-import { configEmoService, ResultadoAdicional } from '@/services/config-emo.service';
-import { ExamenMedico } from '@/services/salud.service';
+import { saludService, ExamenMedico } from '@/services/salud.service';
 
-/** Tipos de prueba médica (hemograma, optometría, etc.) desde ResultadoAdicionalEmo - NO tipos EMO */
+/** Archivo pendiente con prueba médica seleccionada (desde maestro dinámico) */
 interface FileConTipo {
   file: File;
-  tipo: string;
+  pruebaMedicaId: string;
   id: string;
 }
 
@@ -41,7 +39,7 @@ interface VistaCentroMedicoCargaProps {
 export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCentroMedicoCargaProps) {
   const [archivosPendientes, setArchivosPendientes] = useState<FileConTipo[]>([]);
   const [documentos, setDocumentos] = useState<DocumentoSubido[]>([]);
-  const [tiposAdicionales, setTiposAdicionales] = useState<ResultadoAdicional[]>([]);
+  const [pruebasMedicas, setPruebasMedicas] = useState<Array<{ id: string; nombre: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [notificando, setNotificando] = useState(false);
@@ -59,21 +57,20 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
     }
   }, [examen?.id]);
 
-  const cargarTipos = useCallback(async () => {
+  const cargarPruebasMedicas = useCallback(async () => {
     try {
-      const res = await configEmoService.getResultados();
-      setTiposAdicionales(res);
+      const res = await saludService.getPruebasMedicas();
+      setPruebasMedicas(res);
     } catch {
-      setTiposAdicionales([]);
+      setPruebasMedicas([]);
     }
   }, []);
 
   useEffect(() => {
     cargarDocumentos();
-    cargarTipos();
-  }, [cargarDocumentos, cargarTipos]);
+    cargarPruebasMedicas();
+  }, [cargarDocumentos, cargarPruebasMedicas]);
 
-  const pruebasMedicas = tiposAdicionales.map((t) => ({ value: t.nombre, label: t.nombre }));
   const sinPruebasConfiguradas = pruebasMedicas.length === 0;
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -89,7 +86,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
     }
     const nuevos: FileConTipo[] = files.map((f) => ({
       file: f,
-      tipo: '',
+      pruebaMedicaId: '',
       id: `${f.name}-${Date.now()}-${Math.random()}`,
     }));
     setArchivosPendientes((prev) => [...prev, ...nuevos]);
@@ -104,7 +101,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
       )
       .map((f) => ({
         file: f,
-        tipo: '',
+        pruebaMedicaId: '',
         id: `${f.name}-${Date.now()}-${Math.random()}`,
       }));
     setArchivosPendientes((prev) => [...prev, ...nuevos]);
@@ -117,26 +114,26 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
     setArchivosPendientes((prev) => prev.filter((a) => a.id !== id));
   };
 
-  const cambiarTipo = (id: string, tipo: string) => {
+  const cambiarPruebaMedica = (id: string, pruebaMedicaId: string) => {
     setArchivosPendientes((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, tipo } : a)),
+      prev.map((a) => (a.id === id ? { ...a, pruebaMedicaId } : a)),
     );
   };
 
   const handleCargar = async () => {
-    const sinTipo = archivosPendientes.filter((a) => !a.tipo.trim());
-    if (sinTipo.length > 0) {
-      toast.error('Asigne un tipo de examen a todos los archivos');
+    const sinPrueba = archivosPendientes.filter((a) => !a.pruebaMedicaId.trim());
+    if (sinPrueba.length > 0) {
+      toast.error('Asigne una prueba médica a todos los archivos');
       return;
     }
     setSubiendo(true);
     try {
       for (const a of archivosPendientes) {
-        await saludService.uploadDocumentoExamen(examen.id, a.file, a.tipo);
+        await saludService.uploadDocumentoExamen(examen.id, a.file, a.pruebaMedicaId);
       }
       setArchivosPendientes([]);
       await cargarDocumentos();
-      toast.success('Archivos subidos correctamente');
+      toast.success('Archivos subidos. Se guardaron con nombres estandarizados.');
     } catch (err: any) {
       toast.error('Error al subir', {
         description: err.response?.data?.message || err.message,
@@ -214,11 +211,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
       {sinPruebasConfiguradas && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-2">
           <span className="text-amber-800 text-sm">
-            No hay tipos de prueba médica configurados (hemograma, optometría, etc.). El administrador debe agregarlos en{' '}
-            <Link href="/salud/examenes/configuracion" className="text-amber-900 font-medium underline">
-              Configuración EMO → Resultados adicionales
-            </Link>
-            .
+            No hay pruebas médicas configuradas. El administrador debe ejecutar el seed o agregar registros en la tabla pruebas_medicas.
           </span>
         </div>
       )}
@@ -248,7 +241,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                 Arrastre archivos aquí o haga clic para seleccionar
               </p>
               <p className="text-sm text-slate-500 mt-1">
-                PDF, JPEG, PNG (máx. 10 MB por archivo)
+                PDF, JPEG, PNG (máx. 10 MB). Se guardarán como APELLIDO_NOMBRE_PRUEBA_01.pdf
               </p>
             </label>
           </div>
@@ -267,14 +260,14 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                       {a.file.name}
                     </span>
                     <Select
-                      value={a.tipo}
-                      onChange={(e) => cambiarTipo(a.id, e.target.value)}
+                      value={a.pruebaMedicaId}
+                      onChange={(e) => cambiarPruebaMedica(a.id, e.target.value)}
                       className="w-[200px]"
                     >
                       <option value="">Prueba médica</option>
-                      {pruebasMedicas.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
+                      {pruebasMedicas.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}
                         </option>
                       ))}
                     </Select>
@@ -295,7 +288,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                 className="mt-4 gap-2"
               >
                 <Upload className="h-4 w-4" />
-                {subiendo ? 'Subiendo...' : 'Cargar todo'}
+                {subiendo ? 'Subiendo...' : 'Guardar y Subir Archivos'}
               </Button>
             </div>
           )}
@@ -358,16 +351,16 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
         )}
       </div>
 
-      {/* Notificar resultados listos */}
+      {/* Cerrar atención del trabajador (marca examen como Realizado) */}
       {!yaRealizado && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
           <Button
             onClick={handleNotificar}
             disabled={notificando}
-            className="gap-2 bg-green-600 hover:bg-green-700"
+            variant="outline"
+            className="gap-2"
           >
-            <CheckCircle className="h-4 w-4" />
-            {notificando ? 'Procesando...' : 'Notificar Resultados Listos'}
+            {notificando ? 'Procesando...' : 'Cerrar Atención del Trabajador'}
           </Button>
         </div>
       )}
