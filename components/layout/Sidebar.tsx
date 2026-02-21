@@ -29,9 +29,6 @@ function SidebarComponent() {
     if (item.href === '/salud/examenes') {
       return pathname === '/salud/examenes' || pathname.startsWith('/salud/examenes/');
     }
-    if (item.href === '/mis-examenes') {
-      return pathname === '/mis-examenes' || pathname.startsWith('/mis-examenes/');
-    }
     if (item.href === '/mis-capacitaciones') {
       return pathname === '/mis-capacitaciones' || pathname.startsWith('/mis-capacitaciones/');
     }
@@ -61,6 +58,9 @@ function SidebarComponent() {
     }
     if (item.href === '/inspecciones') {
       return pathname === '/inspecciones' || pathname.startsWith('/inspecciones/');
+    }
+    if (item.href === '/gestion-documentaria') {
+      return pathname === '/gestion-documentaria' || pathname.startsWith('/gestion-documentaria/');
     }
     if (item.href === '/documentos') {
       return pathname === '/documentos' || pathname.startsWith('/documentos/');

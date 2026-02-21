@@ -8,7 +8,7 @@ import {
   AlertTriangle,
   ShieldAlert,
   TrendingUp,
-  FolderClosed,
+  FolderOpen,
   Users2,
   BarChart3,
   Bell,
@@ -82,12 +82,6 @@ export const sidebarConfig: SidebarGroup[] = [
         roles: ROLES_NO_EMPLEADO,
       },
       {
-        label: 'Mis exámenes',
-        href: '/mis-examenes',
-        icon: Stethoscope,
-        requiresTrabajadorId: true,
-      },
-      {
         label: 'Equipos de protección',
         href: '/epp',
         icon: HardHat,
@@ -113,6 +107,12 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Herramientas de gestión',
         icon: ClipboardCheck,
         items: [
+          {
+            label: 'Gestión Documentaria',
+            href: '/gestion-documentaria',
+            icon: FolderOpen,
+            roles: ROLES_NO_EMPLEADO,
+          },
           {
             label: 'Análisis de Riesgos (ATS)',
             href: '/ats',
@@ -153,18 +153,6 @@ export const sidebarConfig: SidebarGroup[] = [
   {
     title: 'GESTIÓN DOCUMENTARIA',
     items: [
-      {
-        label: 'Documentos SST',
-        href: '/documentos',
-        icon: FolderClosed,
-        roles: ROLES_NO_EMPLEADO,
-      },
-      {
-        label: 'Difusión de documentos',
-        href: '/difusion',
-        icon: FileText,
-        roles: ROLES_NO_EMPLEADO,
-      },
       {
         label: 'Comité de SST',
         icon: Users2,

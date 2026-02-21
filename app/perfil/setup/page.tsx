@@ -7,7 +7,7 @@ import { trabajadoresService, Trabajador, UpdatePersonalDataDto, UpdateMedicoPer
 import { usuariosService, UpdatePerfilAdminDto } from '@/services/usuarios.service';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { User, CheckCircle2, Shield, Stethoscope } from 'lucide-react';
+import { User, CheckCircle2, Shield, Stethoscope, Building2 } from 'lucide-react';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { MedicoSignatureInput } from '@/components/medico/MedicoSignatureInput';
 import { MedicoSealInput } from '@/components/medico/MedicoSealInput';
@@ -37,15 +37,22 @@ const medicoPerfilSchema = z.object({
   cmp: z.string().min(1, 'El número de colegiatura (CMP) es obligatorio'),
   rne: z.string().optional(),
   titulo_sello: z.string().optional(),
-  talla_casco: z.string().min(1, 'La talla de casco es obligatoria'),
-  talla_camisa: z.string().min(1, 'La talla de camisa es obligatoria'),
-  talla_pantalon: z.string().min(1, 'La talla de pantalón es obligatoria'),
-  talla_calzado: z.string().min(1, 'La talla de calzado es obligatoria'),
+  talla_casco: z.string().optional(),
+  talla_camisa: z.string().optional(),
+  talla_pantalon: z.string().optional(),
+  talla_calzado: z.string().optional(),
+});
+
+const centroMedicoPerfilSchema = z.object({
+  nombres: z.string().min(1, 'Los nombres son obligatorios'),
+  apellido_paterno: z.string().min(1, 'El apellido paterno es obligatorio'),
+  apellido_materno: z.string().min(1, 'El apellido materno es obligatorio'),
 });
 
 type PersonalDataFormData = z.infer<typeof personalDataSchema>;
 type AdminPerfilFormData = z.infer<typeof adminPerfilSchema>;
 type MedicoPerfilFormData = z.infer<typeof medicoPerfilSchema>;
+type CentroMedicoPerfilFormData = z.infer<typeof centroMedicoPerfilSchema>;
 
 // Opciones de tallas comunes
 const tallasCasco = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -64,6 +71,12 @@ function isMedicoOcupacional(usuario: { roles?: string[]; trabajadorId?: string 
   return !!esMedico && !!usuario.trabajadorId;
 }
 
+/** Usuario centro médico sin trabajador vinculado: solicita nombres, apellidos y firma (no tallas EPP). */
+function isCentroMedicoSinTrabajador(usuario: { roles?: string[]; trabajadorId?: string | null } | null): boolean {
+  if (!usuario) return false;
+  return !!usuario.roles?.includes(UsuarioRol.CENTRO_MEDICO) && !usuario.trabajadorId;
+}
+
 export default function PerfilSetupPage() {
   const router = useRouter();
   const { usuario, refreshUserProfile } = useAuth();
@@ -71,6 +84,7 @@ export default function PerfilSetupPage() {
   const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
 
   const esAdminSetup = isAdminSinTrabajador(usuario ?? null);
+  const esCentroMedicoSetup = isCentroMedicoSinTrabajador(usuario ?? null);
   const esMedicoSetup = isMedicoOcupacional(usuario ?? null);
 
   const personalDataForm = useForm<PersonalDataFormData>({
@@ -100,6 +114,8 @@ export default function PerfilSetupPage() {
   const [medicoFirmaDibujada, setMedicoFirmaDibujada] = useState('');
   const [medicoFirmaImagen, setMedicoFirmaImagen] = useState('');
   const [medicoSello, setMedicoSello] = useState('');
+  const [centroMedicoFirmaDibujada, setCentroMedicoFirmaDibujada] = useState('');
+  const [centroMedicoFirmaImagen, setCentroMedicoFirmaImagen] = useState('');
 
   useEffect(() => {
     if (esMedicoSetup && usuario?.trabajadorId) {
@@ -132,6 +148,15 @@ export default function PerfilSetupPage() {
     },
   });
 
+  const centroMedicoPerfilForm = useForm<CentroMedicoPerfilFormData>({
+    resolver: zodResolver(centroMedicoPerfilSchema),
+    defaultValues: {
+      nombres: usuario?.nombres ?? '',
+      apellido_paterno: usuario?.apellido_paterno ?? '',
+      apellido_materno: usuario?.apellido_materno ?? '',
+    },
+  });
+
   useEffect(() => {
     if (usuario) {
       adminPerfilForm.reset({
@@ -140,6 +165,16 @@ export default function PerfilSetupPage() {
         apellido_materno: usuario.apellido_materno ?? '',
         dni: usuario.dni ?? '',
         firma_base64: '',
+      });
+    }
+  }, [usuario?.id]);
+
+  useEffect(() => {
+    if (usuario && isCentroMedicoSinTrabajador(usuario)) {
+      centroMedicoPerfilForm.reset({
+        nombres: usuario.nombres ?? '',
+        apellido_paterno: usuario.apellido_paterno ?? '',
+        apellido_materno: usuario.apellido_materno ?? '',
       });
     }
   }, [usuario?.id]);
@@ -228,9 +263,60 @@ export default function PerfilSetupPage() {
     }
   };
 
+  const handleSubmitCentroMedico = async (data: CentroMedicoPerfilFormData) => {
+    if (!usuario?.id) {
+      toast.error('Error', { description: 'No se pudo identificar al usuario' });
+      return;
+    }
+
+    const firmaFinal = centroMedicoFirmaImagen || centroMedicoFirmaDibujada;
+    if (!firmaFinal) {
+      toast.error('Debe registrar su firma (dibujar o subir imagen)');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
+      if (!isValidSignature(firmaFinal)) {
+        toast.error(getSignatureValidationError());
+        setIsSubmitting(false);
+        return;
+      }
+
+      const payload: UpdatePerfilAdminDto = {
+        nombres: data.nombres,
+        apellido_paterno: data.apellido_paterno,
+        apellido_materno: data.apellido_materno,
+        firma_base64: firmaFinal,
+      };
+
+      await usuariosService.updatePerfilAdmin(payload);
+      await refreshUserProfile();
+
+      toast.success('Perfil completado', {
+        description: 'Su perfil ha sido configurado correctamente. La firma se almacenó para su reutilización.',
+      });
+
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast.error('Error al completar perfil', {
+        description: error.response?.data?.message || 'No se pudo completar el perfil',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSubmitMedico = async (data: MedicoPerfilFormData) => {
     if (!usuario?.trabajadorId) {
       toast.error('Error', { description: 'No se pudo identificar al trabajador' });
+      return;
+    }
+
+    const esCentroMedico = usuario.roles?.includes(UsuarioRol.CENTRO_MEDICO);
+    if (!esCentroMedico && (!data.talla_casco || !data.talla_camisa || !data.talla_pantalon || !data.talla_calzado)) {
+      toast.error('Debe completar todas las tallas de EPP');
       return;
     }
 
@@ -260,10 +346,12 @@ export default function PerfilSetupPage() {
         firma_imagen_base64: medicoFirmaImagen || undefined,
         firma_digital_url: !medicoFirmaImagen ? medicoFirmaDibujada : undefined,
         sello_base64: medicoSello,
-        talla_casco: data.talla_casco,
-        talla_camisa: data.talla_camisa,
-        talla_pantalon: data.talla_pantalon,
-        talla_calzado: data.talla_calzado,
+        ...(esCentroMedico ? {} : {
+          talla_casco: data.talla_casco,
+          talla_camisa: data.talla_camisa,
+          talla_pantalon: data.talla_pantalon,
+          talla_calzado: data.talla_calzado,
+        }),
       };
 
       await trabajadoresService.updateMedicoPersonalData(usuario.trabajadorId, payload);
@@ -374,6 +462,96 @@ export default function PerfilSetupPage() {
     );
   }
 
+  if (esCentroMedicoSetup) {
+    return (
+      <div className="max-w-2xl mx-auto py-8">
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-8">
+          <div className="text-center mb-8">
+            <Building2 className="w-12 h-12 text-primary mx-auto mb-3" />
+            <h1 className="text-2xl font-bold text-slate-900 mb-2">
+              Completar Perfil - Centro Médico
+            </h1>
+            <p className="text-slate-600">
+              Registre sus datos personales y firma. La firma se almacenará en el sistema para reutilizarla en certificados y documentos.
+            </p>
+          </div>
+
+          <form
+            onSubmit={centroMedicoPerfilForm.handleSubmit(handleSubmitCentroMedico)}
+            className="space-y-6"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Nombres <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Ej. Juan Carlos"
+                  {...centroMedicoPerfilForm.register('nombres')}
+                />
+                {centroMedicoPerfilForm.formState.errors.nombres && (
+                  <p className="mt-1 text-sm text-red-600">{centroMedicoPerfilForm.formState.errors.nombres.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Apellido paterno <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Ej. Pérez"
+                  {...centroMedicoPerfilForm.register('apellido_paterno')}
+                />
+                {centroMedicoPerfilForm.formState.errors.apellido_paterno && (
+                  <p className="mt-1 text-sm text-red-600">{centroMedicoPerfilForm.formState.errors.apellido_paterno.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Apellido materno <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Ej. García"
+                  {...centroMedicoPerfilForm.register('apellido_materno')}
+                />
+                {centroMedicoPerfilForm.formState.errors.apellido_materno && (
+                  <p className="mt-1 text-sm text-red-600">{centroMedicoPerfilForm.formState.errors.apellido_materno.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Firma digital <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-slate-500 mb-2">
+                Suba una imagen de su firma manuscrita (PNG/JPG) o dibújela. Se almacenará en el sistema para reutilizarla en certificados y registros.
+              </p>
+              <MedicoSignatureInput
+                drawnValue={centroMedicoFirmaDibujada}
+                uploadedValue={centroMedicoFirmaImagen}
+                onDrawnChange={setCentroMedicoFirmaDibujada}
+                onUploadedChange={setCentroMedicoFirmaImagen}
+              />
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button type="submit" disabled={isSubmitting} className="min-w-[200px]">
+                {isSubmitting ? 'Guardando...' : 'Completar Perfil'}
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   if (esMedicoSetup) {
     const nombreCompleto = trabajador?.nombre_completo || usuario?.nombres || '';
     const cmp = medicoPerfilForm.watch('cmp') || '';
@@ -457,39 +635,41 @@ export default function PerfilSetupPage() {
               />
             </div>
 
-            <div className="border-t border-slate-200 pt-6">
-              <h3 className="text-sm font-semibold text-slate-800 mb-4">Tallas de EPP</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Casco *</label>
-                  <Select {...medicoPerfilForm.register('talla_casco')}>
-                    <option value="">Seleccione</option>
-                    {tallasCasco.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Camisa *</label>
-                  <Select {...medicoPerfilForm.register('talla_camisa')}>
-                    <option value="">Seleccione</option>
-                    {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Pantalón *</label>
-                  <Select {...medicoPerfilForm.register('talla_pantalon')}>
-                    <option value="">Seleccione</option>
-                    {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Calzado *</label>
-                  <Select {...medicoPerfilForm.register('talla_calzado')}>
-                    <option value="">Seleccione</option>
-                    {tallasCalzado.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </Select>
+            {!usuario?.roles?.includes(UsuarioRol.CENTRO_MEDICO) && (
+              <div className="border-t border-slate-200 pt-6">
+                <h3 className="text-sm font-semibold text-slate-800 mb-4">Tallas de EPP</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Casco *</label>
+                    <Select {...medicoPerfilForm.register('talla_casco')}>
+                      <option value="">Seleccione</option>
+                      {tallasCasco.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Camisa *</label>
+                    <Select {...medicoPerfilForm.register('talla_camisa')}>
+                      <option value="">Seleccione</option>
+                      {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Pantalón *</label>
+                    <Select {...medicoPerfilForm.register('talla_pantalon')}>
+                      <option value="">Seleccione</option>
+                      {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Calzado *</label>
+                    <Select {...medicoPerfilForm.register('talla_calzado')}>
+                      <option value="">Seleccione</option>
+                      {tallasCalzado.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isSubmitting} className="min-w-[200px]">
