@@ -20,10 +20,13 @@ export enum ResultadoExamen {
 
 export enum EstadoExamen {
   Programado = 'Programado',
-  Realizado = 'Realizado',
+  PruebasCargadas = 'Pruebas Cargadas',
+  Completado = 'Completado',
+  Entregado = 'Entregado',
+  Reprogramado = 'Reprogramado',
+  Cancelado = 'Cancelado',
   Vencido = 'Vencido',
   PorVencer = 'Por Vencer',
-  Revisado = 'Revisado',
 }
 
 export enum EstadoCita {
@@ -67,11 +70,21 @@ export interface ExamenMedico {
   resultado_archivo_url: string | null;
   resultado_archivo_existe?: boolean;
   estado: EstadoExamen;
+  visto_por_admin?: boolean;
   revisado_por_doctor: boolean;
   doctor_interno_id: string | null;
   fecha_revision_doctor: string | null;
   cargado_por: string | null;
   cargado_por_id: string;
+  /** Documentos subidos por centro médico (incluidos en findOneExamen) */
+  documentos?: Array<{
+    id: string;
+    tipo_etiqueta: string;
+    prueba_medica?: { id: string; nombre: string };
+    nombre_archivo: string;
+    url: string;
+    created_at: string;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -59,10 +59,13 @@ const APTITUD_ALTURA = [
 
 const ESTADOS_EMO = [
   { value: 'Programado', label: 'PROGRAMADO' },
-  { value: 'Realizado', label: 'REALIZADO' },
+  { value: 'Pruebas Cargadas', label: 'PRUEBAS CARGADAS' },
+  { value: 'Completado', label: 'COMPLETADO' },
+  { value: 'Entregado', label: 'ENTREGADO' },
+  { value: 'Reprogramado', label: 'REPROGRAMADO' },
+  { value: 'Cancelado', label: 'CANCELADO' },
   { value: 'Vencido', label: 'VENCIDO' },
   { value: 'Por Vencer', label: 'POR VENCER' },
-  { value: 'Revisado', label: 'REVISADO' },
 ];
 
 function formatSexo(s: string | null) {

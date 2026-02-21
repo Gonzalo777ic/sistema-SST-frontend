@@ -39,7 +39,9 @@ export default function PruebasMedicasPage() {
     setLoading(true);
     try {
       const res = await saludService.getPruebasMedicas(mostrarInactivas);
-      setPruebas(res);
+      setPruebas(
+        [...res].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' })),
+      );
     } catch {
       setPruebas([]);
     } finally {

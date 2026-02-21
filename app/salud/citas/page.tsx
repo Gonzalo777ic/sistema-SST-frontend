@@ -42,8 +42,11 @@ export default function CitasPage() {
 
   const estadoBadgeClass: Record<string, string> = {
     Programado: 'bg-blue-100 text-blue-800',
-    Realizado: 'bg-green-100 text-green-800',
-    Revisado: 'bg-green-100 text-green-800',
+    'Pruebas Cargadas': 'bg-amber-100 text-amber-800',
+    Completado: 'bg-green-100 text-green-800',
+    Entregado: 'bg-emerald-100 text-emerald-800',
+    Reprogramado: 'bg-slate-100 text-slate-700',
+    Cancelado: 'bg-red-100 text-red-800',
     'Por Vencer': 'bg-yellow-100 text-yellow-800',
     PorVencer: 'bg-yellow-100 text-yellow-800',
     Vencido: 'bg-red-100 text-red-800',

@@ -42,18 +42,33 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
   const [documentos, setDocumentos] = useState<DocumentoSubido[]>([]);
   const [pruebasMedicas, setPruebasMedicas] = useState<Array<{ id: string; nombre: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [errorDocumentos, setErrorDocumentos] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [notificando, setNotificando] = useState(false);
   const [modalCerrarAtencion, setModalCerrarAtencion] = useState(false);
 
+  // Usar documentos incluidos en el examen (findOneExamen) cuando estén disponibles
+  useEffect(() => {
+    if (examen?.documentos && Array.isArray(examen.documentos)) {
+      setDocumentos(examen.documentos);
+      setErrorDocumentos(null);
+    }
+  }, [examen?.documentos]);
+
   const cargarDocumentos = useCallback(async () => {
     if (!examen?.id) return;
     setLoading(true);
+    setErrorDocumentos(null);
     try {
       const docs = await saludService.findDocumentosExamen(examen.id);
-      setDocumentos(docs);
-    } catch {
+      setDocumentos(Array.isArray(docs) ? docs : []);
+    } catch (err: unknown) {
       setDocumentos([]);
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : err instanceof Error ? err.message : 'Error al cargar documentos';
+      setErrorDocumentos(msg || 'Error al cargar documentos');
+      toast.error('No se pudieron cargar los documentos', { description: String(msg) });
     } finally {
       setLoading(false);
     }
@@ -69,11 +84,20 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
   }, []);
 
   useEffect(() => {
-    cargarDocumentos();
+    // Si el examen ya trae documentos (findOneExamen), no hacer llamada separada
+    if (examen?.documentos && Array.isArray(examen.documentos)) {
+      setDocumentos(examen.documentos);
+      setLoading(false);
+    } else if (examen?.id) {
+      cargarDocumentos();
+    }
     cargarPruebasMedicas();
-  }, [cargarDocumentos, cargarPruebasMedicas]);
+  }, [examen?.id, examen?.documentos, cargarDocumentos, cargarPruebasMedicas]);
 
   const sinPruebasConfiguradas = pruebasMedicas.length === 0;
+  const pruebasOrdenadas = [...pruebasMedicas].sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }),
+  );
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -158,12 +182,21 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
   };
 
   const handleNotificar = async () => {
+    if (documentos.length === 0) {
+      toast.error('Debe subir al menos un documento antes de finalizar la carga');
+      return;
+    }
     setModalCerrarAtencion(false);
     setNotificando(true);
     try {
       const actualizado = await saludService.notificarResultadosListos(examen.id);
       onExamenActualizado?.(actualizado);
-      toast.success('Atención cerrada. El examen está marcado como Realizado.');
+      if (actualizado.documentos) {
+        setDocumentos(actualizado.documentos);
+      } else {
+        await cargarDocumentos();
+      }
+      toast.success('Carga finalizada. El examen está en Pruebas Cargadas.');
     } catch (err: any) {
       toast.error('Error al cerrar atención', {
         description: err.response?.data?.message || err.message,
@@ -173,7 +206,8 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
     }
   };
 
-  const yaRealizado = examen.estado === 'Realizado' || examen.estado === 'Revisado';
+  const puedeSubirMas = examen.estado === 'Programado' || examen.estado === 'Reprogramado' || examen.estado === 'Por Vencer' || examen.estado === 'Vencido';
+  const cargaFinalizada = ['Pruebas Cargadas', 'Completado', 'Entregado'].includes(examen.estado);
 
   return (
     <div className="p-6 max-w-5xl space-y-6">
@@ -219,9 +253,9 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
         </div>
       )}
 
-      {!yaRealizado && (
+      {/* Zona Dropzone y subida parcial - visible mientras se pueda subir más */}
+      {puedeSubirMas && (
         <>
-          {/* Zona Dropzone */}
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -268,7 +302,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                       className="w-[200px]"
                     >
                       <option value="">Prueba médica</option>
-                      {pruebasMedicas.map((p) => (
+                      {pruebasOrdenadas.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.nombre}
                         </option>
@@ -285,28 +319,48 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                   </div>
                 ))}
               </div>
-              <Button
-                onClick={handleCargar}
-                disabled={subiendo}
-                className="mt-4 gap-2"
-              >
-                <Upload className="h-4 w-4" />
-                {subiendo ? 'Subiendo...' : 'Guardar y Subir Archivos'}
-              </Button>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <Button
+                  onClick={handleCargar}
+                  disabled={subiendo}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  {subiendo ? 'Subiendo...' : 'Guardar y subida parcial'}
+                </Button>
+                <p className="text-xs text-slate-500 self-center">
+                  Sube estos archivos ahora. Puede agregar más después si falta alguno.
+                </p>
+              </div>
             </div>
           )}
         </>
       )}
 
-      {/* Historial de documentos */}
+      {/* Historial de documentos - SIEMPRE visible */}
       <div className="bg-white border border-slate-200 rounded-lg p-6">
         <h3 className="font-semibold text-slate-800 mb-4">
           Documentos subidos para este examen
         </h3>
         {loading ? (
           <p className="text-slate-500 text-sm">Cargando...</p>
+        ) : errorDocumentos ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-red-600 text-sm">{errorDocumentos}</p>
+            <Button variant="outline" size="sm" onClick={cargarDocumentos} className="w-fit">
+              Reintentar
+            </Button>
+          </div>
         ) : documentos.length === 0 ? (
-          <p className="text-slate-500 text-sm">No hay documentos subidos aún.</p>
+          <div className="flex flex-col gap-2">
+            <p className="text-slate-500 text-sm">No hay documentos subidos aún.</p>
+            {cargaFinalizada && (
+              <Button variant="outline" size="sm" onClick={cargarDocumentos} className="w-fit">
+                Reintentar carga de documentos
+              </Button>
+            )}
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -336,7 +390,7 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                         <ExternalLink className="h-4 w-4" />
                         Ver
                       </a>
-                      {!yaRealizado && (
+                      {puedeSubirMas && (
                         <button
                           onClick={() => handleEliminar(d.id)}
                           className="text-red-600 hover:underline text-sm flex items-center gap-1"
@@ -354,20 +408,24 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
         )}
       </div>
 
-      {/* Cerrar atención del trabajador (marca examen como Realizado) */}
-      {!yaRealizado && (
-        <div className="flex flex-col items-end gap-1">
-          <p className="text-sm text-slate-500">
-            Cuando termine de subir todos los resultados, cierre la atención para notificar al médico.
+      {/* Botones: Subida parcial + Finalizar carga */}
+      {puedeSubirMas && (
+        <div className="flex flex-col items-end gap-3 pt-2">
+          <p className="text-sm text-slate-500 text-right max-w-md">
+            Use &quot;Guardar y subida parcial&quot; para subir archivos ahora. Si falta alguno, puede volver más tarde y agregarlo antes de finalizar.
           </p>
+          {documentos.length === 0 && (
+            <p className="text-amber-600 text-sm text-right">
+              Debe subir al menos un documento antes de poder finalizar la carga.
+            </p>
+          )}
           <Button
-            onClick={() => setModalCerrarAtencion(true)}
-            disabled={notificando}
-            variant="outline"
-            className="gap-2"
+            onClick={() => documentos.length > 0 && setModalCerrarAtencion(true)}
+            disabled={notificando || documentos.length === 0}
+            className="gap-2 bg-green-600 hover:bg-green-700"
           >
             <FileCheck className="h-4 w-4" />
-            {notificando ? 'Procesando...' : 'Cerrar Atención del Trabajador'}
+            {notificando ? 'Procesando...' : 'Finalizar carga'}
           </Button>
         </div>
       )}
@@ -375,15 +433,15 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
       <Modal
         isOpen={modalCerrarAtencion}
         onClose={() => setModalCerrarAtencion(false)}
-        title="¿Cerrar atención del trabajador?"
+        title="¿Guardar y finalizar la carga?"
         size="sm"
       >
         <div className="space-y-4">
           <p className="text-slate-600">
-            Esta acción es irreversible. Una vez cerrada la atención, no se podrán modificar ni agregar documentos a este examen.
+            Esta acción es irreversible. Una vez finalizada la carga, no se podrán modificar ni agregar documentos a este examen.
           </p>
           <p className="text-sm text-slate-500">
-            El examen quedará marcado como <strong>Realizado</strong> y se notificará al médico ocupacional.
+            El examen quedará en estado <strong>Pruebas Cargadas</strong> y se notificará al médico ocupacional para su revisión.
           </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -398,17 +456,17 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
               className="gap-2"
             >
               <FileCheck className="h-4 w-4" />
-              {notificando ? 'Procesando...' : 'Sí, cerrar atención'}
+              {notificando ? 'Procesando...' : 'Sí, finalizar carga'}
             </Button>
           </div>
         </div>
       </Modal>
 
-      {yaRealizado && (
+      {cargaFinalizada && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
           <span className="text-green-800 font-medium">
-            Este examen ya fue marcado como realizado.
+            La carga ya fue finalizada. Estado: {examen.estado}.
           </span>
         </div>
       )}
