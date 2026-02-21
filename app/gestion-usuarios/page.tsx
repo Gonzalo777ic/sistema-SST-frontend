@@ -192,9 +192,9 @@ export default function GestionUsuariosPage() {
       filtrados = filtrados.filter((u) => u.activo === false);
     }
 
-    // Filtro por vinculación (trabajador o centro médico)
+    // Filtro por vinculación (trabajador o centro médico vía participaciones)
     const tieneVinculo = (u: UsuarioConTrabajador) =>
-      !!(u.trabajadorId || u.centroMedicoId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
+      !!(u.trabajadorId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
     if (filtroVinculacion === 'vinculado') {
       filtrados = filtrados.filter(tieneVinculo);
     } else if (filtroVinculacion === 'sin-vinculacion') {
@@ -453,23 +453,6 @@ export default function GestionUsuariosPage() {
       }
     } catch (error: any) {
       toast.error('Error al revocar', { description: error.response?.data?.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleDesvincularCentroLegado = async () => {
-    if (!linkingUsuario?.centroMedicoId) return;
-    setIsSubmitting(true);
-    try {
-      await usuariosService.update(linkingUsuario.id, { centroMedicoId: null });
-      toast.success('Centro médico desvinculado');
-      setIsLinkModalOpen(false);
-      setLinkingUsuario(null);
-      setSelectedCentroMedicoToLink('');
-      loadUsuarios();
-    } catch (error: any) {
-      toast.error('Error al desvincular', { description: error.response?.data?.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -850,7 +833,7 @@ export default function GestionUsuariosPage() {
                             const canToggleActivo = !isSuperAdmin && (!isAdminEmpresa || currentUserIsSuperAdmin);
                             const canLink = !isSuperAdmin;
                             const esCentroMedico = u.roles.includes(UsuarioRol.CENTRO_MEDICO);
-                            const tieneVinculo = !!(u.trabajadorId || u.centroMedicoId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
+                            const tieneVinculo = !!(u.trabajadorId || (u.participacionesCentroMedico && u.participacionesCentroMedico.length > 0));
                             const linkTitle = esCentroMedico
                               ? "Gestionar usuario centro médico"
                               : (u.trabajadorId ? "Desvincular trabajador" : "Vincular trabajador");
@@ -1240,24 +1223,8 @@ export default function GestionUsuariosPage() {
                   </div>
                 </div>
               )}
-              {/* Centro legacy (sin participaciones migradas) */}
-              {linkingUsuario.centroMedicoId && participacionesCompletas.length === 0 && (
-                <div className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
-                  <span className="text-sm">{linkingUsuario.centro_medico_nombre ?? 'Centro vinculado (legacy)'}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDesvincularCentroLegado}
-                    disabled={isSubmitting}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    {isSubmitting ? '...' : 'Revocar'}
-                  </Button>
-                </div>
-              )}
               {/* Vincular: centro médico + usuario centro médico (solo si no tiene participación activa) */}
-              {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 &&
-                !(linkingUsuario.centroMedicoId && participacionesCompletas.length === 0) && (
+              {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 && (
               <div className="space-y-4 pt-2 border-t border-slate-200">
                 <label className="block text-sm font-medium text-slate-700">Vincular a usuario centro médico</label>
                 <p className="text-xs text-slate-500">Seleccione el centro médico y el registro de usuario centro médico al que vincular.</p>
@@ -1335,8 +1302,7 @@ export default function GestionUsuariosPage() {
                 >
                   Cerrar
                 </Button>
-                {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 &&
-                  !(linkingUsuario?.centroMedicoId && participacionesCompletas.length === 0) && (
+                {participacionesCompletas.filter((p) => p.estado === 'activo').length === 0 && (
                 <Button
                   onClick={handleLinkCentroMedico}
                   disabled={isSubmitting || !selectedCentroMedicoToLink || !selectedRegistroAccion}

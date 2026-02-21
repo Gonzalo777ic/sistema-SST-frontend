@@ -58,6 +58,21 @@ const ROLES_NO_EMPLEADO: UsuarioRol[] = [
   UsuarioRol.CENTRO_MEDICO,
 ];
 
+/** Sidebar mínimo para usuario centro médico: solo Citas y Configuración. */
+export const centroMedicoSidebarConfig: SidebarGroup[] = [
+  {
+    title: 'CENTRO MÉDICO',
+    items: [
+      {
+        label: 'Citas',
+        href: '/salud/citas',
+        icon: CalendarDays,
+        roles: [UsuarioRol.CENTRO_MEDICO],
+      },
+    ],
+  },
+];
+
 export const sidebarConfig: SidebarGroup[] = [
   {
     title: 'TRABAJADORES',

@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
   Shield,
@@ -13,6 +15,22 @@ import { UsuarioRol } from '@/types';
 
 export default function DashboardPage() {
   const { usuario, hasRole } = useAuth();
+  const router = useRouter();
+
+  const isCentroMedicoOnly =
+    hasRole(UsuarioRol.CENTRO_MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
+
+  useEffect(() => {
+    if (isCentroMedicoOnly) {
+      router.replace('/salud/citas');
+    }
+  }, [isCentroMedicoOnly, router]);
+
+  if (isCentroMedicoOnly) {
+    return null;
+  }
 
   // Mock data - En producción vendrá del backend
   const kpis = [

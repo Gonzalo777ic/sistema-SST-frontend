@@ -42,7 +42,6 @@ const adminPerfilSchema = z.object({
   nombres: z.string().optional(),
   apellido_paterno: z.string().optional(),
   apellido_materno: z.string().optional(),
-  dni: z.string().optional(),
   firma_digital_url: z.string().optional(),
   password_actual: z.string().min(1, 'La contraseña es obligatoria para guardar cambios'),
 });
@@ -72,6 +71,11 @@ function isMedicoOcupacional(u: { roles?: string[]; trabajadorId?: string | null
   return !!esMedico && !!u.trabajadorId;
 }
 
+function isCentroMedicoSinTrabajador(u: { roles?: string[]; trabajadorId?: string | null } | null): boolean {
+  if (!u) return false;
+  return !!u.roles?.includes(UsuarioRol.CENTRO_MEDICO) && !u.trabajadorId;
+}
+
 export default function ConfiguracionPage() {
   const { usuario: currentUser, refreshUserProfile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -95,9 +99,12 @@ export default function ConfiguracionPage() {
   const [medicoFirmaDibujada, setMedicoFirmaDibujada] = useState('');
   const [medicoFirmaImagen, setMedicoFirmaImagen] = useState('');
   const [medicoSello, setMedicoSello] = useState('');
+  const [adminFirmaDibujada, setAdminFirmaDibujada] = useState('');
+  const [adminFirmaImagen, setAdminFirmaImagen] = useState('');
 
   const esAdmin = currentUser?.roles?.includes(UsuarioRol.SUPER_ADMIN) || currentUser?.roles?.includes(UsuarioRol.ADMIN_EMPRESA);
   const esAdminSinTrabajador = isAdminSinTrabajador(currentUser ?? null);
+  const esCentroMedicoSinTrabajador = isCentroMedicoSinTrabajador(currentUser ?? null);
   const esMedico = isMedicoOcupacional(currentUser ?? null);
 
   const {
@@ -132,7 +139,6 @@ export default function ConfiguracionPage() {
       nombres: '',
       apellido_paterno: '',
       apellido_materno: '',
-      dni: '',
       firma_digital_url: '',
       password_actual: '',
     },
@@ -155,7 +161,7 @@ export default function ConfiguracionPage() {
   }, [currentUser?.trabajadorId]);
 
   useEffect(() => {
-    if (esAdminSinTrabajador && currentUser?.id) {
+    if ((esAdminSinTrabajador || esCentroMedicoSinTrabajador) && currentUser?.id) {
       usuariosService.findOne(currentUser.id).then((u) => {
         const firmaUrl = (u as { firma_url?: string | null; firmaUrl?: string | null }).firma_url ?? (u as { firmaUrl?: string | null }).firmaUrl ?? null;
         setUsuarioCompleto({
@@ -169,7 +175,6 @@ export default function ConfiguracionPage() {
           nombres: u.nombres ?? '',
           apellido_paterno: u.apellido_paterno ?? '',
           apellido_materno: u.apellido_materno ?? '',
-          dni: u.dni ?? '',
           firma_digital_url: '',
           password_actual: '',
         });
@@ -177,7 +182,7 @@ export default function ConfiguracionPage() {
     } else {
       setUsuarioCompleto(null);
     }
-  }, [currentUser?.id, esAdminSinTrabajador]);
+  }, [currentUser?.id, esAdminSinTrabajador, esCentroMedicoSinTrabajador]);
 
   useEffect(() => {
     if (trabajador) {
@@ -346,22 +351,32 @@ export default function ConfiguracionPage() {
         return;
       }
 
-      const firmaBase64 = data.firma_digital_url?.startsWith('data:') ? data.firma_digital_url : undefined;
-      if (firmaBase64) {
+      const firmaFinal = adminFirmaImagen || adminFirmaDibujada;
+      const tieneFirmaNueva = !!firmaFinal;
+      const tieneFirmaExistente = !!usuarioCompleto?.firma_url;
+
+      // Solo exigir firma nueva si no tiene firma guardada
+      if (!tieneFirmaNueva && !tieneFirmaExistente) {
+        toast.error('Debe registrar su firma (dibujar o subir imagen)');
+        setIsSubmittingAdmin(false);
+        return;
+      }
+
+      if (tieneFirmaNueva) {
         const { isValidSignature, getSignatureValidationError } = await import('@/lib/signature-validation');
-        if (!isValidSignature(firmaBase64)) {
+        if (!isValidSignature(firmaFinal)) {
           toast.error(getSignatureValidationError());
           setIsSubmittingAdmin(false);
           return;
         }
       }
 
-      const payload: UpdatePerfilAdminDto = {};
-      if (data.nombres !== undefined && data.nombres !== '') payload.nombres = data.nombres;
-      if (data.apellido_paterno !== undefined && data.apellido_paterno !== '') payload.apellido_paterno = data.apellido_paterno;
-      if (data.apellido_materno !== undefined && data.apellido_materno !== '') payload.apellido_materno = data.apellido_materno;
-      if (data.dni !== undefined && data.dni !== '') payload.dni = data.dni;
-      if (firmaBase64) payload.firma_base64 = firmaBase64;
+      const payload: UpdatePerfilAdminDto = {
+        nombres: data.nombres || undefined,
+        apellido_paterno: data.apellido_paterno || undefined,
+        apellido_materno: data.apellido_materno || undefined,
+        ...(tieneFirmaNueva ? { firma_base64: firmaFinal } : {}),
+      };
 
       const updated = await usuariosService.updatePerfilAdmin(payload);
       setUsuarioCompleto({
@@ -371,11 +386,12 @@ export default function ConfiguracionPage() {
         dni: updated.dni,
         firma_url: updated.firma_url ?? null,
       });
+      setAdminFirmaDibujada('');
+      setAdminFirmaImagen('');
       adminPerfilForm.reset({
         nombres: updated.nombres ?? '',
         apellido_paterno: updated.apellido_paterno ?? '',
         apellido_materno: updated.apellido_materno ?? '',
-        dni: updated.dni ?? '',
         firma_digital_url: '',
         password_actual: '',
       });
@@ -514,81 +530,94 @@ export default function ConfiguracionPage() {
         </div>
       </Modal>
 
-      {/* Información del Usuario */}
+      {/* Información de la Cuenta - Una sola sección para admin/centro médico */}
       <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Información de la Cuenta</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
-            <Input value={currentUser.dni} disabled className="bg-slate-50" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Roles</label>
-            <Input
-              value={currentUser.roles.map((r) => r.replace('_', ' ')).join(', ')}
-              disabled
-              className="bg-slate-50"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Admin/Super Admin sin trabajador: Datos de usuario editables + firma */}
-      {esAdminSinTrabajador && (
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <User className="w-5 h-5" />
-            Datos del Usuario y Firma
-          </h2>
-          <p className="text-slate-600 text-sm mb-4">
-            Puedes modificar tus nombres, apellidos, DNI y firma digital. Se requiere tu contraseña para guardar cambios.
-          </p>
-          {usuarioCompleto !== null ? (
-            <form onSubmit={adminPerfilForm.handleSubmit(onSubmitAdminPerfil)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Nombres</label>
-                  <Input {...adminPerfilForm.register('nombres')} placeholder="Ej. Juan Carlos" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Apellido Paterno</label>
-                  <Input {...adminPerfilForm.register('apellido_paterno')} placeholder="Ej. Pérez" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Apellido Materno</label>
-                  <Input {...adminPerfilForm.register('apellido_materno')} placeholder="Ej. García" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">DNI</label>
-                  <Input {...adminPerfilForm.register('dni')} placeholder="8 dígitos" maxLength={8} />
-                </div>
+        <div className="space-y-6">
+          {/* Campos solo lectura: DNI, Nombres, Apellidos, Roles, Centro médico */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {currentUser?.roles?.includes(UsuarioRol.CENTRO_MEDICO) && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Centro médico vinculado</label>
+                <Input
+                  value={
+                    currentUser.centroMedicoNombre ||
+                    currentUser.participacionesCentroMedico?.[0]?.centroMedicoNombre ||
+                    '-'
+                  }
+                  disabled
+                  className="bg-slate-50"
+                />
               </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">DNI</label>
+              <Input value={currentUser.dni} disabled className="bg-slate-50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Roles</label>
+              <Input
+                value={currentUser.roles.map((r) => r.replace('_', ' ')).join(', ')}
+                disabled
+                className="bg-slate-50"
+              />
+            </div>
+            {(esAdminSinTrabajador || esCentroMedicoSinTrabajador) && usuarioCompleto && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Nombres</label>
+                  <Input
+                    {...adminPerfilForm.register('nombres')}
+                    placeholder="Ej. Juan Carlos"
+                    className="bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Apellido Paterno</label>
+                  <Input
+                    {...adminPerfilForm.register('apellido_paterno')}
+                    placeholder="Ej. Pérez"
+                    className="bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Apellido Materno</label>
+                  <Input
+                    {...adminPerfilForm.register('apellido_materno')}
+                    placeholder="Ej. García"
+                    className="bg-white"
+                  />
+                </div>
+              </>
+            )}
+          </div>
 
+          {/* Firma digital editable (solo admin/centro médico) */}
+          {(esAdminSinTrabajador || esCentroMedicoSinTrabajador) && (
+            <form onSubmit={adminPerfilForm.handleSubmit(onSubmitAdminPerfil)} className="space-y-4 border-t border-slate-200 pt-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Firma digital</label>
                 <p className="text-xs text-slate-500 mb-2">
-                  Dibuje su firma. Se usará como firma responsable en registros de entrega de EPP.
+                  Suba una imagen de su firma manuscrita (PNG/JPG) o dibújela. Se usará como firma responsable en registros de entrega de EPP.
                 </p>
-                {(usuarioCompleto.firma_url || adminPerfilForm.watch('firma_digital_url')?.startsWith('data:')) ? (
-                  <div className="space-y-2">
-                    <div className="border border-slate-200 rounded-lg p-2 bg-slate-50 inline-block min-h-[80px]">
+                {usuarioCompleto?.firma_url && !adminFirmaImagen && !adminFirmaDibujada && (
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-medium text-slate-600 mb-2">Firma actual</p>
+                    <div className="flex justify-center items-center min-h-[80px] bg-white rounded border border-slate-200 p-2">
                       <img
-                        src={
-                          adminPerfilForm.watch('firma_digital_url')?.startsWith('data:')
-                            ? adminPerfilForm.watch('firma_digital_url')!
-                            : usuarioCompleto.firma_url!
-                        }
+                        src={usuarioCompleto.firma_url}
                         alt="Firma actual"
                         className="max-h-24 object-contain"
                         referrerPolicy="no-referrer"
                       />
                     </div>
-                    <p className="text-xs text-slate-500">Dibuje abajo para reemplazar la firma.</p>
                   </div>
-                ) : null}
-                <SignaturePad
-                  value={adminPerfilForm.watch('firma_digital_url')?.startsWith('data:') ? adminPerfilForm.watch('firma_digital_url')! : undefined}
-                  onChange={(url) => adminPerfilForm.setValue('firma_digital_url', url)}
+                )}
+                <MedicoSignatureInput
+                  drawnValue={adminFirmaDibujada}
+                  uploadedValue={adminFirmaImagen}
+                  onDrawnChange={setAdminFirmaDibujada}
+                  onUploadedChange={setAdminFirmaImagen}
                 />
               </div>
 
@@ -618,20 +647,21 @@ export default function ConfiguracionPage() {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <div className="flex justify-end gap-3 pt-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() =>
+                  onClick={() => {
+                    setAdminFirmaDibujada('');
+                    setAdminFirmaImagen('');
                     adminPerfilForm.reset({
-                      nombres: usuarioCompleto.nombres ?? '',
-                      apellido_paterno: usuarioCompleto.apellido_paterno ?? '',
-                      apellido_materno: usuarioCompleto.apellido_materno ?? '',
-                      dni: usuarioCompleto.dni ?? '',
+                      nombres: usuarioCompleto?.nombres ?? '',
+                      apellido_paterno: usuarioCompleto?.apellido_paterno ?? '',
+                      apellido_materno: usuarioCompleto?.apellido_materno ?? '',
                       firma_digital_url: '',
                       password_actual: '',
-                    })
-                  }
+                    });
+                  }}
                 >
                   Cancelar
                 </Button>
@@ -640,11 +670,9 @@ export default function ConfiguracionPage() {
                 </Button>
               </div>
             </form>
-          ) : (
-            <p className="text-slate-500 text-sm">Cargando datos...</p>
           )}
         </div>
-      )}
+      </div>
 
       {/* Datos del trabajador (solo lectura) - Solo empleado con trabajador vinculado */}
       {currentUser.trabajadorId && trabajador && (

@@ -139,8 +139,13 @@ export interface CreateCitaMedicaDto {
 
 export const saludService = {
   // Exámenes Médicos
-  async findAllExamenes(trabajadorId?: string): Promise<ExamenMedico[]> {
-    const params = trabajadorId ? { trabajador_id: trabajadorId } : {};
+  async findAllExamenes(
+    trabajadorId?: string,
+    centroMedicoId?: string,
+  ): Promise<ExamenMedico[]> {
+    const params: Record<string, string> = {};
+    if (trabajadorId) params.trabajador_id = trabajadorId;
+    if (centroMedicoId) params.centro_medico_id = centroMedicoId;
     const response = await apiClient.get<ExamenMedico[]>('/salud/examenes', {
       params,
     });
@@ -219,10 +224,12 @@ export const saludService = {
   async findAllCitas(
     trabajadorId?: string,
     doctorId?: string,
+    centroMedicoId?: string,
   ): Promise<CitaMedica[]> {
     const params: Record<string, string> = {};
     if (trabajadorId) params.trabajador_id = trabajadorId;
     if (doctorId) params.doctor_id = doctorId;
+    if (centroMedicoId) params.centro_medico_id = centroMedicoId;
     const response = await apiClient.get<CitaMedica[]>('/salud/citas', {
       params,
     });

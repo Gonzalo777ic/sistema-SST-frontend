@@ -12,7 +12,7 @@ import {
   ChevronRight,
   Settings,
 } from 'lucide-react';
-import { sidebarConfig, SidebarItem, SidebarGroup } from '@/config/sidebar.config';
+import { sidebarConfig, centroMedicoSidebarConfig, SidebarItem, SidebarGroup } from '@/config/sidebar.config';
 import { UsuarioRol } from '@/types';
 
 function SidebarComponent() {
@@ -121,9 +121,17 @@ function SidebarComponent() {
     return true;
   };
 
+  // Usuario centro médico (sin roles admin): sidebar mínimo con solo Citas
+  const isCentroMedicoOnly =
+    hasRole(UsuarioRol.CENTRO_MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
+
+  const configToUse = isCentroMedicoOnly ? centroMedicoSidebarConfig : sidebarConfig;
+
   // Filtrar y procesar la configuración del sidebar
   const processedGroups = useMemo(() => {
-    return sidebarConfig.map((group) => {
+    return configToUse.map((group) => {
       const filteredItems = group.items
         .map((item) => {
           // Si es un item con subitems
@@ -307,6 +315,11 @@ function SidebarComponent() {
         {/* Header */}
         <div className="p-6 border-b border-slate-200">
           <h2 className="text-xl font-bold text-slate-900">SST</h2>
+          {(usuario?.centroMedicoNombre || usuario?.participacionesCentroMedico?.[0]?.centroMedicoNombre) && (
+            <p className="text-sm font-medium text-slate-800 mt-2">
+              {usuario.centroMedicoNombre || usuario.participacionesCentroMedico?.[0]?.centroMedicoNombre}
+            </p>
+          )}
           <p className="text-sm text-slate-600 mt-1">
             {usuario?.dni || 'Usuario'}
           </p>
