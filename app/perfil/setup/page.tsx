@@ -37,10 +37,6 @@ const medicoPerfilSchema = z.object({
   cmp: z.string().min(1, 'El número de colegiatura (CMP) es obligatorio'),
   rne: z.string().optional(),
   titulo_sello: z.string().optional(),
-  talla_casco: z.string().optional(),
-  talla_camisa: z.string().optional(),
-  talla_pantalon: z.string().optional(),
-  talla_calzado: z.string().optional(),
 });
 
 const centroMedicoPerfilSchema = z.object({
@@ -104,10 +100,6 @@ export default function PerfilSetupPage() {
       cmp: '',
       rne: '',
       titulo_sello: 'MÉDICO OCUPACIONAL',
-      talla_casco: '',
-      talla_camisa: '',
-      talla_pantalon: '',
-      talla_calzado: '',
     },
   });
 
@@ -129,10 +121,6 @@ export default function PerfilSetupPage() {
         cmp: trabajador.cmp ?? '',
         rne: trabajador.rne ?? '',
         titulo_sello: trabajador.titulo_sello ?? 'MÉDICO OCUPACIONAL',
-        talla_casco: trabajador.talla_casco ?? '',
-        talla_camisa: trabajador.talla_camisa ?? '',
-        talla_pantalon: trabajador.talla_pantalon ?? '',
-        talla_calzado: trabajador.talla_calzado?.toString() ?? '',
       });
     }
   }, [trabajador?.id]);
@@ -314,12 +302,6 @@ export default function PerfilSetupPage() {
       return;
     }
 
-    const esCentroMedico = usuario.roles?.includes(UsuarioRol.CENTRO_MEDICO);
-    if (!esCentroMedico && (!data.talla_casco || !data.talla_camisa || !data.talla_pantalon || !data.talla_calzado)) {
-      toast.error('Debe completar todas las tallas de EPP');
-      return;
-    }
-
     const firmaFinal = medicoFirmaImagen || medicoFirmaDibujada;
     if (!firmaFinal) {
       toast.error('Debe registrar su firma (dibujar o subir imagen)');
@@ -346,12 +328,6 @@ export default function PerfilSetupPage() {
         firma_imagen_base64: medicoFirmaImagen || undefined,
         firma_digital_url: !medicoFirmaImagen ? medicoFirmaDibujada : undefined,
         sello_base64: medicoSello,
-        ...(esCentroMedico ? {} : {
-          talla_casco: data.talla_casco,
-          talla_camisa: data.talla_camisa,
-          talla_pantalon: data.talla_pantalon,
-          talla_calzado: data.talla_calzado,
-        }),
       };
 
       await trabajadoresService.updateMedicoPersonalData(usuario.trabajadorId, payload);
@@ -634,42 +610,6 @@ export default function PerfilSetupPage() {
                 onTituloSelloChange={(v) => medicoPerfilForm.setValue('titulo_sello', v)}
               />
             </div>
-
-            {!usuario?.roles?.includes(UsuarioRol.CENTRO_MEDICO) && (
-              <div className="border-t border-slate-200 pt-6">
-                <h3 className="text-sm font-semibold text-slate-800 mb-4">Tallas de EPP</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Casco *</label>
-                    <Select {...medicoPerfilForm.register('talla_casco')}>
-                      <option value="">Seleccione</option>
-                      {tallasCasco.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Camisa *</label>
-                    <Select {...medicoPerfilForm.register('talla_camisa')}>
-                      <option value="">Seleccione</option>
-                      {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Pantalón *</label>
-                    <Select {...medicoPerfilForm.register('talla_pantalon')}>
-                      <option value="">Seleccione</option>
-                      {tallasRopa.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Talla de Calzado *</label>
-                    <Select {...medicoPerfilForm.register('talla_calzado')}>
-                      <option value="">Seleccione</option>
-                      {tallasCalzado.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Select>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isSubmitting} className="min-w-[200px]">
