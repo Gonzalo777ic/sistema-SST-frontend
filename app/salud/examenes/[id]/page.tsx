@@ -30,6 +30,7 @@ import { UsuarioRol } from '@/types';
 import { saludService, ExamenMedico } from '@/services/salud.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { configEmoService } from '@/services/config-emo.service';
+import { VistaCentroMedicoCarga } from '@/components/salud/VistaCentroMedicoCarga';
 
 const TIPOS_EMO = [
   { value: 'Ingreso', label: 'INGRESO' },
@@ -77,10 +78,14 @@ function formatSexo(s: string | null) {
 export default function DetalleEmoPage() {
   const params = useParams();
   const router = useRouter();
-  const { hasAnyRole } = useAuth();
+  const { hasAnyRole, usuario, isLoading: authLoading } = useAuth();
   const id = params.id as string;
 
   const canViewMedicalData = hasAnyRole([UsuarioRol.MEDICO, UsuarioRol.CENTRO_MEDICO]);
+  /** Vista de carga pura: solo para usuario CENTRO_MEDICO sin roles admin/médico */
+  const esCentroMedicoSolo =
+    !!usuario?.roles?.includes(UsuarioRol.CENTRO_MEDICO) &&
+    !hasAnyRole([UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.MEDICO]);
 
   const [examen, setExamen] = useState<ExamenMedico | null>(null);
   const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
@@ -195,13 +200,23 @@ export default function DetalleEmoPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading || !examen) {
+  if (loading || !examen || authLoading) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-96 w-full" />
       </div>
+    );
+  }
+
+  /** Vista de carga pura para Centro Médico: sin ficha colaborador, sin aptitud/CIE10/estado manual */
+  if (esCentroMedicoSolo) {
+    return (
+      <VistaCentroMedicoCarga
+        examen={examen}
+        onExamenActualizado={setExamen}
+      />
     );
   }
 

@@ -181,6 +181,38 @@ export const saludService = {
     return response.data;
   },
 
+  async findDocumentosExamen(examenId: string): Promise<
+    Array<{ id: string; tipo_etiqueta: string; nombre_archivo: string; url: string; created_at: string }>
+  > {
+    const response = await apiClient.get(`/salud/examenes/${examenId}/documentos`);
+    return response.data;
+  },
+
+  async uploadDocumentoExamen(
+    examenId: string,
+    file: File,
+    tipoEtiqueta: string,
+  ): Promise<{ id: string; url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('tipo_etiqueta', tipoEtiqueta);
+    const response = await apiClient.post<{ id: string; url: string }>(
+      `/salud/examenes/${examenId}/documentos`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
+  async removeDocumentoExamen(examenId: string, docId: string): Promise<void> {
+    await apiClient.delete(`/salud/examenes/${examenId}/documentos/${docId}`);
+  },
+
+  async notificarResultadosListos(examenId: string): Promise<ExamenMedico> {
+    const response = await apiClient.post<ExamenMedico>(`/salud/examenes/${examenId}/notificar-resultados`);
+    return response.data;
+  },
+
   async createExamen(dto: {
     trabajador_id: string;
     tipo_examen: string;
