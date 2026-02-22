@@ -247,6 +247,25 @@ export const saludService = {
     await apiClient.delete(`/salud/examenes/${examenId}/documentos/${docId}`);
   },
 
+  /** Obtiene URL firmada para ver documento (bucket privado GCS). Expira en 10 min. */
+  async getSignedUrlDocumentoExamen(
+    examenId: string,
+    docId: string,
+  ): Promise<{ url: string }> {
+    const response = await apiClient.get<{ url: string }>(
+      `/salud/examenes/${examenId}/documentos/${docId}/url-firmada`,
+    );
+    return response.data;
+  },
+
+  /** Obtiene URL firmada para el archivo de resultado del examen (bucket privado GCS). */
+  async getSignedUrlResultadoExamen(examenId: string): Promise<{ url: string }> {
+    const response = await apiClient.get<{ url: string }>(
+      `/salud/examenes/${examenId}/resultado/url-firmada`,
+    );
+    return response.data;
+  },
+
   async notificarResultadosListos(examenId: string): Promise<ExamenMedico> {
     const response = await apiClient.post<ExamenMedico>(`/salud/examenes/${examenId}/notificar-resultados`);
     return response.data;

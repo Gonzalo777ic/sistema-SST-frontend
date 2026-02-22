@@ -352,6 +352,7 @@ export default function TrabajadoresPage() {
         UsuarioRol.SUPER_ADMIN,
         UsuarioRol.ADMIN_EMPRESA,
         UsuarioRol.INGENIERO_SST,
+        UsuarioRol.MEDICO,
       ]}
     >
       <div className="space-y-6">

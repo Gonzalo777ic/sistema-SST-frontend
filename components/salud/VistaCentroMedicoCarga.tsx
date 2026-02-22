@@ -169,6 +169,23 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
     }
   };
 
+  const [abriendoDoc, setAbriendoDoc] = useState<string | null>(null);
+
+  const handleVerDocumento = async (docId: string) => {
+    setAbriendoDoc(docId);
+    try {
+      const { url } = await saludService.getSignedUrlDocumentoExamen(examen.id, docId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : err instanceof Error ? err.message : 'Error al abrir documento';
+      toast.error('No se pudo abrir el documento', { description: String(msg) });
+    } finally {
+      setAbriendoDoc(null);
+    }
+  };
+
   const handleEliminar = async (docId: string) => {
     try {
       await saludService.removeDocumentoExamen(examen.id, docId);
@@ -381,15 +398,15 @@ export function VistaCentroMedicoCarga({ examen, onExamenActualizado }: VistaCen
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2">
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline text-sm flex items-center gap-1"
+                      <button
+                        type="button"
+                        onClick={() => handleVerDocumento(d.id)}
+                        disabled={abriendoDoc === d.id}
+                        className="text-primary hover:underline text-sm flex items-center gap-1 disabled:opacity-50"
                       >
                         <ExternalLink className="h-4 w-4" />
-                        Ver
-                      </a>
+                        {abriendoDoc === d.id ? 'Abriendo...' : 'Ver'}
+                      </button>
                       {puedeSubirMas && (
                         <button
                           onClick={() => handleEliminar(d.id)}

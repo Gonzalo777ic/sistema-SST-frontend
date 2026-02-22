@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { UsuarioRol } from '@/types';
 import { Button } from '@/components/ui/button';
 import { saludService, ExamenMedico } from '@/services/salud.service';
 import { Input } from '@/components/ui/input';
@@ -32,11 +34,27 @@ import {
 import { toast } from 'sonner';
 
 export default function ExamenesMedicosPage() {
+  const { hasRole } = useAuth();
+  const isMedicoOnly =
+    hasRole(UsuarioRol.MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
+
   const [examenes, setExamenes] = useState<ExamenMedico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [paginaActual, setPaginaActual] = useState(1);
+  const [filtroEstado, setFiltroEstado] = useState<string>('');
+  const medicoDefaultSet = useRef(false);
   const registrosPorPagina = 10;
+
+  useEffect(() => {
+    if (isMedicoOnly && !medicoDefaultSet.current) {
+      setFiltroEstado('Pruebas Cargadas');
+      setPaginaActual(1);
+      medicoDefaultSet.current = true;
+    }
+  }, [isMedicoOnly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,11 +78,14 @@ export default function ExamenesMedicosPage() {
     };
   }, []);
 
-  const totalRegistros = examenes.length;
+  const examenesFiltrados = filtroEstado
+    ? examenes.filter((e) => e.estado === filtroEstado)
+    : examenes;
+  const totalRegistros = examenesFiltrados.length;
   const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
   const inicioRegistro = (paginaActual - 1) * registrosPorPagina + 1;
   const finRegistro = Math.min(paginaActual * registrosPorPagina, totalRegistros);
-  const examenesPaginados = examenes.slice(inicioRegistro - 1, finRegistro);
+  const examenesPaginados = examenesFiltrados.slice(inicioRegistro - 1, finRegistro);
 
   const getResultadoBadge = (resultado: string) => {
     const styles: Record<string, string> = {
@@ -206,14 +227,22 @@ export default function ExamenesMedicosPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Estado
                 </label>
-                <Select>
+                <Select
+                  value={filtroEstado}
+                  onChange={(e) => {
+                    setFiltroEstado(e.target.value);
+                    setPaginaActual(1);
+                  }}
+                >
                   <option value="">Todos</option>
-                  <option value="ENTREGADO">ENTREGADO</option>
-                  <option value="PROXIMO">PRÓXIMO</option>
-                  <option value="ATRASADO">ATRASADO</option>
-                  <option value="ASISTIO">ASISTIÓ</option>
-                  <option value="LEIDO">LEIDO</option>
-                  <option value="DIFERIDO">DIFERIDO</option>
+                  <option value="Programado">Programado</option>
+                  <option value="Pruebas Cargadas">Pruebas Cargadas</option>
+                  <option value="Completado">Completado</option>
+                  <option value="Entregado">Entregado</option>
+                  <option value="Reprogramado">Reprogramado</option>
+                  <option value="Cancelado">Cancelado</option>
+                  <option value="Vencido">Vencido</option>
+                  <option value="Por Vencer">Por Vencer</option>
                 </Select>
               </div>
               <div>
@@ -286,29 +315,31 @@ export default function ExamenesMedicosPage() {
         )}
       </div>
 
-      {/* C. BARRA DE HERRAMIENTAS */}
-      <div className="flex items-center gap-2">
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-          <FileText className="h-4 w-4 mr-2" />
-          Formato DIGESA
-        </Button>
-        <Link href="/salud/examenes/configuracion">
+      {/* C. BARRA DE HERRAMIENTAS (oculta para médico: solo evaluación) */}
+      {!isMedicoOnly && (
+        <div className="flex items-center gap-2">
           <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-            <Settings className="h-4 w-4 mr-2" />
-            Configuración
+            <FileText className="h-4 w-4 mr-2" />
+            Formato DIGESA
           </Button>
-        </Link>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-          <Upload className="h-4 w-4 mr-2" />
-          Importar
-        </Button>
-        <Link href="/salud/examenes/nuevo">
+          <Link href="/salud/examenes/configuracion">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+              <Settings className="h-4 w-4 mr-2" />
+              Configuración
+            </Button>
+          </Link>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
-            <CalendarPlus className="h-4 w-4 mr-2" />
-            Programar EMO
+            <Upload className="h-4 w-4 mr-2" />
+            Importar
           </Button>
-        </Link>
-      </div>
+          <Link href="/salud/examenes/nuevo">
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+              <CalendarPlus className="h-4 w-4 mr-2" />
+              Programar EMO
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {/* D. TABLA DE DATOS */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -387,21 +418,29 @@ export default function ExamenesMedicosPage() {
                               variant="ghost"
                               size="sm"
                               className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              title={
+                                examen.estado === 'Pruebas Cargadas'
+                                  ? 'Evaluar'
+                                  : examen.estado === 'Completado' || examen.estado === 'Entregado'
+                                    ? 'Ver Resultados'
+                                    : 'Ver'
+                              }
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => {
-                              // TODO: Implementar agregar resultado
-                              toast.info('Funcionalidad en desarrollo');
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
+                          {!isMedicoOnly && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => {
+                                toast.info('Funcionalidad en desarrollo');
+                              }}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

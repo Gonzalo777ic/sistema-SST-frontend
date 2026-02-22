@@ -4,11 +4,33 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 import { Sidebar } from './Sidebar';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { UsuarioRol } from '@/types';
 
 // Rutas que NO deben usar MainLayout (layout simple)
 const PUBLIC_ROUTES = ['/login', '/auth/reset-password'];
+
+// Rutas permitidas para Médico Ocupacional (principio de privilegio mínimo)
+const MEDICO_ALLOWED_PREFIXES = [
+  '/salud/examenes',
+  '/trabajadores',
+  '/dashboard/reportes/cumplimiento',
+  '/configuracion',
+  '/perfil',
+  '/dashboard',
+];
+
+function isMedicoAllowedPath(pathname: string): boolean {
+  if (pathname === '/' || pathname === '/dashboard') return true;
+  return MEDICO_ALLOWED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+
+function isMedicoOnly(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false;
+  return roles.includes(UsuarioRol.MEDICO) && !roles.includes(UsuarioRol.SUPER_ADMIN) && !roles.includes(UsuarioRol.ADMIN_EMPRESA);
+}
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -31,6 +53,17 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     // Verificar autenticación normal solo si no debe cambiar contraseña y no es ruta pública
     if (!isLoading && !isAuthenticated && !isPublicRoute) {
       router.push('/login');
+      return;
+    }
+
+    // Route guard: Médico Ocupacional solo puede acceder a rutas clínicas
+    if (!isLoading && usuario && isMedicoOnly(usuario.roles) && !isPublicRoute) {
+      if (!isMedicoAllowedPath(pathname)) {
+        toast.error('Acceso restringido', {
+          description: 'No tiene permiso para acceder a esta sección. Use la Gestión de EMOs.',
+        });
+        router.push('/salud/examenes');
+      }
     }
   }, [isAuthenticated, isLoading, usuario, pathname, router, isPublicRoute]);
 

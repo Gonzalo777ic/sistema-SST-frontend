@@ -12,7 +12,7 @@ import {
   ChevronRight,
   Settings,
 } from 'lucide-react';
-import { sidebarConfig, centroMedicoSidebarConfig, SidebarItem, SidebarGroup } from '@/config/sidebar.config';
+import { sidebarConfig, centroMedicoSidebarConfig, medicoSidebarConfig, SidebarItem, SidebarGroup } from '@/config/sidebar.config';
 import { UsuarioRol } from '@/types';
 
 function SidebarComponent() {
@@ -127,7 +127,17 @@ function SidebarComponent() {
     !hasRole(UsuarioRol.SUPER_ADMIN) &&
     !hasRole(UsuarioRol.ADMIN_EMPRESA);
 
-  const configToUse = isCentroMedicoOnly ? centroMedicoSidebarConfig : sidebarConfig;
+  // Médico ocupacional (sin roles admin): sidebar clínico mínimo
+  const isMedicoOnly =
+    hasRole(UsuarioRol.MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
+
+  const configToUse = isCentroMedicoOnly
+    ? centroMedicoSidebarConfig
+    : isMedicoOnly
+      ? medicoSidebarConfig
+      : sidebarConfig;
 
   // Filtrar y procesar la configuración del sidebar
   const processedGroups = useMemo(() => {

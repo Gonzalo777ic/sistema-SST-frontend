@@ -21,6 +21,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.3.0",
     "ubigeo-peru": "^2.0.2",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {

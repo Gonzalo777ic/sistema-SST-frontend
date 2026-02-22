@@ -23,6 +23,7 @@ import {
   Download,
   AlertCircle,
   Lock,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -95,6 +96,8 @@ export default function DetalleEmoPage() {
   const [perfilNombre, setPerfilNombre] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [descargandoResultado, setDescargandoResultado] = useState(false);
+  const [docAbriendoId, setDocAbriendoId] = useState<string | null>(null);
 
   const [estado, setEstado] = useState('');
   const [tipoEmo, setTipoEmo] = useState('');
@@ -161,6 +164,13 @@ export default function DetalleEmoPage() {
       .catch(() => setPerfilNombre(''));
   }, [examen?.perfil_emo_id]);
 
+  // Auto-fecha resultado cuando el médico selecciona una aptitud definida
+  useEffect(() => {
+    if (canViewMedicalData && resultado && resultado !== 'Pendiente' && !fechaResultado) {
+      setFechaResultado(new Date().toISOString().split('T')[0]);
+    }
+  }, [resultado, canViewMedicalData]);
+
   const handleGuardar = async () => {
     if (!examen) return;
     setSaving(true);
@@ -193,6 +203,22 @@ export default function DetalleEmoPage() {
     }
   };
 
+  const handleDescargarResultado = async () => {
+    if (!examen?.id) return;
+    setDescargandoResultado(true);
+    try {
+      const { url } = await saludService.getSignedUrlResultadoExamen(examen.id);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+        : err instanceof Error ? err.message : 'Error al abrir';
+      toast.error('No se pudo abrir el archivo', { description: String(msg) });
+    } finally {
+      setDescargandoResultado(false);
+    }
+  };
+
   const handleDescargarRecomendacion = () => {
     const blob = new Blob([recomendaciones], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -201,6 +227,25 @@ export default function DetalleEmoPage() {
     a.download = 'recomendaciones-emo.txt';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleVerDocumento = async (docId: string) => {
+    if (!examen?.id) return;
+    setDocAbriendoId(docId);
+    try {
+      const { url } = await saludService.getSignedUrlDocumentoExamen(examen.id, docId);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : err instanceof Error
+            ? err.message
+            : 'Error al abrir';
+      toast.error('No se pudo abrir el documento', { description: String(msg) });
+    } finally {
+      setDocAbriendoId(null);
+    }
   };
 
   if (loading || !examen || authLoading) {
@@ -814,9 +859,46 @@ export default function DetalleEmoPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {/* Pruebas médicas subidas por el Centro Médico */}
+            {(examen.documentos ?? []).map((doc, idx) => {
+              const docAny = doc as {
+                id: string;
+                tipo_etiqueta?: string;
+                prueba_medica?: { nombre: string };
+                nombre_archivo: string;
+                created_at?: string;
+              };
+              const titulo = `PRUEBA MÉDICA - ${docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? docAny.nombre_archivo}`;
+              const fechaReg = docAny.created_at
+                ? new Date(docAny.created_at).toLocaleDateString('es-PE')
+                : '-';
+              return (
+                <TableRow key={doc.id}>
+                  <TableCell>{idx + 1}</TableCell>
+                  <TableCell>{fechaReg}</TableCell>
+                  <TableCell>{titulo}</TableCell>
+                  <TableCell>{docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? 'Documento'}</TableCell>
+                  <TableCell>Centro Médico</TableCell>
+                  {canViewMedicalData && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleVerDocumento(doc.id)}
+                        disabled={docAbriendoId === doc.id}
+                        className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm disabled:opacity-50"
+                      >
+                        <Eye className="h-4 w-4" />
+                        {docAbriendoId === doc.id ? 'Abriendo...' : 'Ver'}
+                      </button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+            {/* Archivo EMO completo (resultado) */}
             {examen.resultado_archivo_existe && !examen.resultado_archivo_url && (
               <TableRow>
-                <TableCell>1</TableCell>
+                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
                 <TableCell>-</TableCell>
                 <TableCell>Archivo EMO completo</TableCell>
                 <TableCell>Hoja de resultados</TableCell>
@@ -830,26 +912,28 @@ export default function DetalleEmoPage() {
             )}
             {examen.resultado_archivo_url && (
               <TableRow>
-                <TableCell>1</TableCell>
+                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
                 <TableCell>-</TableCell>
                 <TableCell>Archivo EMO completo</TableCell>
                 <TableCell>Hoja de resultados</TableCell>
                 <TableCell>-</TableCell>
                 {canViewMedicalData && (
                   <TableCell>
-                    <a
-                      href={examen.resultado_archivo_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm"
+                    <button
+                      type="button"
+                      onClick={handleDescargarResultado}
+                      disabled={descargandoResultado}
+                      className="text-blue-600 hover:underline text-sm disabled:opacity-50"
                     >
-                      Descargar
-                    </a>
+                      {descargandoResultado ? 'Abriendo...' : 'Descargar'}
+                    </button>
                   </TableCell>
                 )}
               </TableRow>
             )}
-            {!examen.resultado_archivo_url && !examen.resultado_archivo_existe && (
+            {(!examen.documentos || examen.documentos.length === 0) &&
+              !examen.resultado_archivo_url &&
+              !examen.resultado_archivo_existe && (
               <TableRow>
                 <TableCell colSpan={canViewMedicalData ? 6 : 5} className="text-center py-8 text-gray-500">
                   No existen documentos.

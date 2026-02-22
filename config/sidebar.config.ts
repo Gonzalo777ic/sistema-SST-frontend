@@ -24,6 +24,7 @@ import {
   CalendarDays,
   ListTodo,
   ListChecks,
+  FileSearch,
 } from 'lucide-react';
 import { UsuarioRol } from '@/types';
 
@@ -57,6 +58,38 @@ const ROLES_NO_EMPLEADO: UsuarioRol[] = [
   UsuarioRol.MEDICO,
   UsuarioRol.AUDITOR,
   UsuarioRol.CENTRO_MEDICO,
+];
+
+/** Sidebar mínimo para Médico Ocupacional: solo gestión clínica de EMOs. */
+export const medicoSidebarConfig: SidebarGroup[] = [
+  {
+    title: 'GESTIÓN MÉDICA',
+    items: [
+      {
+        label: 'Gestión de EMOs',
+        href: '/salud/examenes',
+        icon: Stethoscope,
+        roles: [UsuarioRol.MEDICO],
+      },
+      {
+        label: 'Trabajadores',
+        href: '/trabajadores',
+        icon: Users,
+        roles: [UsuarioRol.MEDICO],
+      },
+    ],
+  },
+  {
+    title: 'REPORTES',
+    items: [
+      {
+        label: 'Cumplimiento EMO',
+        href: '/dashboard/reportes/cumplimiento',
+        icon: BarChart3,
+        roles: [UsuarioRol.MEDICO],
+      },
+    ],
+  },
 ];
 
 /** Sidebar mínimo para usuario centro médico: Citas, Pruebas Médicas y Configuración. */
@@ -302,6 +335,12 @@ export const sidebarConfig: SidebarGroup[] = [
         label: 'Jerarquía Organizacional',
         href: '/empresas',
         icon: Building2,
+        roles: [UsuarioRol.SUPER_ADMIN],
+      },
+      {
+        label: 'Logs de Acceso',
+        href: '/auditoria/logs',
+        icon: FileSearch,
         roles: [UsuarioRol.SUPER_ADMIN],
       },
       {

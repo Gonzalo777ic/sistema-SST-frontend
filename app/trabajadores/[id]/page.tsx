@@ -310,7 +310,7 @@ export default function TrabajadorDetallePage() {
 
   if (isLoading || !trabajador) {
     return (
-      <ProtectedRoute allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST]}>
+      <ProtectedRoute allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.MEDICO]}>
         <div className="p-8 text-center">Cargando...</div>
       </ProtectedRoute>
     );
@@ -325,7 +325,7 @@ export default function TrabajadorDetallePage() {
 
   return (
     <ProtectedRoute
-      allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST]}
+      allowedRoles={[UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST, UsuarioRol.MEDICO]}
     >
       <div className="space-y-6 min-w-0 max-w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
