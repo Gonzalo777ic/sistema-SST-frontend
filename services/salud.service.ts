@@ -52,6 +52,15 @@ export interface ExamenMedico {
   trabajador_id: string;
   trabajador_nombre: string | null;
   trabajador_documento?: string | null;
+  trabajador_cargo?: string | null;
+  empresa_id?: string | null;
+  empresa_nombre?: string | null;
+  empresa_direccion?: string | null;
+  empresa_actividad_economica?: string | null;
+  empresa_departamento?: string | null;
+  empresa_provincia?: string | null;
+  empresa_distrito?: string | null;
+  empresa_pais?: string | null;
   proyecto?: string | null;
   sede?: string | null;
   tipo_examen: TipoExamen;

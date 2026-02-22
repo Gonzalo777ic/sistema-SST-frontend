@@ -5,6 +5,10 @@ export interface Empresa {
   nombre: string;
   ruc: string;
   direccion: string | null;
+  pais: string | null;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
   actividad_economica: string | null;
   numero_trabajadores: number;
   logoUrl: string | null;
@@ -18,6 +22,10 @@ export interface CreateEmpresaDto {
   nombre: string;
   ruc: string;
   direccion: string;
+  pais?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
   actividad_economica: string;
   numero_trabajadores?: number;
   logoUrl?: string;
@@ -28,6 +36,10 @@ export interface UpdateEmpresaDto {
   nombre?: string;
   ruc?: string;
   direccion?: string;
+  pais?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
   actividad_economica?: string;
   numero_trabajadores?: number;
   logoUrl?: string;

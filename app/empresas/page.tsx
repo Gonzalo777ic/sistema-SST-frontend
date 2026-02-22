@@ -24,6 +24,13 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Edit, Trash2, Building2, Upload, UserPlus, UserMinus, UserCheck, Pencil } from 'lucide-react';
+import { Select } from '@/components/ui/select';
+import {
+  getDepartamentos,
+  getProvincias,
+  getDistritos,
+  UbigeoItem,
+} from '@/lib/ubigeo';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,6 +41,10 @@ const empresaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio'),
   ruc: z.string().length(11, 'El RUC debe tener 11 dígitos').regex(/^\d{11}$/, 'El RUC debe contener solo números'),
   direccion: z.string().min(1, 'La dirección es obligatoria'),
+  pais: z.string().optional(),
+  departamento: z.string().optional(),
+  provincia: z.string().optional(),
+  distrito: z.string().optional(),
   actividad_economica: z.string().min(1, 'La actividad económica es obligatoria'),
   numero_trabajadores: z.coerce.number().min(0, 'Debe ser 0 o mayor').optional(),
   logoUrl: z.string().url('Debe ser una URL válida').optional().or(z.literal('')),
@@ -64,6 +75,9 @@ export default function EmpresasPage() {
   const [firmaGerenteFile, setFirmaGerenteFile] = useState<File | null>(null);
   const [isGuardandoGerente, setIsGuardandoGerente] = useState(false);
 
+  const [departamentos, setDepartamentos] = useState<UbigeoItem[]>([]);
+  const [provincias, setProvincias] = useState<UbigeoItem[]>([]);
+  const [distritos, setDistritos] = useState<UbigeoItem[]>([]);
   const [editingGerente, setEditingGerente] = useState<FirmaGerente | null>(null);
   const [empresaParaEditarGerente, setEmpresaParaEditarGerente] = useState<Empresa | null>(null);
   const [editRolGerente, setEditRolGerente] = useState('RRHH');
@@ -85,12 +99,51 @@ export default function EmpresasPage() {
       nombre: '',
       ruc: '',
       direccion: '',
+      pais: 'Perú',
+      departamento: '',
+      provincia: '',
+      distrito: '',
       actividad_economica: '',
       numero_trabajadores: 0,
       logoUrl: '',
       activo: true,
     },
   });
+
+  const watchDepartamento = watch('departamento');
+  const watchProvincia = watch('provincia');
+
+  useEffect(() => {
+    getDepartamentos().then(setDepartamentos);
+  }, []);
+
+  useEffect(() => {
+    if (!watchDepartamento) {
+      setProvincias([]);
+      setDistritos([]);
+      setValue('provincia', '');
+      setValue('distrito', '');
+      return;
+    }
+    const cod = departamentos.find((d) => d.nombre === watchDepartamento)?.codigo;
+    if (cod) getProvincias(cod).then(setProvincias);
+    else setProvincias([]);
+    setValue('provincia', '');
+    setValue('distrito', '');
+  }, [watchDepartamento, departamentos, setValue]);
+
+  useEffect(() => {
+    if (!watchProvincia || !watchDepartamento) {
+      setDistritos([]);
+      setValue('distrito', '');
+      return;
+    }
+    const depCod = departamentos.find((d) => d.nombre === watchDepartamento)?.codigo;
+    const provCod = provincias.find((p) => p.nombre === watchProvincia)?.codigo;
+    if (depCod && provCod) getDistritos(depCod, provCod).then(setDistritos);
+    else setDistritos([]);
+    setValue('distrito', '');
+  }, [watchProvincia, watchDepartamento, departamentos, provincias, setValue]);
 
   const canCreate = hasRole(UsuarioRol.SUPER_ADMIN);
   const canEdit = hasRole(UsuarioRol.SUPER_ADMIN) || hasRole(UsuarioRol.ADMIN_EMPRESA);
@@ -137,6 +190,10 @@ export default function EmpresasPage() {
         nombre: editingEmpresa.nombre,
         ruc: editingEmpresa.ruc,
         direccion: editingEmpresa.direccion || '',
+        pais: editingEmpresa.pais || 'Perú',
+        departamento: editingEmpresa.departamento || '',
+        provincia: editingEmpresa.provincia || '',
+        distrito: editingEmpresa.distrito || '',
         actividad_economica: editingEmpresa.actividad_economica || '',
         numero_trabajadores: editingEmpresa.numero_trabajadores ?? 0,
         logoUrl: editingEmpresa.logoUrl || '',
@@ -147,6 +204,10 @@ export default function EmpresasPage() {
         nombre: '',
         ruc: '',
         direccion: '',
+        pais: 'Perú',
+        departamento: '',
+        provincia: '',
+        distrito: '',
         actividad_economica: '',
         numero_trabajadores: 0,
         logoUrl: '',
@@ -176,6 +237,10 @@ export default function EmpresasPage() {
           nombre: data.nombre,
           ruc: data.ruc,
           direccion: data.direccion || undefined,
+          pais: data.pais || undefined,
+          departamento: data.departamento || undefined,
+          provincia: data.provincia || undefined,
+          distrito: data.distrito || undefined,
           actividad_economica: data.actividad_economica || undefined,
           numero_trabajadores: data.numero_trabajadores,
           logoUrl: data.logoUrl || undefined,
@@ -189,6 +254,10 @@ export default function EmpresasPage() {
           nombre: data.nombre,
           ruc: data.ruc,
           direccion: data.direccion,
+          pais: data.pais || undefined,
+          departamento: data.departamento || undefined,
+          provincia: data.provincia || undefined,
+          distrito: data.distrito || undefined,
           actividad_economica: data.actividad_economica,
           numero_trabajadores: data.numero_trabajadores,
           logoUrl: data.logoUrl || undefined,
@@ -693,6 +762,62 @@ export default function EmpresasPage() {
               {errors.direccion && (
                 <p className="mt-1 text-sm text-danger">{errors.direccion.message}</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                País
+              </label>
+              <Input
+                {...register('pais')}
+                placeholder="Ej: Perú"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                Ubicación (Departamento / Provincia / Distrito)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Select
+                  {...register('departamento')}
+                  onChange={(e) => {
+                    register('departamento').onChange(e);
+                    setValue('provincia', '');
+                    setValue('distrito', '');
+                  }}
+                >
+                  <option value="">Departamento</option>
+                  {departamentos.map((d) => (
+                    <option key={d.codigo} value={d.nombre}>
+                      {d.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  {...register('provincia')}
+                  disabled={!watchDepartamento}
+                  onChange={(e) => {
+                    register('provincia').onChange(e);
+                    setValue('distrito', '');
+                  }}
+                >
+                  <option value="">Provincia</option>
+                  {provincias.map((p) => (
+                    <option key={p.codigo} value={p.nombre}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </Select>
+                <Select {...register('distrito')} disabled={!watchProvincia}>
+                  <option value="">Distrito</option>
+                  {distritos.map((d) => (
+                    <option key={d.codigo} value={d.nombre}>
+                      {d.nombre}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
 
             <div>
