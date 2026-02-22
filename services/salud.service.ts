@@ -68,6 +68,7 @@ export interface ExamenMedico {
   restricciones: string | null;
   observaciones: string | null;
   diagnosticos_cie10: Array<{ code: string; description: string }> | null;
+  programas_vigilancia: string[] | null;
   resultado_archivo_url: string | null;
   resultado_archivo_existe?: boolean;
   estado: EstadoExamen;
@@ -77,6 +78,17 @@ export interface ExamenMedico {
   fecha_revision_doctor: string | null;
   cargado_por: string | null;
   cargado_por_id: string;
+  /** Seguimientos (interconsultas y vigilancias) del EMO */
+  seguimientos?: Array<{
+    id: string;
+    tipo: string;
+    cie10_code: string;
+    cie10_description: string | null;
+    especialidad: string;
+    estado: string;
+    plazo: string;
+    motivo: string | null;
+  }>;
   /** Documentos subidos por centro médico (incluidos en findOneExamen) */
   documentos?: Array<{
     id: string;
@@ -282,6 +294,49 @@ export const saludService = {
   async notificarResultadosListos(examenId: string): Promise<ExamenMedico> {
     const response = await apiClient.post<ExamenMedico>(`/salud/examenes/${examenId}/notificar-resultados`);
     return response.data;
+  },
+
+  // Seguimientos (Interconsultas y Vigilancia)
+  async createSeguimiento(
+    examenId: string,
+    dto: {
+      tipo: 'INTERCONSULTA' | 'VIGILANCIA';
+      cie10_code: string;
+      cie10_description?: string;
+      especialidad: string;
+      plazo: string;
+      motivo?: string;
+      estado?: string;
+    },
+  ): Promise<ExamenMedico['seguimientos']> {
+    const response = await apiClient.post(
+      `/salud/examenes/${examenId}/seguimientos`,
+      dto,
+    );
+    return response.data;
+  },
+
+  async updateSeguimiento(
+    examenId: string,
+    segId: string,
+    dto: Partial<{
+      cie10_code: string;
+      cie10_description: string;
+      especialidad: string;
+      estado: string;
+      plazo: string;
+      motivo: string;
+    }>,
+  ): Promise<ExamenMedico['seguimientos']> {
+    const response = await apiClient.patch(
+      `/salud/examenes/${examenId}/seguimientos/${segId}`,
+      dto,
+    );
+    return response.data;
+  },
+
+  async removeSeguimiento(examenId: string, segId: string): Promise<void> {
+    await apiClient.delete(`/salud/examenes/${examenId}/seguimientos/${segId}`);
   },
 
   async createExamen(dto: {

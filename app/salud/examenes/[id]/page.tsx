@@ -35,7 +35,18 @@ import { trabajadoresService, Trabajador } from '@/services/trabajadores.service
 import { configEmoService } from '@/services/config-emo.service';
 import { VistaCentroMedicoCarga } from '@/components/salud/VistaCentroMedicoCarga';
 import { Cie10Buscador } from '@/components/salud/Cie10Buscador';
+import { ModalSeguimientoMedico } from '@/components/salud/ModalSeguimientoMedico';
 import type { Cie10Item } from '@/services/cie10.service';
+
+const PROGRAMAS_VIGILANCIA = [
+  { value: 'PSICOLOGÍA', label: 'PSICOLOGÍA' },
+  { value: 'NUTRICIÓN', label: 'NUTRICIÓN' },
+  { value: 'TRASTORNOS MUSCULOESQUELÉTICOS', label: 'TRASTORNOS MUSCULOESQUELÉTICOS' },
+  { value: 'AUDITIVOS', label: 'AUDITIVOS' },
+  { value: 'RESPIRATORIOS', label: 'RESPIRATORIOS' },
+  { value: 'OFTALMOLÓGICOS', label: 'OFTALMOLÓGICOS' },
+  { value: 'ENFERMEDADES CRÓNICAS', label: 'ENFERMEDADES CRÓNICAS' },
+];
 
 const TIPOS_EMO = [
   { value: 'Ingreso', label: 'INGRESO' },
@@ -122,6 +133,10 @@ export default function DetalleEmoPage() {
   const [restricciones, setRestricciones] = useState('');
   const [observaciones, setObservaciones] = useState('');
   const [diagnosticosCie10, setDiagnosticosCie10] = useState<Cie10Item[]>([]);
+  const [programasVigilancia, setProgramasVigilancia] = useState<string[]>([]);
+  const [modalInterconsulta, setModalInterconsulta] = useState(false);
+  const [modalVigilancia, setModalVigilancia] = useState(false);
+  const [programaSeleccionado, setProgramaSeleccionado] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -151,6 +166,7 @@ export default function DetalleEmoPage() {
             level: 0,
           })),
         );
+        setProgramasVigilancia(e.programas_vigilancia ?? []);
         return trabajadoresService.findOne(e.trabajador_id);
       })
       .then((t) => {
@@ -215,6 +231,8 @@ export default function DetalleEmoPage() {
           diagnosticosCie10.length > 0
             ? diagnosticosCie10.map((d) => ({ code: d.code, description: d.description }))
             : undefined;
+        payload.programas_vigilancia =
+          programasVigilancia.length > 0 ? programasVigilancia : undefined;
         if (fechaResultado) {
           const d = new Date(fechaResultado);
           d.setFullYear(d.getFullYear() + 2);
@@ -237,6 +255,8 @@ export default function DetalleEmoPage() {
             diagnosticosCie10.length > 0
               ? diagnosticosCie10.map((d) => ({ code: d.code, description: d.description }))
               : undefined;
+          payload.programas_vigilancia =
+            programasVigilancia.length > 0 ? programasVigilancia : undefined;
           // Vigencia: fecha_resultado + 2 años por defecto
           if (fechaResultado) {
             const d = new Date(fechaResultado);
@@ -306,6 +326,52 @@ export default function DetalleEmoPage() {
       toast.error('Error al subir el PDF', { description: String(msg) });
     } finally {
       setUploadingResultado(false);
+    }
+  };
+
+  const interconsultas = (examen?.seguimientos ?? []).filter(
+    (s) => s.tipo === 'INTERCONSULTA',
+  );
+  const vigilancias = (examen?.seguimientos ?? []).filter(
+    (s) => s.tipo === 'VIGILANCIA',
+  );
+  const hayInterconsultaPendiente = interconsultas.some(
+    (s) => s.estado === 'PENDIENTE',
+  );
+
+  const handleSeguimientoSubmit = async (data: {
+    tipo: 'INTERCONSULTA' | 'VIGILANCIA';
+    cie10_code: string;
+    cie10_description: string;
+    especialidad: string;
+    plazo: string;
+    motivo: string;
+    estado: string;
+  }) => {
+    if (!examen?.id) return;
+    await saludService.createSeguimiento(examen.id, data);
+    toast.success(
+      data.tipo === 'INTERCONSULTA'
+        ? 'Interconsulta agregada'
+        : 'Vigilancia médica agregada',
+    );
+    const actualizado = await saludService.findOneExamen(examen.id);
+    setExamen(actualizado);
+  };
+
+  const handleRemoveSeguimiento = async (segId: string) => {
+    if (!examen?.id) return;
+    try {
+      await saludService.removeSeguimiento(examen.id, segId);
+      toast.success('Seguimiento eliminado');
+      const actualizado = await saludService.findOneExamen(examen.id);
+      setExamen(actualizado);
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : err instanceof Error ? err.message : 'Error';
+      toast.error('Error al eliminar', { description: String(msg) });
     }
   };
 
@@ -918,6 +984,18 @@ export default function DetalleEmoPage() {
         </div>
       </div>
 
+      {/* Sugerencia OBSERVADO si hay interconsulta pendiente */}
+      {hayInterconsultaPendiente && resultado !== 'Pendiente' && canViewMedicalData && (
+        <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            Existe una interconsulta en estado <strong>Pendiente</strong>. Se recomienda
+            establecer la Aptitud en <strong>OBSERVADO</strong> hasta que el trabajador
+            cumpla con la interconsulta.
+          </p>
+        </div>
+      )}
+
       {/* Levantamiento de Observaciones / Interconsultas */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -930,18 +1008,56 @@ export default function DetalleEmoPage() {
               <TableHead>Especialidad</TableHead>
               <TableHead>Plazo de levantamiento</TableHead>
               <TableHead>Estado</TableHead>
+              {canViewMedicalData && <TableHead>Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                No existen seguimientos a observaciones.
-              </TableCell>
-            </TableRow>
+            {interconsultas.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={canViewMedicalData ? 5 : 4}
+                  className="text-center py-8 text-gray-500"
+                >
+                  No existen seguimientos a observaciones.
+                </TableCell>
+              </TableRow>
+            ) : (
+              interconsultas.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>
+                    <span className="font-mono text-blue-600">{s.cie10_code}</span>
+                    {s.cie10_description && (
+                      <span className="text-gray-600 ml-1">— {s.cie10_description}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{s.especialidad}</TableCell>
+                  <TableCell>
+                    {new Date(s.plazo).toLocaleDateString('es-PE')}
+                  </TableCell>
+                  <TableCell>{s.estado}</TableCell>
+                  {canViewMedicalData && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSeguimiento(s.id)}
+                        className="text-red-600 hover:underline text-sm"
+                      >
+                        Eliminar
+                      </button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
         {canViewMedicalData && (
-          <Button variant="link" size="sm" className="mt-2 text-blue-600">
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => setModalInterconsulta(true)}
+          >
             + Agregar Interconsulta
           </Button>
         )}
@@ -959,18 +1075,56 @@ export default function DetalleEmoPage() {
               <TableHead>Especialidad</TableHead>
               <TableHead>Plazo de levantamiento</TableHead>
               <TableHead>Estado</TableHead>
+              {canViewMedicalData && <TableHead>Acciones</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow>
-              <TableCell colSpan={4} className="text-center py-8 text-gray-500">
-                No existen vigilancias médicas.
-              </TableCell>
-            </TableRow>
+            {vigilancias.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={canViewMedicalData ? 5 : 4}
+                  className="text-center py-8 text-gray-500"
+                >
+                  No existen vigilancias médicas.
+                </TableCell>
+              </TableRow>
+            ) : (
+              vigilancias.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>
+                    <span className="font-mono text-blue-600">{s.cie10_code}</span>
+                    {s.cie10_description && (
+                      <span className="text-gray-600 ml-1">— {s.cie10_description}</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{s.especialidad}</TableCell>
+                  <TableCell>
+                    {new Date(s.plazo).toLocaleDateString('es-PE')}
+                  </TableCell>
+                  <TableCell>{s.estado}</TableCell>
+                  {canViewMedicalData && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSeguimiento(s.id)}
+                        className="text-red-600 hover:underline text-sm"
+                      >
+                        Eliminar
+                      </button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
         {canViewMedicalData && (
-          <Button variant="link" size="sm" className="mt-2 text-blue-600">
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => setModalVigilancia(true)}
+          >
             + Agregar Vigilancia Médica
           </Button>
         )}
@@ -980,22 +1134,65 @@ export default function DetalleEmoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Programa de Vigilancia Médica
             </label>
-            <Select className="w-[280px] inline-block">
-              <option value="">Seleccione</option>
-              <option value="psicologia">PSICOLOGÍA</option>
-              <option value="nutricion">NUTRICIÓN</option>
-              <option value="musculoesqueleticos">TRASTORNOS MUSCULOESQUELÉTICOS</option>
-              <option value="auditivos">AUDITIVOS</option>
-              <option value="respiratorios">RESPIRATORIOS</option>
-              <option value="oftalmologicos">OFTALMOLÓGICOS</option>
-              <option value="cronicos">ENFERMEDADES CRÓNICAS</option>
-            </Select>
-            <Button variant="link" size="sm" className="ml-2 text-blue-600">
-              + Agregar Programa
-            </Button>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Select
+                className="w-[280px]"
+                value={programaSeleccionado}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setProgramaSeleccionado('');
+                  if (v && !programasVigilancia.includes(v)) {
+                    setProgramasVigilancia((prev) => [...prev, v]);
+                  }
+                }}
+              >
+                <option value="">Seleccione para agregar</option>
+                {PROGRAMAS_VIGILANCIA.filter(
+                  (p) => !programasVigilancia.includes(p.value),
+                ).map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </Select>
+              {programasVigilancia.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {programasVigilancia.map((p) => (
+                    <span
+                      key={p}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-800 text-sm"
+                    >
+                      {p}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProgramasVigilancia((prev) => prev.filter((x) => x !== p))
+                        }
+                        className="hover:text-red-600"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      <ModalSeguimientoMedico
+        isOpen={modalInterconsulta}
+        onClose={() => setModalInterconsulta(false)}
+        tipo="INTERCONSULTA"
+        onSubmit={handleSeguimientoSubmit}
+      />
+      <ModalSeguimientoMedico
+        isOpen={modalVigilancia}
+        onClose={() => setModalVigilancia(false)}
+        tipo="VIGILANCIA"
+        onSubmit={handleSeguimientoSubmit}
+      />
 
       {/* DOCUMENTOS ADJUNTOS */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
