@@ -247,6 +247,18 @@ export const saludService = {
     await apiClient.delete(`/salud/examenes/${examenId}/documentos/${docId}`);
   },
 
+  /** Sube la Ficha EMO (Anexo 02) como PDF externo. Solo profesional de salud. */
+  async uploadResultadoExamen(examenId: string, file: File): Promise<{ url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<{ url: string }>(
+      `/salud/examenes/${examenId}/upload-resultado`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  },
+
   /** Obtiene URL firmada para ver documento (bucket privado GCS). Expira en 10 min. */
   async getSignedUrlDocumentoExamen(
     examenId: string,

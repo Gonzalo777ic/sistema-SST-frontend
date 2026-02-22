@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,8 @@ import {
   AlertCircle,
   Lock,
   Eye,
+  Upload,
+  FilePlus2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,6 +104,9 @@ export default function DetalleEmoPage() {
   const [saving, setSaving] = useState(false);
   const [descargandoResultado, setDescargandoResultado] = useState(false);
   const [docAbriendoId, setDocAbriendoId] = useState<string | null>(null);
+  const [flujoFicha, setFlujoFicha] = useState<'subir_pdf' | 'generar_sistema'>('subir_pdf');
+  const [uploadingResultado, setUploadingResultado] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [estado, setEstado] = useState('');
   const [tipoEmo, setTipoEmo] = useState('');
@@ -175,6 +180,15 @@ export default function DetalleEmoPage() {
     }
   }, [resultado, canViewMedicalData]);
 
+  // Vigencia: fecha_resultado + 2 años (para estadísticas)
+  const vigenciaCalculada = fechaResultado
+    ? (() => {
+        const d = new Date(fechaResultado);
+        d.setFullYear(d.getFullYear() + 2);
+        return d.toISOString().split('T')[0];
+      })()
+    : null;
+
   const handleGuardar = async () => {
     if (!examen) return;
     setSaving(true);
@@ -186,6 +200,11 @@ export default function DetalleEmoPage() {
         payload.fecha_realizado = fechaResultado || null;
         payload.restricciones = restricciones || undefined;
         payload.observaciones = observaciones || undefined;
+        if (fechaResultado) {
+          const d = new Date(fechaResultado);
+          d.setFullYear(d.getFullYear() + 2);
+          payload.fecha_vencimiento = d.toISOString().split('T')[0];
+        }
       } else {
         payload.estado = estado;
         payload.tipo_examen = tipoEmo;
@@ -199,6 +218,12 @@ export default function DetalleEmoPage() {
           payload.fecha_realizado = fechaResultado || null;
           payload.restricciones = restricciones || undefined;
           payload.observaciones = observaciones || undefined;
+          // Vigencia: fecha_resultado + 2 años por defecto
+          if (fechaResultado) {
+            const d = new Date(fechaResultado);
+            d.setFullYear(d.getFullYear() + 2);
+            payload.fecha_vencimiento = d.toISOString().split('T')[0];
+          }
         }
       }
       await saludService.updateExamen(examen.id, payload as any);
@@ -238,6 +263,31 @@ export default function DetalleEmoPage() {
     a.download = 'recomendaciones-emo.txt';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleUploadResultado = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !examen?.id) return;
+    if (file.type !== 'application/pdf') {
+      toast.error('Solo se permite subir archivos PDF');
+      return;
+    }
+    setUploadingResultado(true);
+    try {
+      await saludService.uploadResultadoExamen(examen.id, file);
+      toast.success('Ficha EMO (Anexo 02) subida correctamente');
+      const actualizado = await saludService.findOneExamen(examen.id);
+      setExamen(actualizado);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : err instanceof Error ? err.message : 'Error al subir';
+      toast.error('Error al subir el PDF', { description: String(msg) });
+    } finally {
+      setUploadingResultado(false);
+    }
   };
 
   const handleVerDocumento = async (docId: string) => {
@@ -628,6 +678,76 @@ export default function DetalleEmoPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           POSTERIOR A LA CITA - RESULTADOS DEL EXAMEN MÉDICO
         </h2>
+
+        {/* Selector de flujo: Subir PDF externo vs Generar en sistema */}
+        {canViewMedicalData && (
+          <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              ¿Cómo registrará la Ficha Médica (Anexo 02 MINSA)?
+            </label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="flujo_ficha"
+                  checked={flujoFicha === 'subir_pdf'}
+                  onChange={() => setFlujoFicha('subir_pdf')}
+                  className="text-blue-600"
+                />
+                <span className="text-sm">Subir Ficha Externa (PDF)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="flujo_ficha"
+                  checked={flujoFicha === 'generar_sistema'}
+                  onChange={() => setFlujoFicha('generar_sistema')}
+                  className="text-blue-600"
+                />
+                <span className="text-sm">Generar Ficha en Sistema</span>
+              </label>
+            </div>
+            {flujoFicha === 'subir_pdf' && (
+              <div className="mt-4 flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleUploadResultado}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={uploadingResultado}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  {uploadingResultado ? 'Subiendo...' : 'Seleccionar PDF'}
+                </Button>
+                <span className="text-xs text-gray-500">
+                  Ficha elaborada en otro sistema o a mano. Complete los Campos Core abajo.
+                </span>
+              </div>
+            )}
+            {flujoFicha === 'generar_sistema' && (
+              <div className="mt-4">
+                <Link href={`/salud/examenes/${id}/evaluacion-clinica`}>
+                  <Button type="button" size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700">
+                    <FilePlus2 className="h-4 w-4" />
+                    Ir a Formulario Anexo 02
+                  </Button>
+                </Link>
+                <span className="ml-3 text-xs text-gray-500">
+                  Formulario completo: antecedentes, examen físico, funciones vitales.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -691,12 +811,14 @@ export default function DetalleEmoPage() {
             </label>
             <Input
               value={
-                examen.fecha_vencimiento
-                  ? new Date(examen.fecha_vencimiento).toLocaleDateString('es-PE')
-                  : '-'
+                (() => {
+                  const f = examen.fecha_vencimiento || vigenciaCalculada;
+                  return f ? new Date(f).toLocaleDateString('es-PE') : '-';
+                })()
               }
               disabled
               className="bg-gray-50"
+              title={vigenciaCalculada && !examen.fecha_vencimiento ? 'Calculada: Fecha Resultado + 2 años. Guarde para aplicar.' : undefined}
             />
           </div>
           <div>
