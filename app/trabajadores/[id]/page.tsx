@@ -67,6 +67,18 @@ const formSchema = z.object({
   provincia: z.string().optional(),
   distrito: z.string().optional(),
   direccion: z.string().optional(),
+  numero_interior: z.string().optional(),
+  urbanizacion: z.string().optional(),
+  reside_en_lugar_trabajo: z.string().optional(),
+  tiempo_residencia_lugar_trabajo: z.string().optional(),
+  estado_civil: z.string().optional(),
+  grado_instruccion: z.string().optional(),
+  nro_hijos_vivos: z.coerce.number().min(0).optional().or(z.literal('')),
+  nro_dependientes: z.coerce.number().min(0).optional().or(z.literal('')),
+  seguro_essalud: z.boolean().optional(),
+  seguro_eps: z.boolean().optional(),
+  seguro_sctr: z.boolean().optional(),
+  seguro_otro: z.string().optional(),
   contacto_emergencia_nombre: z.string().optional(),
   contacto_emergencia_telefono: z.string().optional(),
   jefe_directo: z.string().optional(),
@@ -161,6 +173,18 @@ export default function TrabajadorDetallePage() {
       provincia: t.provincia ?? '',
       distrito: t.distrito ?? '',
       direccion: t.direccion ?? '',
+      numero_interior: t.numero_interior ?? '',
+      urbanizacion: t.urbanizacion ?? '',
+      reside_en_lugar_trabajo: t.reside_en_lugar_trabajo === true ? 'true' : t.reside_en_lugar_trabajo === false ? 'false' : undefined,
+      tiempo_residencia_lugar_trabajo: t.tiempo_residencia_lugar_trabajo ?? '',
+      estado_civil: t.estado_civil ?? '',
+      grado_instruccion: t.grado_instruccion ?? '',
+      nro_hijos_vivos: t.nro_hijos_vivos != null ? t.nro_hijos_vivos : '',
+      nro_dependientes: t.nro_dependientes != null ? t.nro_dependientes : '',
+      seguro_essalud: t.seguro_essalud ?? false,
+      seguro_eps: t.seguro_eps ?? false,
+      seguro_sctr: t.seguro_sctr ?? false,
+      seguro_otro: t.seguro_otro ?? '',
       contacto_emergencia_nombre: t.contacto_emergencia_nombre ?? '',
       contacto_emergencia_telefono: t.contacto_emergencia_telefono ?? '',
       jefe_directo: t.jefe_directo ?? '',
@@ -272,6 +296,18 @@ export default function TrabajadorDetallePage() {
         provincia: data.provincia || undefined,
         distrito: data.distrito || undefined,
         direccion: data.direccion || undefined,
+        numero_interior: data.numero_interior || undefined,
+        urbanizacion: data.urbanizacion || undefined,
+        reside_en_lugar_trabajo: data.reside_en_lugar_trabajo === 'true' ? true : data.reside_en_lugar_trabajo === 'false' ? false : undefined,
+        tiempo_residencia_lugar_trabajo: data.tiempo_residencia_lugar_trabajo || undefined,
+        estado_civil: data.estado_civil || undefined,
+        grado_instruccion: data.grado_instruccion || undefined,
+        nro_hijos_vivos: data.nro_hijos_vivos !== '' && data.nro_hijos_vivos != null ? Number(data.nro_hijos_vivos) : undefined,
+        nro_dependientes: data.nro_dependientes !== '' && data.nro_dependientes != null ? Number(data.nro_dependientes) : undefined,
+        seguro_essalud: data.seguro_essalud,
+        seguro_eps: data.seguro_eps,
+        seguro_sctr: data.seguro_sctr,
+        seguro_otro: data.seguro_otro || undefined,
         contacto_emergencia_nombre: data.contacto_emergencia_nombre || undefined,
         contacto_emergencia_telefono: data.contacto_emergencia_telefono || undefined,
         jefe_directo: data.jefe_directo || undefined,
@@ -556,7 +592,49 @@ export default function TrabajadorDetallePage() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Dirección</label>
-                  <Input {...register('direccion')} />
+                  <Input {...register('direccion')} placeholder="Av./Calle/Jirón/Pasaje" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Número / Dpto / Interior</label>
+                  <Input {...register('numero_interior')} placeholder="Nro, Dpto, Interior" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Urbanización</label>
+                  <Input {...register('urbanizacion')} placeholder="Urbanización" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Estado Civil</label>
+                  <Select {...register('estado_civil')}>
+                    <option value="">Seleccione</option>
+                    <option value="Soltero">Soltero</option>
+                    <option value="Casado">Casado</option>
+                    <option value="Conviviente">Conviviente</option>
+                    <option value="Divorciado">Divorciado</option>
+                    <option value="Viudo">Viudo</option>
+                    <option value="Otro">Otro</option>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Grado de Instrucción</label>
+                  <Select {...register('grado_instruccion')}>
+                    <option value="">Seleccione</option>
+                    <option value="Sin Estudios">Sin Estudios</option>
+                    <option value="Primaria">Primaria</option>
+                    <option value="Secundaria">Secundaria</option>
+                    <option value="Técnico">Técnico</option>
+                    <option value="Superior">Superior</option>
+                    <option value="Superior Completa">Superior Completa</option>
+                    <option value="Posgrado">Posgrado</option>
+                    <option value="Otro">Otro</option>
+                  </Select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">N° Hijos Vivos</label>
+                  <Input {...register('nro_hijos_vivos')} type="number" min={0} placeholder="0" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">N° Dependientes</label>
+                  <Input {...register('nro_dependientes')} type="number" min={0} placeholder="0" />
                 </div>
               </div>
             </SectionCard>
@@ -570,6 +648,49 @@ export default function TrabajadorDetallePage() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label>
                   <Input {...register('contacto_emergencia_telefono')} type="tel" />
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Residencia y Seguros (Ficha Anexo 02)" icon={User}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">¿Reside en el lugar de trabajo?</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" {...register('reside_en_lugar_trabajo')} value="true" className="text-blue-600" />
+                      <span className="text-sm">SÍ</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" {...register('reside_en_lugar_trabajo')} value="false" className="text-blue-600" />
+                      <span className="text-sm">NO</span>
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tiempo de residencia en lugar de trabajo (años)</label>
+                  <Input {...register('tiempo_residencia_lugar_trabajo')} type="number" min={0} placeholder="Ej: 5" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Seguros</label>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" {...register('seguro_essalud')} className="rounded text-blue-600" />
+                      <span className="text-sm">ESSALUD</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" {...register('seguro_eps')} className="rounded text-blue-600" />
+                      <span className="text-sm">EPS</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" {...register('seguro_sctr')} className="rounded text-blue-600" />
+                      <span className="text-sm">SCTR</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">OTRO:</span>
+                      <Input {...register('seguro_otro')} placeholder="Especificar (ej: Particular)" className="w-40" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </SectionCard>
