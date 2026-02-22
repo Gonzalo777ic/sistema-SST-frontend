@@ -34,6 +34,8 @@ import { saludService, ExamenMedico } from '@/services/salud.service';
 import { trabajadoresService, Trabajador } from '@/services/trabajadores.service';
 import { configEmoService } from '@/services/config-emo.service';
 import { VistaCentroMedicoCarga } from '@/components/salud/VistaCentroMedicoCarga';
+import { Cie10Buscador } from '@/components/salud/Cie10Buscador';
+import type { Cie10Item } from '@/services/cie10.service';
 
 const TIPOS_EMO = [
   { value: 'Ingreso', label: 'INGRESO' },
@@ -119,6 +121,7 @@ export default function DetalleEmoPage() {
   const [fechaResultado, setFechaResultado] = useState('');
   const [restricciones, setRestricciones] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [diagnosticosCie10, setDiagnosticosCie10] = useState<Cie10Item[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -140,6 +143,14 @@ export default function DetalleEmoPage() {
         setFechaResultado(e.fecha_realizado || '');
         setRestricciones(e.restricciones ?? '');
         setObservaciones(e.observaciones ?? '');
+        setDiagnosticosCie10(
+          (e.diagnosticos_cie10 ?? []).map((d) => ({
+            id: d.code,
+            code: d.code,
+            description: d.description,
+            level: 0,
+          })),
+        );
         return trabajadoresService.findOne(e.trabajador_id);
       })
       .then((t) => {
@@ -200,6 +211,10 @@ export default function DetalleEmoPage() {
         payload.fecha_realizado = fechaResultado || null;
         payload.restricciones = restricciones || undefined;
         payload.observaciones = observaciones || undefined;
+        payload.diagnosticos_cie10 =
+          diagnosticosCie10.length > 0
+            ? diagnosticosCie10.map((d) => ({ code: d.code, description: d.description }))
+            : undefined;
         if (fechaResultado) {
           const d = new Date(fechaResultado);
           d.setFullYear(d.getFullYear() + 2);
@@ -218,6 +233,10 @@ export default function DetalleEmoPage() {
           payload.fecha_realizado = fechaResultado || null;
           payload.restricciones = restricciones || undefined;
           payload.observaciones = observaciones || undefined;
+          payload.diagnosticos_cie10 =
+            diagnosticosCie10.length > 0
+              ? diagnosticosCie10.map((d) => ({ code: d.code, description: d.description }))
+              : undefined;
           // Vigencia: fecha_resultado + 2 años por defecto
           if (fechaResultado) {
             const d = new Date(fechaResultado);
@@ -836,16 +855,20 @@ export default function DetalleEmoPage() {
         {/* Diagnóstico CIE10 */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Diagnóstico encontrados - Códigos CIE10
+            Diagnósticos encontrados - Códigos CIE10
           </label>
           {canViewMedicalData ? (
-            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <AlertCircle className="h-4 w-4 text-gray-500" />
-              <span className="text-sm text-gray-600">No existen observaciones.</span>
-              <Button variant="link" size="sm" className="text-blue-600">
-                + Agregar Diagnóstico
-              </Button>
-            </div>
+            <Cie10Buscador
+              seleccionados={diagnosticosCie10}
+              onAgregar={(item: Cie10Item) =>
+                setDiagnosticosCie10((prev) =>
+                  prev.some((p) => p.code === item.code) ? prev : [...prev, item],
+                )
+              }
+              onQuitar={(code: string) =>
+                setDiagnosticosCie10((prev) => prev.filter((p) => p.code !== code))
+              }
+            />
           ) : (
             <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
               <Lock className="h-4 w-4 text-amber-600" />

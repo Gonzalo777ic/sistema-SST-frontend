@@ -67,6 +67,7 @@ export interface ExamenMedico {
   resultado: ResultadoExamen;
   restricciones: string | null;
   observaciones: string | null;
+  diagnosticos_cie10: Array<{ code: string; description: string }> | null;
   resultado_archivo_url: string | null;
   resultado_archivo_existe?: boolean;
   estado: EstadoExamen;
