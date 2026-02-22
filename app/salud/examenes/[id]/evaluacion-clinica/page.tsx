@@ -5,10 +5,22 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, User } from 'lucide-react';
+import { ArrowLeft, User, Plus, Copy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { UsuarioRol } from '@/types';
 import { saludService, ExamenMedico, TipoExamen } from '@/services/salud.service';
 import { trabajadoresService } from '@/services/trabajadores.service';
+import {
+  saludTrabajadorService,
+  AntecedentesPatologicos,
+  TipoHabitoNocivo,
+  UpsertHabitoItem,
+} from '@/services/salud-trabajador.service';
+import {
+  antecedentesOcupacionalesService,
+  UpsertAntecedenteItem,
+} from '@/services/antecedentes-ocupacionales.service';
 import {
   getDepartamentos,
   getProvincias,
@@ -78,6 +90,47 @@ export interface FiliacionData {
 const ESTADO_CIVIL = ['Soltero', 'Casado', 'Conviviente', 'Divorciado', 'Viudo', 'Otro'];
 const GRADO_INSTRUCCION = ['Sin Estudios', 'Primaria', 'Secundaria', 'Técnico', 'Superior', 'Superior Completa', 'Posgrado', 'Otro'];
 
+const ANTECEDENTES_PATOLOGICOS: { key: keyof AntecedentesPatologicos; label: string }[] = [
+  { key: 'alergias', label: 'Alergias' },
+  { key: 'diabetes', label: 'Diabetes' },
+  { key: 'tbc', label: 'TBC' },
+  { key: 'hepatitis_b', label: 'Hepatitis B' },
+  { key: 'asma', label: 'Asma' },
+  { key: 'hta', label: 'HTA' },
+  { key: 'its', label: 'ITS' },
+  { key: 'tifoidea', label: 'Tifoidea' },
+  { key: 'bronquitis', label: 'Bronquitis' },
+  { key: 'neoplasia', label: 'Neoplasia' },
+  { key: 'convulsiones', label: 'Convulsiones' },
+  { key: 'quemaduras', label: 'Quemaduras' },
+  { key: 'cirugias', label: 'Cirugías' },
+  { key: 'intoxicaciones', label: 'Intoxicaciones' },
+  { key: 'otros', label: 'Otros' },
+];
+
+const TIPOS_HABITO: TipoHabitoNocivo[] = ['Alcohol', 'Tabaco', 'Drogas', 'Medicamentos'];
+const FRECUENCIAS = ['Diario', 'Semanal', 'Quincenal', 'Mensual', 'Ocasional', 'Ninguno'];
+
+const defaultAntecedentesPatologicos: Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'> = {
+  alergias: false,
+  diabetes: false,
+  tbc: false,
+  hepatitis_b: false,
+  asma: false,
+  hta: false,
+  its: false,
+  tifoidea: false,
+  bronquitis: false,
+  neoplasia: false,
+  convulsiones: false,
+  quemaduras: false,
+  cirugias: false,
+  intoxicaciones: false,
+  otros: false,
+  detalle_cirugias: null,
+  detalle_otros: null,
+};
+
 function calcularEdad(fechaNac: string | null): string {
   if (!fechaNac) return '';
   const [y, m, d] = fechaNac.split('-').map(Number);
@@ -93,16 +146,42 @@ function generarNroFicha(examenId: string): string {
   return `EMO-${shortId}-${anio}`;
 }
 
+function calcularTiempoExposicion(fechaInicio: string, fechaFin: string | null): string {
+  if (!fechaInicio) return '';
+  const inicio = new Date(fechaInicio);
+  const fin = fechaFin ? new Date(fechaFin) : new Date();
+  const diffMs = fin.getTime() - inicio.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return '';
+  if (diffDays < 30) return `${diffDays} días`;
+  if (diffDays < 365) {
+    const meses = Math.floor(diffDays / 30);
+    return `${meses} ${meses === 1 ? 'mes' : 'meses'}`;
+  }
+  const años = Math.floor(diffDays / 365);
+  const restoMeses = Math.floor((diffDays % 365) / 30);
+  const partes: string[] = [`${años} ${años === 1 ? 'año' : 'años'}`];
+  if (restoMeses > 0) partes.push(`${restoMeses} ${restoMeses === 1 ? 'mes' : 'meses'}`);
+  return partes.join(' ');
+}
+
 export default function EvaluacionClinicaPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const { hasRole } = useAuth();
+  const canViewSaludData = hasRole(UsuarioRol.MEDICO);
 
   const [examen, setExamen] = useState<ExamenMedico | null>(null);
   const [loading, setLoading] = useState(true);
   const [fichaData, setFichaData] = useState<FichaAnexo02Data | null>(null);
   const [filiacionData, setFiliacionData] = useState<FiliacionData | null>(null);
   const [savingFiliacion, setSavingFiliacion] = useState(false);
+  const [antecedentes, setAntecedentes] = useState<Array<UpsertAntecedenteItem & { tiempo_total?: string }>>([]);
+  const [savingAntecedentes, setSavingAntecedentes] = useState(false);
+  const [antecedentesPatologicos, setAntecedentesPatologicos] = useState<Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'> | null>(null);
+  const [habitosNocivos, setHabitosNocivos] = useState<Array<UpsertHabitoItem & { id?: string }>>([]);
+  const [savingSalud, setSavingSalud] = useState(false);
 
   const [departamentos, setDepartamentos] = useState<UbigeoItem[]>([]);
   const [provinciasLugar, setProvinciasLugar] = useState<UbigeoItem[]>([]);
@@ -171,6 +250,76 @@ export default function EvaluacionClinicaPage() {
         } else {
           setFiliacionData(null);
         }
+
+        if (e.trabajador_id) {
+          antecedentesOcupacionalesService
+            .findByTrabajadorId(e.trabajador_id)
+            .then((list) => {
+              setAntecedentes(
+                list.map((a) => ({
+                  id: a.id,
+                  empresa: a.empresa,
+                  area_trabajo: a.area_trabajo ?? undefined,
+                  ocupacion: a.ocupacion,
+                  fecha_inicio: a.fecha_inicio,
+                  fecha_fin: a.fecha_fin ?? undefined,
+                  riesgos: a.riesgos ?? undefined,
+                  epp_utilizado: a.epp_utilizado ?? undefined,
+                  tiempo_total: a.tiempo_total ?? undefined,
+                })),
+              );
+            })
+            .catch(() => setAntecedentes([]));
+        } else {
+          setAntecedentes([]);
+        }
+
+        if (e.trabajador_id && canViewSaludData) {
+          saludTrabajadorService
+            .findAll(e.trabajador_id)
+            .then((data) => {
+              if (data.antecedentes_patologicos) {
+                const ap = data.antecedentes_patologicos;
+                setAntecedentesPatologicos({
+                  alergias: ap.alergias,
+                  diabetes: ap.diabetes,
+                  tbc: ap.tbc,
+                  hepatitis_b: ap.hepatitis_b,
+                  asma: ap.asma,
+                  hta: ap.hta,
+                  its: ap.its,
+                  tifoidea: ap.tifoidea,
+                  bronquitis: ap.bronquitis,
+                  neoplasia: ap.neoplasia,
+                  convulsiones: ap.convulsiones,
+                  quemaduras: ap.quemaduras,
+                  cirugias: ap.cirugias,
+                  intoxicaciones: ap.intoxicaciones,
+                  otros: ap.otros,
+                  detalle_cirugias: ap.detalle_cirugias,
+                  detalle_otros: ap.detalle_otros,
+                });
+              } else {
+                setAntecedentesPatologicos({ ...defaultAntecedentesPatologicos });
+              }
+              const byTipo = new Map(data.habitos_nocivos.map((h) => [h.tipo, h]));
+              setHabitosNocivos(
+                TIPOS_HABITO.map((t) => {
+                  const existing = byTipo.get(t);
+                  return existing
+                    ? { id: existing.id, tipo: t, cantidad: existing.cantidad ?? undefined, frecuencia: existing.frecuencia ?? undefined }
+                    : { tipo: t, cantidad: undefined, frecuencia: undefined };
+                }),
+              );
+            })
+            .catch(() => {
+              setAntecedentesPatologicos({ ...defaultAntecedentesPatologicos });
+              setHabitosNocivos(TIPOS_HABITO.map((t) => ({ tipo: t, cantidad: undefined, frecuencia: undefined })));
+            });
+        } else {
+          setAntecedentesPatologicos(null);
+          setHabitosNocivos([]);
+        }
       })
       .catch((err) => {
         toast.error('Error al cargar el examen', {
@@ -179,7 +328,7 @@ export default function EvaluacionClinicaPage() {
         router.push(`/salud/examenes/${id}`);
       })
       .finally(() => setLoading(false));
-  }, [id, router]);
+  }, [id, router, canViewSaludData]);
 
   useEffect(() => {
     getDepartamentos().then(setDepartamentos);
@@ -309,6 +458,162 @@ export default function EvaluacionClinicaPage() {
       toast.error('Error al guardar filiación', { description: String(msg) });
     } finally {
       setSavingFiliacion(false);
+    }
+  };
+
+  const addAntecedente = () => {
+    setAntecedentes((prev) => [
+      ...prev,
+      {
+        empresa: '',
+        ocupacion: '',
+        fecha_inicio: new Date().toISOString().slice(0, 10),
+      },
+    ]);
+  };
+
+  const clonarPuestoActual = () => {
+    if (!examen) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    setAntecedentes((prev) => [
+      ...prev,
+      {
+        empresa: examen.empresa_nombre || '',
+        ocupacion: examen.trabajador_cargo || '',
+        fecha_inicio: hoy,
+        fecha_fin: hoy,
+      },
+    ]);
+  };
+
+  const updateAntecedente = (index: number, partial: Partial<UpsertAntecedenteItem>) => {
+    setAntecedentes((prev) => {
+      const next = [...prev];
+      const item = { ...next[index], ...partial };
+      if ('fecha_inicio' in partial || 'fecha_fin' in partial) {
+        item.tiempo_total = calcularTiempoExposicion(
+          item.fecha_inicio,
+          item.fecha_fin ?? null,
+        );
+      }
+      next[index] = item;
+      return next;
+    });
+  };
+
+  const removeAntecedente = (index: number) => {
+    setAntecedentes((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const haySolapamiento = (() => {
+    const conFechas = antecedentes.filter(
+      (a) => a.fecha_inicio && a.fecha_fin && a.empresa.trim() && a.ocupacion.trim(),
+    );
+    for (let i = 0; i < conFechas.length; i++) {
+      for (let j = i + 1; j < conFechas.length; j++) {
+        const a = conFechas[i];
+        const b = conFechas[j];
+        const startA = new Date(a.fecha_inicio!).getTime();
+        const endA = new Date(a.fecha_fin!).getTime();
+        const startB = new Date(b.fecha_inicio!).getTime();
+        const endB = new Date(b.fecha_fin!).getTime();
+        if (startA <= endB && startB <= endA) return true;
+      }
+    }
+    return false;
+  })();
+
+  const handleGuardarAntecedentes = async () => {
+    if (!examen?.trabajador_id) return;
+    const validos = antecedentes.filter((a) => a.empresa.trim() && a.ocupacion.trim() && a.fecha_inicio);
+    if (validos.length === 0) {
+      toast.info('No hay antecedentes para guardar. Agregue al menos uno con empresa, ocupación y fecha de inicio.');
+      return;
+    }
+    setSavingAntecedentes(true);
+    try {
+      const items: UpsertAntecedenteItem[] = validos.map((a) => ({
+        id: a.id,
+        empresa: a.empresa.trim(),
+        area_trabajo: a.area_trabajo?.trim() || undefined,
+        ocupacion: a.ocupacion.trim(),
+        fecha_inicio: a.fecha_inicio,
+        fecha_fin: a.fecha_fin || undefined,
+        riesgos: a.riesgos?.trim() || undefined,
+        epp_utilizado: a.epp_utilizado?.trim() || undefined,
+      }));
+      const guardados = await antecedentesOcupacionalesService.upsertBulk(
+        examen.trabajador_id,
+        items,
+      );
+      setAntecedentes(
+        guardados.map((a) => ({
+          id: a.id,
+          empresa: a.empresa,
+          area_trabajo: a.area_trabajo ?? undefined,
+          ocupacion: a.ocupacion,
+          fecha_inicio: a.fecha_inicio,
+          fecha_fin: a.fecha_fin ?? undefined,
+          riesgos: a.riesgos ?? undefined,
+          epp_utilizado: a.epp_utilizado ?? undefined,
+          tiempo_total: a.tiempo_total ?? undefined,
+        })),
+      );
+      toast.success('Antecedentes ocupacionales guardados en el perfil del trabajador');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : err instanceof Error
+            ? err.message
+            : 'Error al guardar';
+      toast.error('Error al guardar antecedentes', { description: String(msg) });
+    } finally {
+      setSavingAntecedentes(false);
+    }
+  };
+
+  const updateAntecedentePatologico = (key: keyof Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'>, value: boolean | string | null) => {
+    setAntecedentesPatologicos((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [key]: value };
+    });
+  };
+
+  const updateHabito = (index: number, partial: Partial<UpsertHabitoItem>) => {
+    setHabitosNocivos((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...partial };
+      return next;
+    });
+  };
+
+  const handleGuardarSalud = async () => {
+    if (!examen?.trabajador_id || !antecedentesPatologicos) return;
+    setSavingSalud(true);
+    try {
+      await saludTrabajadorService.upsertAntecedentes(examen.trabajador_id, antecedentesPatologicos);
+      const items: UpsertHabitoItem[] = habitosNocivos.map((h) => ({
+        id: h.id,
+        tipo: h.tipo,
+        cantidad: h.cantidad,
+        frecuencia: h.frecuencia,
+      }));
+      const guardados = await saludTrabajadorService.upsertHabitosBulk(examen.trabajador_id, items);
+      setHabitosNocivos(
+        guardados.length > 0
+          ? guardados.map((h) => ({ id: h.id, tipo: h.tipo, cantidad: h.cantidad ?? undefined, frecuencia: h.frecuencia ?? undefined }))
+          : TIPOS_HABITO.map((t) => ({ tipo: t, cantidad: undefined, frecuencia: undefined })),
+      );
+      toast.success('Antecedentes patológicos y hábitos guardados en el perfil del trabajador');
+    } catch (err: unknown) {
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : err instanceof Error ? err.message : 'Error al guardar';
+      toast.error('Error al guardar datos de salud', { description: String(msg) });
+    } finally {
+      setSavingSalud(false);
     }
   };
 
@@ -753,6 +1058,340 @@ export default function EvaluacionClinicaPage() {
                 </Button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Sección III - Antecedentes Ocupacionales */}
+        <div className="border-t border-gray-200 pt-6">
+          <h3 className="text-base font-semibold text-gray-900 mb-2">
+            III. ANTECEDENTES OCUPACIONALES (llenar con letra clara o marque con una X lo solicitado)
+          </h3>
+          <p className="text-sm text-gray-600 mb-4">
+            Los antecedentes se guardan en el perfil del trabajador y se precargan en futuras citas (anamnesis laboral longitudinal).
+          </p>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button type="button" variant="outline" size="sm" onClick={addAntecedente} className="gap-1">
+              <Plus className="h-4 w-4" />
+              Agregar antecedente
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={clonarPuestoActual} className="gap-1">
+              <Copy className="h-4 w-4" />
+              Clonar del puesto actual
+            </Button>
+          </div>
+
+          {antecedentes.length === 0 ? (
+            <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 text-sm">
+              No hay antecedentes. Use &quot;Agregar antecedente&quot; o &quot;Clonar del puesto actual&quot; para comenzar.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Desktop: tabla compacta */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Empresa</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Área</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Ocupación</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Fecha I</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Fecha F</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Tiempo</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Exposición</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">EPP</th>
+                      <th className="px-3 py-2 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {antecedentes.map((a, i) => (
+                      <tr key={i} className="border-t border-gray-100 hover:bg-gray-50/50">
+                        <td className="px-3 py-2">
+                          <Input
+                            value={a.empresa}
+                            onChange={(e) => updateAntecedente(i, { empresa: e.target.value })}
+                            placeholder="Empresa"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={a.area_trabajo || ''}
+                            onChange={(e) => updateAntecedente(i, { area_trabajo: e.target.value })}
+                            placeholder="Área"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={a.ocupacion}
+                            onChange={(e) => updateAntecedente(i, { ocupacion: e.target.value })}
+                            placeholder="Ocupación"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            type="date"
+                            value={a.fecha_inicio}
+                            onChange={(e) => updateAntecedente(i, { fecha_inicio: e.target.value })}
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            type="date"
+                            value={a.fecha_fin || ''}
+                            onChange={(e) => updateAntecedente(i, { fecha_fin: e.target.value || undefined })}
+                            placeholder="—"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-gray-600 text-xs">
+                          {calcularTiempoExposicion(a.fecha_inicio, a.fecha_fin ?? null) || '—'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={a.riesgos || ''}
+                            onChange={(e) => updateAntecedente(i, { riesgos: e.target.value })}
+                            placeholder="Ruido, Polvo..."
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={a.epp_utilizado || ''}
+                            onChange={(e) => updateAntecedente(i, { epp_utilizado: e.target.value })}
+                            placeholder="EPP"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAntecedente(i)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile: cards colapsables */}
+              <div className="lg:hidden space-y-3">
+                {antecedentes.map((a, i) => (
+                  <div
+                    key={i}
+                    className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm"
+                  >
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <span className="text-sm font-medium text-gray-700">
+                        {a.empresa || 'Sin empresa'} — {a.ocupacion || 'Sin ocupación'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeAntecedente(i)}
+                        className="text-red-600 shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 text-sm">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Empresa</label>
+                        <Input
+                          value={a.empresa}
+                          onChange={(e) => updateAntecedente(i, { empresa: e.target.value })}
+                          placeholder="Empresa"
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Área de trabajo</label>
+                        <Input
+                          value={a.area_trabajo || ''}
+                          onChange={(e) => updateAntecedente(i, { area_trabajo: e.target.value })}
+                          placeholder="Área"
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Ocupación</label>
+                        <Input
+                          value={a.ocupacion}
+                          onChange={(e) => updateAntecedente(i, { ocupacion: e.target.value })}
+                          placeholder="Ocupación"
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fecha inicio</label>
+                          <Input
+                            type="date"
+                            value={a.fecha_inicio}
+                            onChange={(e) => updateAntecedente(i, { fecha_inicio: e.target.value })}
+                            className="h-9"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Fecha fin</label>
+                          <Input
+                            type="date"
+                            value={a.fecha_fin || ''}
+                            onChange={(e) => updateAntecedente(i, { fecha_fin: e.target.value || undefined })}
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500">Tiempo: </span>
+                        <span className="text-gray-700">
+                          {calcularTiempoExposicion(a.fecha_inicio, a.fecha_fin ?? null) || '—'}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Exposición ocupacional</label>
+                        <Input
+                          value={a.riesgos || ''}
+                          onChange={(e) => updateAntecedente(i, { riesgos: e.target.value })}
+                          placeholder="Ruido, Polvo, Químicos..."
+                          className="h-9"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">EPP utilizado</label>
+                        <Input
+                          value={a.epp_utilizado || ''}
+                          onChange={(e) => updateAntecedente(i, { epp_utilizado: e.target.value })}
+                          placeholder="EPP"
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {haySolapamiento && (
+                <p className="text-amber-600 text-sm">
+                  Nota: Hay períodos con fechas que se solapan (posible pluriempleo). Verifique si es correcto.
+                </p>
+              )}
+              <Button
+                onClick={handleGuardarAntecedentes}
+                disabled={savingAntecedentes}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {savingAntecedentes ? 'Guardando...' : 'Guardar antecedentes en perfil del trabajador'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* Sección IV - Antecedentes Patológicos y Hábitos Nocivos (solo Médico/Centro Médico) */}
+        {canViewSaludData && antecedentesPatologicos && (
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              IV. ANTECEDENTES PATOLÓGICOS PERSONALES (llenar con letra clara o marque con una X lo solicitado)
+            </h3>
+            <p className="text-sm text-amber-600 mb-4">
+              Datos confidenciales. Solo visibles para el Médico Ocupacional que realiza la Evaluación Clínica.
+            </p>
+
+            {/* A. Antecedentes Patológicos - Grid de checkboxes */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Antecedentes de salud</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {ANTECEDENTES_PATOLOGICOS.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={antecedentesPatologicos[key] as boolean}
+                      onChange={(e) => updateAntecedentePatologico(key, e.target.checked)}
+                      className="rounded text-blue-600"
+                    />
+                    <span className="text-sm">{label}</span>
+                  </label>
+                ))}
+              </div>
+              {antecedentesPatologicos.cirugias && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Detalle de cirugías (ej: Apendicectomía 2015)</label>
+                  <Input
+                    value={antecedentesPatologicos.detalle_cirugias || ''}
+                    onChange={(e) => updateAntecedentePatologico('detalle_cirugias', e.target.value || null)}
+                    placeholder="Especificar cirugías y año"
+                    className="max-w-md"
+                  />
+                </div>
+              )}
+              {antecedentesPatologicos.otros && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Detalle de otros</label>
+                  <Input
+                    value={antecedentesPatologicos.detalle_otros || ''}
+                    onChange={(e) => updateAntecedentePatologico('detalle_otros', e.target.value || null)}
+                    placeholder="Especificar"
+                    className="max-w-md"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* B. Hábitos Nocivos */}
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-3">Hábitos Nocivos</label>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border border-gray-200 rounded-lg">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Hábito</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Cantidad</th>
+                      <th className="px-3 py-2 text-left font-medium text-gray-700">Frecuencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {habitosNocivos.map((h, i) => (
+                      <tr key={i} className="border-t border-gray-100">
+                        <td className="px-3 py-2 font-medium text-gray-700">{h.tipo}</td>
+                        <td className="px-3 py-2">
+                          <Input
+                            value={h.cantidad || ''}
+                            onChange={(e) => updateHabito(i, { cantidad: e.target.value || undefined })}
+                            placeholder="Ej: 3 cigarrillos, 2 vasos"
+                            className="h-9 text-sm"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Select
+                            value={h.frecuencia || ''}
+                            onChange={(e) => updateHabito(i, { frecuencia: e.target.value || undefined })}
+                          >
+                            <option value="">Seleccione</option>
+                            {FRECUENCIAS.map((f) => (
+                              <option key={f} value={f}>{f}</option>
+                            ))}
+                          </Select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <Button onClick={handleGuardarSalud} disabled={savingSalud} className="bg-blue-600 hover:bg-blue-700">
+              {savingSalud ? 'Guardando...' : 'Guardar antecedentes patológicos y hábitos en perfil del trabajador'}
+            </Button>
           </div>
         )}
 
