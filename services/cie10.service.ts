@@ -8,6 +8,14 @@ export interface Cie10Item {
   code0?: string | null;
   code1?: string | null;
   code2?: string | null;
+  categoria_nivel0?: string;
+  /** Ancestros para migas de pan (opcional, se obtiene al agregar o al cargar) */
+  ancestros?: Array<{ code: string; description: string; level: number }>;
+}
+
+export interface Cie10Linaje {
+  item: Cie10Item | null;
+  ancestros: Array<{ code: string; description: string; level: number }>;
 }
 
 export const cie10Service = {
@@ -17,6 +25,14 @@ export const cie10Service = {
     if (!trimmed) return [];
     const response = await apiClient.get<Cie10Item[]>('/cie10', {
       params: { q: trimmed },
+    });
+    return response.data;
+  },
+
+  /** Obtiene el linaje (ancestros) de un código para mostrar migas de pan. */
+  async getLinaje(code: string): Promise<Cie10Linaje> {
+    const response = await apiClient.get<Cie10Linaje>('/cie10/linaje', {
+      params: { code },
     });
     return response.data;
   },

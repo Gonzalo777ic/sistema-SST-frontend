@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cie10Service, Cie10Item } from '@/services/cie10.service';
-import { Search, X, Plus } from 'lucide-react';
+import { Search, X, Plus, AlertTriangle } from 'lucide-react';
 
 interface Cie10BuscadorProps {
   seleccionados: Cie10Item[];
@@ -25,8 +25,20 @@ export function Cie10Buscador({
   const [resultados, setResultados] = useState<Cie10Item[]>([]);
   const [loading, setLoading] = useState(false);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const [linajeCache, setLinajeCache] = useState<Record<string, Array<{ code: string; description: string; level: number }>>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Obtener linaje para items que no lo tienen (ej. cargados desde backend)
+  useEffect(() => {
+    const sinLinaje = seleccionados.filter((s) => !s.ancestros && !linajeCache[s.code]);
+    if (sinLinaje.length === 0) return;
+    sinLinaje.forEach((s) => {
+        cie10Service.getLinaje(s.code).then(({ ancestros }) => {
+        setLinajeCache((prev) => ({ ...prev, [s.code]: ancestros }));
+      });
+    });
+  }, [seleccionados, linajeCache]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -62,11 +74,20 @@ export function Cie10Buscador({
   const yaSeleccionado = (code: string) => seleccionados.some((s) => s.code === code);
   const primerDisponible = resultados.find((r) => !yaSeleccionado(r.code));
 
+  const agregarConLinaje = async (item: Cie10Item) => {
+    const { item: itemFull, ancestros } = await cie10Service.getLinaje(item.code);
+    onAgregar({
+      ...item,
+      level: itemFull?.level ?? item.level,
+      ancestros,
+    });
+    setQuery('');
+    setMostrarDropdown(false);
+  };
+
   const handleAgregarDiagnostico = () => {
     if (primerDisponible) {
-      onAgregar(primerDisponible);
-      setQuery('');
-      setMostrarDropdown(false);
+      agregarConLinaje(primerDisponible);
     } else {
       inputRef.current?.focus();
     }
@@ -94,9 +115,7 @@ export function Cie10Buscador({
                     type="button"
                     onClick={() => {
                       if (!yaSeleccionado(r.code)) {
-                        onAgregar(r);
-                        setQuery('');
-                        setMostrarDropdown(false);
+                        agregarConLinaje(r);
                       }
                     }}
                     disabled={yaSeleccionado(r.code)}
@@ -104,8 +123,23 @@ export function Cie10Buscador({
                       yaSeleccionado(r.code) ? 'opacity-50 cursor-not-allowed' : ''
                     }`}
                   >
-                    <span className="font-mono font-medium text-blue-600">{r.code}</span>
-                    <span className="text-gray-600"> — {r.description}</span>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <span className="font-mono font-medium text-blue-600">{r.code}</span>
+                        <span className="text-gray-600"> — {r.description}</span>
+                        {r.categoria_nivel0 && (
+                          <div className="text-xs text-gray-400 mt-0.5 truncate">
+                            {r.categoria_nivel0}
+                          </div>
+                        )}
+                      </div>
+                      {(r.level === 0 || r.level === 1) && (
+                        <AlertTriangle
+                          className="h-4 w-4 text-amber-500 shrink-0"
+                          title="Se recomienda usar un código más específico (Nivel 3)"
+                        />
+                      )}
+                    </div>
                   </button>
                 </li>
               ))}
@@ -132,29 +166,47 @@ export function Cie10Buscador({
       </Button>
 
       {seleccionados.length > 0 && (
-        <div className="mt-2 space-y-1">
-          {seleccionados.map((s) => (
-            <div
-              key={s.code}
-              className="flex items-center justify-between gap-2 py-1.5 px-2 bg-gray-50 rounded border border-gray-200 text-sm"
-            >
-              <span>
-                <span className="font-mono font-medium text-blue-600">{s.code}</span>
-                <span className="text-gray-600 ml-1">— {s.description}</span>
-              </span>
-              {!disabled && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onQuitar(s.code)}
-                  className="h-7 w-7 p-0 text-gray-500 hover:text-red-600"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+        <div className="mt-2 space-y-2">
+          {seleccionados.map((s) => {
+            const ancestros = s.ancestros ?? linajeCache[s.code] ?? [];
+            const breadcrumb = ancestros.map((a) => a.description).join(' › ');
+            const esPocoEspecifico = s.level === 0 || s.level === 1;
+            return (
+              <div
+                key={s.code}
+                className="flex items-start justify-between gap-2 py-2 px-2 bg-gray-50 rounded border border-gray-200 text-sm"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-mono font-medium text-blue-600">{s.code}</span>
+                    <span className="text-gray-600">— {s.description}</span>
+                    {esPocoEspecifico && (
+                      <AlertTriangle
+                        className="h-4 w-4 text-amber-500 shrink-0"
+                        title="Se recomienda usar un código más específico (Nivel 3)"
+                      />
+                    )}
+                  </div>
+                  {breadcrumb && (
+                    <div className="mt-1 text-xs text-gray-500 truncate" title={breadcrumb}>
+                      {ancestros.map((a) => a.description).join(' › ')}
+                    </div>
+                  )}
+                </div>
+                {!disabled && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onQuitar(s.code)}
+                    className="h-7 w-7 p-0 text-gray-500 hover:text-red-600 shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
