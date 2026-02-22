@@ -28,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Eye, UserX, UserCheck, Users, Filter } from 'lucide-react';
+import { Plus, Eye, UserX, UserCheck, Users, Filter, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -451,6 +451,14 @@ export default function TrabajadoresPage() {
                                 Detalle
                               </Button>
                             </Link>
+                            {hasRole(UsuarioRol.MEDICO) && (
+                              <Link href={`/trabajadores/${trabajador.id}/historial-medico`}>
+                                <Button variant="outline" size="sm" className="border-primary/40 text-primary hover:bg-primary/5">
+                                  <Stethoscope className="w-4 h-4 mr-1" />
+                                  Historial Médico
+                                </Button>
+                              </Link>
+                            )}
                             {canEdit && (
                               <>
                                 {trabajador.estado === EstadoTrabajador.Activo ? (

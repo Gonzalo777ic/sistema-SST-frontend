@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import {
   trabajadoresService,
@@ -110,7 +111,13 @@ function SectionCard({
 export default function TrabajadorDetallePage() {
   const params = useParams();
   const router = useRouter();
+  const { hasRole } = useAuth();
   const id = params.id as string;
+
+  const isMedicoOnly =
+    hasRole(UsuarioRol.MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
   const [trabajador, setTrabajador] = useState<Trabajador | null>(null);
   const [empresas, setEmpresas] = useState<{ id: string; nombre: string }[]>([]);
   const [areas, setAreas] = useState<{ id: string; nombre: string }[]>([]);
@@ -336,42 +343,44 @@ export default function TrabajadorDetallePage() {
             </Button>
           </Link>
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info('EMOS: Próximamente')}
-            >
-              <Stethoscope className="w-4 h-4 mr-2" />
-              EMOS
-            </Button>
-            <Link href="/capacitaciones">
+            <Link href={`/trabajadores/${id}/historial-medico`}>
               <Button variant="primary" size="sm">
-                <GraduationCap className="w-4 h-4 mr-2" />
-                Capacitaciones
+                <Stethoscope className="w-4 h-4 mr-2" />
+                Historial Médico
               </Button>
             </Link>
-            <Link href="/incidentes">
-              <Button variant="primary" size="sm">
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Accidentes/Incidentes
-              </Button>
-            </Link>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info('Documentos: Próximamente')}
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Documentos
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => toast.info('Notas: Próximamente')}
-            >
-              <MessageSquare className="w-4 h-4 mr-2" />
-              Notas
-            </Button>
+            {!isMedicoOnly && (
+              <>
+                <Link href="/capacitaciones">
+                  <Button variant="primary" size="sm">
+                    <GraduationCap className="w-4 h-4 mr-2" />
+                    Capacitaciones
+                  </Button>
+                </Link>
+                <Link href="/incidentes">
+                  <Button variant="primary" size="sm">
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    Accidentes/Incidentes
+                  </Button>
+                </Link>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => toast.info('Documentos: Próximamente')}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Documentos
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => toast.info('Notas: Próximamente')}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Notas
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -400,7 +409,9 @@ export default function TrabajadorDetallePage() {
                 />
               </label>
             </div>
-            <p className="text-xs text-slate-500 mt-2 text-center">Foto (opcional, máx. 2 MB)</p>
+            {!isMedicoOnly && (
+              <p className="text-xs text-slate-500 mt-2 text-center">Foto (opcional, máx. 2 MB)</p>
+            )}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">{nombreCompleto}</h1>
@@ -411,19 +422,25 @@ export default function TrabajadorDetallePage() {
               {trabajador.empresa_nombre || '-'}
             </p>
           </div>
-          <div className="flex items-center">
-            <Button
-              onClick={handleSubmit(onSubmit)}
-              disabled={isSaving || (!isDirty && !fotoFile)}
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {isSaving ? 'Guardando...' : 'Guardar Cambios'}
-            </Button>
-          </div>
+          {!isMedicoOnly && (
+            <div className="flex items-center">
+              <Button
+                onClick={handleSubmit(onSubmit)}
+                disabled={isSaving || (!isDirty && !fotoFile)}
+                className="bg-primary hover:bg-primary/90"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+              </Button>
+            </div>
+          )}
+          {isMedicoOnly && (
+            <p className="text-sm text-slate-500 italic">Solo lectura. Los datos los gestiona RRHH.</p>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+          <fieldset disabled={isMedicoOnly} className="space-y-6 [&:disabled]:opacity-90">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SectionCard title="Datos Personales" icon={User}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -641,6 +658,7 @@ export default function TrabajadorDetallePage() {
               </SectionCard>
             </div>
           </div>
+          </fieldset>
         </form>
       </div>
     </ProtectedRoute>

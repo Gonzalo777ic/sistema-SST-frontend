@@ -82,10 +82,14 @@ function formatSexo(s: string | null) {
 export default function DetalleEmoPage() {
   const params = useParams();
   const router = useRouter();
-  const { hasAnyRole, usuario, isLoading: authLoading } = useAuth();
+  const { hasAnyRole, hasRole, usuario, isLoading: authLoading } = useAuth();
   const id = params.id as string;
 
   const canViewMedicalData = hasAnyRole([UsuarioRol.MEDICO, UsuarioRol.CENTRO_MEDICO]);
+  const isMedicoOnly =
+    hasRole(UsuarioRol.MEDICO) &&
+    !hasRole(UsuarioRol.SUPER_ADMIN) &&
+    !hasRole(UsuarioRol.ADMIN_EMPRESA);
   /** Vista de carga pura: solo para usuario CENTRO_MEDICO sin roles admin/médico */
   const esCentroMedicoSolo =
     !!usuario?.roles?.includes(UsuarioRol.CENTRO_MEDICO) &&
@@ -175,20 +179,27 @@ export default function DetalleEmoPage() {
     if (!examen) return;
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = {
-        estado,
-        tipo_examen: tipoEmo,
-        fecha_programada: fechaEmo,
-        hora_programacion: horaProgramacion || undefined,
-        proyecto: proyecto || undefined,
-        adicionales: adicionales || undefined,
-        recomendaciones_personalizadas: recomendaciones || undefined,
-      };
-      if (canViewMedicalData) {
+      const payload: Record<string, unknown> = {};
+      if (isMedicoOnly) {
+        // Médico solo envía campos clínicos; programación y estado quedan intactos
         payload.resultado = resultado;
         payload.fecha_realizado = fechaResultado || null;
         payload.restricciones = restricciones || undefined;
         payload.observaciones = observaciones || undefined;
+      } else {
+        payload.estado = estado;
+        payload.tipo_examen = tipoEmo;
+        payload.fecha_programada = fechaEmo;
+        payload.hora_programacion = horaProgramacion || undefined;
+        payload.proyecto = proyecto || undefined;
+        payload.adicionales = adicionales || undefined;
+        payload.recomendaciones_personalizadas = recomendaciones || undefined;
+        if (canViewMedicalData) {
+          payload.resultado = resultado;
+          payload.fecha_realizado = fechaResultado || null;
+          payload.restricciones = restricciones || undefined;
+          payload.observaciones = observaciones || undefined;
+        }
       }
       await saludService.updateExamen(examen.id, payload as any);
       toast.success('Examen actualizado correctamente');
@@ -301,23 +312,26 @@ export default function DetalleEmoPage() {
         </div>
       </div>
 
-      {/* NOTA */}
-      <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-        <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-amber-800">
-          <strong>Nota:</strong> Una vez que el EMO tiene una aptitud registrada y
-          está en estado ASISTIÓ O ENTREGADO, podemos cambiarle el estado a LEÍDO
-          desde la lista desplegable de ESTADO.
-        </p>
-      </div>
+      {/* NOTA (oculta para médico: no puede modificar estado) */}
+      {!isMedicoOnly && (
+        <div className="flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            <strong>Nota:</strong> Una vez que el EMO tiene una aptitud registrada y
+            está en estado ASISTIÓ O ENTREGADO, podemos cambiarle el estado a LEÍDO
+            desde la lista desplegable de ESTADO.
+          </p>
+        </div>
+      )}
 
-      {/* ESTADO */}
+      {/* ESTADO (solo lectura para médico ocupacional) */}
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">Estado:</label>
         <Select
           value={estado}
           onChange={(e) => setEstado(e.target.value)}
-          className="w-[200px]"
+          disabled={isMedicoOnly}
+          className={`w-[200px] ${isMedicoOnly ? 'bg-gray-50' : ''}`}
         >
           <option value="">Seleccione</option>
           {ESTADOS_EMO.map((e) => (
@@ -507,7 +521,12 @@ export default function DetalleEmoPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tipo de EMO (*)
             </label>
-            <Select value={tipoEmo} onChange={(e) => setTipoEmo(e.target.value)}>
+            <Select
+              value={tipoEmo}
+              onChange={(e) => setTipoEmo(e.target.value)}
+              disabled={isMedicoOnly}
+              className={isMedicoOnly ? 'bg-gray-50' : ''}
+            >
               <option value="">Seleccione</option>
               {TIPOS_EMO.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -524,6 +543,8 @@ export default function DetalleEmoPage() {
               type="date"
               value={fechaEmo}
               onChange={(e) => setFechaEmo(e.target.value)}
+              disabled={isMedicoOnly}
+              className={isMedicoOnly ? 'bg-gray-50' : ''}
             />
           </div>
           <div>
@@ -535,6 +556,8 @@ export default function DetalleEmoPage() {
                 type="time"
                 value={horaProgramacion}
                 onChange={(e) => setHoraProgramacion(e.target.value)}
+                disabled={isMedicoOnly}
+                className={isMedicoOnly ? 'bg-gray-50' : ''}
               />
               <Button
                 variant="outline"
@@ -569,6 +592,8 @@ export default function DetalleEmoPage() {
               value={proyecto}
               onChange={(e) => setProyecto(e.target.value)}
               placeholder="Proyecto"
+              disabled={isMedicoOnly}
+              className={isMedicoOnly ? 'bg-gray-50' : ''}
             />
           </div>
           <div>
@@ -579,6 +604,8 @@ export default function DetalleEmoPage() {
               value={adicionales}
               onChange={(e) => setAdicionales(e.target.value)}
               placeholder="Adicionales"
+              disabled={isMedicoOnly}
+              className={isMedicoOnly ? 'bg-gray-50' : ''}
             />
           </div>
         </div>
@@ -587,10 +614,11 @@ export default function DetalleEmoPage() {
             Recomendaciones para asistir al centro médico (*)
           </label>
           <textarea
-            className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md text-sm"
+            className={`w-full min-h-[120px] p-3 border border-gray-300 rounded-md text-sm ${isMedicoOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             value={recomendaciones}
             onChange={(e) => setRecomendaciones(e.target.value)}
             placeholder="Recomendaciones..."
+            readOnly={isMedicoOnly}
           />
         </div>
       </div>
