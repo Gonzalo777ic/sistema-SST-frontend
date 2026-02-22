@@ -120,7 +120,7 @@ export default function ComiteDetailPage() {
   if (isLoading) {
     return (
       <div className="p-6 bg-white min-h-screen">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="w-full space-y-6">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-96 w-full" />
         </div>
@@ -134,7 +134,7 @@ export default function ComiteDetailPage() {
 
   return (
     <div className="p-6 bg-white min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Cabecera */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">

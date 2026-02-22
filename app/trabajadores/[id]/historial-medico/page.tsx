@@ -115,7 +115,7 @@ export default function HistorialMedicoPage() {
 
   return (
     <ProtectedRoute allowedRoles={[UsuarioRol.MEDICO, UsuarioRol.SUPER_ADMIN, UsuarioRol.ADMIN_EMPRESA, UsuarioRol.INGENIERO_SST]}>
-      <div className="p-6 space-y-6 max-w-5xl">
+      <div className="p-6 space-y-6 w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <Link href="/trabajadores">
             <Button variant="outline" size="sm">

@@ -924,7 +924,7 @@ export default function NuevoATSPage() {
 
   return (
 
-        <div className="max-w-5xl mx-auto">
+        <div className="w-full">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-slate-900">Nuevo ATS</h1>
             <p className="text-slate-600 mt-2">

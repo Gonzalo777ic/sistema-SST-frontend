@@ -119,6 +119,8 @@ export default function DetalleEmoPage() {
   const [docAbriendoId, setDocAbriendoId] = useState<string | null>(null);
   const [flujoFicha, setFlujoFicha] = useState<'subir_pdf' | 'generar_sistema'>('subir_pdf');
   const [uploadingResultado, setUploadingResultado] = useState(false);
+  const [pdfFilePrecargado, setPdfFilePrecargado] = useState<File | null>(null);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [estado, setEstado] = useState('');
@@ -207,6 +209,13 @@ export default function DetalleEmoPage() {
     }
   }, [resultado, canViewMedicalData]);
 
+  // Limpiar URL de preview del PDF al desmontar o cambiar archivo
+  useEffect(() => {
+    return () => {
+      if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    };
+  }, [pdfPreviewUrl]);
+
   // Vigencia: fecha_resultado + 2 años (para estadísticas)
   const vigenciaCalculada = fechaResultado
     ? (() => {
@@ -220,6 +229,14 @@ export default function DetalleEmoPage() {
     if (!examen) return;
     setSaving(true);
     try {
+      // Subir PDF precargado primero si existe
+      if (pdfFilePrecargado) {
+        const ok = await subirPdfPrecargado();
+        if (!ok) {
+          setSaving(false);
+          return;
+        }
+      }
       const payload: Record<string, unknown> = {};
       if (isMedicoOnly) {
         // Médico solo envía campos clínicos; programación y estado quedan intactos
@@ -304,26 +321,41 @@ export default function DetalleEmoPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleUploadResultado = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !examen?.id) return;
+    if (!file) return;
     if (file.type !== 'application/pdf') {
       toast.error('Solo se permite subir archivos PDF');
       return;
     }
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setPdfFilePrecargado(file);
+    setPdfPreviewUrl(URL.createObjectURL(file));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const quitarPdfPrecargado = () => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setPdfFilePrecargado(null);
+    setPdfPreviewUrl(null);
+  };
+
+  const subirPdfPrecargado = async (): Promise<boolean> => {
+    if (!pdfFilePrecargado || !examen?.id) return false;
     setUploadingResultado(true);
     try {
-      await saludService.uploadResultadoExamen(examen.id, file);
-      toast.success('Ficha EMO (Anexo 02) subida correctamente');
+      await saludService.uploadResultadoExamen(examen.id, pdfFilePrecargado);
+      quitarPdfPrecargado();
       const actualizado = await saludService.findOneExamen(examen.id);
       setExamen(actualizado);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      return true;
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
           ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
           : err instanceof Error ? err.message : 'Error al subir';
       toast.error('Error al subir el PDF', { description: String(msg) });
+      return false;
     } finally {
       setUploadingResultado(false);
     }
@@ -415,7 +447,7 @@ export default function DetalleEmoPage() {
   }
 
   return (
-    <div className="p-6 max-w-5xl space-y-6">
+    <div className="p-6 w-full space-y-6">
       {/* CABECERA */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-gray-900">
@@ -758,7 +790,133 @@ export default function DetalleEmoPage() {
         </div>
       </div>
 
-      {/* POSTERIOR A LA CITA */}
+      {/* DOCUMENTOS ADJUNTOS - Centro Médico (antes del médico ocupacional) */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Documentos Adjuntos
+          </h2>
+          <div className="flex gap-2">
+            {canViewMedicalData && (
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <FileText className="h-4 w-4 mr-2" />
+                Nuevo Documento
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canViewMedicalData}
+              title={!canViewMedicalData ? 'Solo profesional de salud puede exportar el archivo EMO completo' : ''}
+            >
+              Exportar CAMO
+            </Button>
+          </div>
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nro</TableHead>
+              <TableHead>Fecha de Registro</TableHead>
+              <TableHead>Título</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Registrado Por</TableHead>
+              {canViewMedicalData && <TableHead>Acciones</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(examen.documentos ?? []).map((doc, idx) => {
+              const docAny = doc as {
+                id: string;
+                tipo_etiqueta?: string;
+                prueba_medica?: { nombre: string };
+                nombre_archivo: string;
+                created_at?: string;
+              };
+              const titulo = `PRUEBA MÉDICA - ${docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? docAny.nombre_archivo}`;
+              const fechaReg = docAny.created_at
+                ? new Date(docAny.created_at).toLocaleDateString('es-PE')
+                : '-';
+              return (
+                <TableRow key={doc.id}>
+                  <TableCell>{idx + 1}</TableCell>
+                  <TableCell>{fechaReg}</TableCell>
+                  <TableCell>{titulo}</TableCell>
+                  <TableCell>{docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? 'Documento'}</TableCell>
+                  <TableCell>Centro Médico</TableCell>
+                  {canViewMedicalData && (
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => handleVerDocumento(doc.id)}
+                        disabled={docAbriendoId === doc.id}
+                        className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm disabled:opacity-50"
+                      >
+                        <Eye className="h-4 w-4" />
+                        {docAbriendoId === doc.id ? 'Abriendo...' : 'Ver'}
+                      </button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+            {examen.resultado_archivo_existe && !examen.resultado_archivo_url && (
+              <TableRow>
+                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
+                <TableCell>-</TableCell>
+                <TableCell>Archivo EMO completo</TableCell>
+                <TableCell>Hoja de resultados</TableCell>
+                <TableCell colSpan={canViewMedicalData ? 2 : 1} className="text-amber-700">
+                  <span className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    Documento subido. Solo descargable por Médico Ocupacional o Centro Médico.
+                  </span>
+                </TableCell>
+              </TableRow>
+            )}
+            {examen.resultado_archivo_url && (
+              <TableRow>
+                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
+                <TableCell>-</TableCell>
+                <TableCell>Archivo EMO completo</TableCell>
+                <TableCell>Hoja de resultados</TableCell>
+                <TableCell>-</TableCell>
+                {canViewMedicalData && (
+                  <TableCell>
+                    <button
+                      type="button"
+                      onClick={handleDescargarResultado}
+                      disabled={descargandoResultado}
+                      className="text-blue-600 hover:underline text-sm disabled:opacity-50"
+                    >
+                      {descargandoResultado ? 'Abriendo...' : 'Descargar'}
+                    </button>
+                  </TableCell>
+                )}
+              </TableRow>
+            )}
+            {(!examen.documentos || examen.documentos.length === 0) &&
+              !examen.resultado_archivo_url &&
+              !examen.resultado_archivo_existe && (
+              <TableRow>
+                <TableCell colSpan={canViewMedicalData ? 6 : 5} className="text-center py-8 text-gray-500">
+                  No existen documentos.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+        <div className="mt-4 flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            <strong>Nota:</strong> Los archivos CONFIDENCIALES (archivo EMO completo, diagnósticos CIE10)
+            solo pueden ser descargados por usuarios con el ROL DE PROFESIONAL DE SALUD (Médico Ocupacional / Centro Médico).
+            El administrador puede descargar únicamente la ficha de aptitud y el cargo de entrega.
+          </p>
+        </div>
+      </div>
+
+      {/* POSTERIOR A LA CITA - Médico Ocupacional */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           POSTERIOR A LA CITA - RESULTADOS DEL EXAMEN MÉDICO
@@ -793,28 +951,57 @@ export default function DetalleEmoPage() {
               </label>
             </div>
             {flujoFicha === 'subir_pdf' && (
-              <div className="mt-4 flex items-center gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleUploadResultado}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={uploadingResultado}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  {uploadingResultado ? 'Subiendo...' : 'Seleccionar PDF'}
-                </Button>
-                <span className="text-xs text-gray-500">
-                  Ficha elaborada en otro sistema o a mano. Complete los Campos Core abajo.
-                </span>
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingResultado}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {uploadingResultado ? 'Subiendo...' : 'Seleccionar PDF'}
+                  </Button>
+                  <span className="text-xs text-gray-500">
+                    Ficha elaborada en otro sistema o a mano. Complete los Campos Core abajo.
+                  </span>
+                </div>
+                {pdfFilePrecargado && (
+                  <div className="w-full border border-slate-200 rounded-lg overflow-hidden bg-white">
+                    <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b">
+                      <span className="text-sm font-medium text-gray-700 truncate">
+                        {pdfFilePrecargado.name}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={quitarPdfPrecargado}
+                      >
+                        Quitar
+                      </Button>
+                    </div>
+                    <div className="h-[400px] overflow-auto">
+                      {pdfPreviewUrl && (
+                        <iframe
+                          src={pdfPreviewUrl}
+                          title="Vista previa PDF"
+                          className="w-full h-full min-h-[400px] border-0"
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             {flujoFicha === 'generar_sistema' && (
@@ -1179,6 +1366,19 @@ export default function DetalleEmoPage() {
             </div>
           </div>
         )}
+
+        {canViewMedicalData && (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <Button
+              onClick={handleGuardar}
+              disabled={saving || uploadingResultado}
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="h-4 w-4" />
+              {saving || uploadingResultado ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        )}
       </div>
 
       <ModalSeguimientoMedico
@@ -1193,134 +1393,6 @@ export default function DetalleEmoPage() {
         tipo="VIGILANCIA"
         onSubmit={handleSeguimientoSubmit}
       />
-
-      {/* DOCUMENTOS ADJUNTOS */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Documentos Adjuntos
-          </h2>
-          <div className="flex gap-2">
-            {canViewMedicalData && (
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                <FileText className="h-4 w-4 mr-2" />
-                Nuevo Documento
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!canViewMedicalData}
-              title={!canViewMedicalData ? 'Solo profesional de salud puede exportar el archivo EMO completo' : ''}
-            >
-              Exportar CAMO
-            </Button>
-          </div>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nro</TableHead>
-              <TableHead>Fecha de Registro</TableHead>
-              <TableHead>Título</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Registrado Por</TableHead>
-              {canViewMedicalData && <TableHead>Acciones</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {/* Pruebas médicas subidas por el Centro Médico */}
-            {(examen.documentos ?? []).map((doc, idx) => {
-              const docAny = doc as {
-                id: string;
-                tipo_etiqueta?: string;
-                prueba_medica?: { nombre: string };
-                nombre_archivo: string;
-                created_at?: string;
-              };
-              const titulo = `PRUEBA MÉDICA - ${docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? docAny.nombre_archivo}`;
-              const fechaReg = docAny.created_at
-                ? new Date(docAny.created_at).toLocaleDateString('es-PE')
-                : '-';
-              return (
-                <TableRow key={doc.id}>
-                  <TableCell>{idx + 1}</TableCell>
-                  <TableCell>{fechaReg}</TableCell>
-                  <TableCell>{titulo}</TableCell>
-                  <TableCell>{docAny.prueba_medica?.nombre ?? docAny.tipo_etiqueta ?? 'Documento'}</TableCell>
-                  <TableCell>Centro Médico</TableCell>
-                  {canViewMedicalData && (
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => handleVerDocumento(doc.id)}
-                        disabled={docAbriendoId === doc.id}
-                        className="inline-flex items-center gap-1.5 text-blue-600 hover:underline text-sm disabled:opacity-50"
-                      >
-                        <Eye className="h-4 w-4" />
-                        {docAbriendoId === doc.id ? 'Abriendo...' : 'Ver'}
-                      </button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })}
-            {/* Archivo EMO completo (resultado) */}
-            {examen.resultado_archivo_existe && !examen.resultado_archivo_url && (
-              <TableRow>
-                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
-                <TableCell>-</TableCell>
-                <TableCell>Archivo EMO completo</TableCell>
-                <TableCell>Hoja de resultados</TableCell>
-                <TableCell colSpan={canViewMedicalData ? 2 : 1} className="text-amber-700">
-                  <span className="flex items-center gap-2">
-                    <Lock className="h-4 w-4" />
-                    Documento subido. Solo descargable por Médico Ocupacional o Centro Médico.
-                  </span>
-                </TableCell>
-              </TableRow>
-            )}
-            {examen.resultado_archivo_url && (
-              <TableRow>
-                <TableCell>{(examen.documentos?.length ?? 0) + 1}</TableCell>
-                <TableCell>-</TableCell>
-                <TableCell>Archivo EMO completo</TableCell>
-                <TableCell>Hoja de resultados</TableCell>
-                <TableCell>-</TableCell>
-                {canViewMedicalData && (
-                  <TableCell>
-                    <button
-                      type="button"
-                      onClick={handleDescargarResultado}
-                      disabled={descargandoResultado}
-                      className="text-blue-600 hover:underline text-sm disabled:opacity-50"
-                    >
-                      {descargandoResultado ? 'Abriendo...' : 'Descargar'}
-                    </button>
-                  </TableCell>
-                )}
-              </TableRow>
-            )}
-            {(!examen.documentos || examen.documentos.length === 0) &&
-              !examen.resultado_archivo_url &&
-              !examen.resultado_archivo_existe && (
-              <TableRow>
-                <TableCell colSpan={canViewMedicalData ? 6 : 5} className="text-center py-8 text-gray-500">
-                  No existen documentos.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-        <div className="mt-4 flex items-start gap-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-800">
-            <strong>Nota:</strong> Los archivos CONFIDENCIALES (archivo EMO completo, diagnósticos CIE10)
-            solo pueden ser descargados por usuarios con el ROL DE PROFESIONAL DE SALUD (Médico Ocupacional / Centro Médico).
-            El administrador puede descargar únicamente la ficha de aptitud y el cargo de entrega.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

@@ -157,7 +157,7 @@ export default function NuevoEmoPage() {
   };
 
   return (
-    <div className="p-6 max-w-4xl space-y-6">
+    <div className="p-6 w-full space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">AGREGAR NUEVO EXAMEN</h1>
         <div className="flex gap-2">

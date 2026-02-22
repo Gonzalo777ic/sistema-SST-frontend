@@ -85,9 +85,10 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // Para todas las demás rutas, usar MainLayout persistente
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-slate-50 flex">
+      <div className="min-h-screen bg-slate-50">
         <Sidebar />
-        <main className="flex-1 flex flex-col min-w-0">
+        {/* Contenido principal: margin-left = ancho sidebar en desktop, scroll independiente */}
+        <main className="min-h-screen flex flex-col ml-0 lg:ml-64">
           {isLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
@@ -96,7 +97,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           ) : (
-            <div className="flex-1 min-w-0 overflow-hidden px-4 lg:px-8 pt-6 pb-4 lg:pb-8">{children}</div>
+            <div className="flex-1 w-full min-w-0 overflow-y-auto px-4 lg:px-8 pt-6 pb-4 lg:pb-8">{children}</div>
           )}
         </main>
       </div>

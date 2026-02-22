@@ -312,12 +312,12 @@ function SidebarComponent() {
         </button>
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar - fijo 100vh en desktop, scroll interno en nav */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-white border-r border-slate-200 z-40
+          fixed top-0 left-0 h-screen bg-white border-r border-slate-200 z-40
           transform transition-transform duration-300 ease-in-out
-          lg:translate-x-0 lg:static lg:z-auto lg:h-screen
+          lg:translate-x-0
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
           w-64 min-w-[16rem] flex flex-col flex-shrink-0
         `}
