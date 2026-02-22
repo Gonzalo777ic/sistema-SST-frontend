@@ -20,6 +20,12 @@ export interface AntecedentesPatologicos {
   otros: boolean;
   detalle_cirugias: string | null;
   detalle_otros: string | null;
+  antecedente_padre: string | null;
+  antecedente_madre: string | null;
+  antecedente_hermanos: string | null;
+  antecedente_esposo: string | null;
+  nro_hijos_fallecidos: number | null;
+  tags_familiares: string[] | null;
 }
 
 export type TipoHabitoNocivo = 'Alcohol' | 'Tabaco' | 'Drogas' | 'Medicamentos';
@@ -32,9 +38,20 @@ export interface HabitoNocivo {
   trabajador_id: string;
 }
 
+export interface AusentismoMedico {
+  id: string;
+  enfermedad_accidente: string;
+  asociado_trabajo: boolean;
+  anio: number;
+  dias_descanso: number;
+  trabajador_id: string;
+}
+
 export interface SaludTrabajadorResponse {
   antecedentes_patologicos: AntecedentesPatologicos | null;
   habitos_nocivos: HabitoNocivo[];
+  ausentismos: AusentismoMedico[];
+  nro_hijos_vivos: number | null;
 }
 
 export interface UpdateAntecedentesPatologicosDto {
@@ -55,6 +72,11 @@ export interface UpdateAntecedentesPatologicosDto {
   otros?: boolean;
   detalle_cirugias?: string;
   detalle_otros?: string;
+  antecedente_padre?: string;
+  antecedente_madre?: string;
+  antecedente_hermanos?: string;
+  antecedente_esposo?: string;
+  nro_hijos_fallecidos?: number;
 }
 
 export interface UpsertHabitoItem {
@@ -62,6 +84,14 @@ export interface UpsertHabitoItem {
   tipo: TipoHabitoNocivo;
   cantidad?: string;
   frecuencia?: string;
+}
+
+export interface UpsertAusentismoItem {
+  id?: string;
+  enfermedad_accidente: string;
+  asociado_trabajo: boolean;
+  anio: number;
+  dias_descanso: number;
 }
 
 export const saludTrabajadorService = {
@@ -92,6 +122,26 @@ export const saludTrabajadorService = {
         `/trabajadores/${trabajadorId}/salud/habitos/upsert-bulk`,
         { items },
       )
+      .then((r) => r.data);
+  },
+
+  upsertAusentismosBulk(
+    trabajadorId: string,
+    items: UpsertAusentismoItem[],
+  ): Promise<AusentismoMedico[]> {
+    return apiClient
+      .post<AusentismoMedico[]>(
+        `/trabajadores/${trabajadorId}/salud/ausentismos/upsert-bulk`,
+        { items },
+      )
+      .then((r) => r.data);
+  },
+
+  sugerenciasEnfermedadAccidente(q: string, limit = 20): Promise<string[]> {
+    return apiClient
+      .get<string[]>('/salud/sugerencias/enfermedades-ausentismo', {
+        params: { q, limit },
+      })
       .then((r) => r.data);
   },
 };

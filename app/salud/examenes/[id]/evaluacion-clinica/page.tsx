@@ -16,6 +16,7 @@ import {
   AntecedentesPatologicos,
   TipoHabitoNocivo,
   UpsertHabitoItem,
+  UpsertAusentismoItem,
 } from '@/services/salud-trabajador.service';
 import {
   antecedentesOcupacionalesService,
@@ -28,15 +29,16 @@ import {
   UbigeoItem,
 } from '@/lib/ubigeo';
 import { Select } from '@/components/ui/select';
+import { AutocompleteInput } from '@/components/ui/autocomplete-input';
 
 const TIPOS_EVALUACION: { value: TipoExamen; label: string }[] = [
-  { value: 'PreOcupacional', label: 'Pre Ocupacional' },
-  { value: 'Periodico', label: 'Periódica' },
-  { value: 'Retiro', label: 'Retiro' },
-  { value: 'Ingreso', label: 'Ingreso' },
-  { value: 'Reingreso', label: 'Reingreso' },
-  { value: 'PorExposicion', label: 'Por Exposición' },
-  { value: 'Otros', label: 'Otros' },
+  { value: TipoExamen.PreOcupacional, label: 'Pre Ocupacional' },
+  { value: TipoExamen.Periodico, label: 'Periódica' },
+  { value: TipoExamen.Retiro, label: 'Retiro' },
+  { value: TipoExamen.Ingreso, label: 'Ingreso' },
+  { value: TipoExamen.Reingreso, label: 'Reingreso' },
+  { value: TipoExamen.PorExposicion, label: 'Por Exposición' },
+  { value: TipoExamen.Otros, label: 'Otros' },
 ];
 
 export interface FichaAnexo02Data {
@@ -90,7 +92,7 @@ export interface FiliacionData {
 const ESTADO_CIVIL = ['Soltero', 'Casado', 'Conviviente', 'Divorciado', 'Viudo', 'Otro'];
 const GRADO_INSTRUCCION = ['Sin Estudios', 'Primaria', 'Secundaria', 'Técnico', 'Superior', 'Superior Completa', 'Posgrado', 'Otro'];
 
-const ANTECEDENTES_PATOLOGICOS: { key: keyof AntecedentesPatologicos; label: string }[] = [
+const ANTECEDENTES_PATOLOGICOS: { key: Exclude<keyof Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'>, 'detalle_cirugias' | 'detalle_otros' | 'antecedente_padre' | 'antecedente_madre' | 'antecedente_hermanos' | 'antecedente_esposo' | 'nro_hijos_fallecidos'>; label: string }[] = [
   { key: 'alergias', label: 'Alergias' },
   { key: 'diabetes', label: 'Diabetes' },
   { key: 'tbc', label: 'TBC' },
@@ -111,6 +113,23 @@ const ANTECEDENTES_PATOLOGICOS: { key: keyof AntecedentesPatologicos; label: str
 const TIPOS_HABITO: TipoHabitoNocivo[] = ['Alcohol', 'Tabaco', 'Drogas', 'Medicamentos'];
 const FRECUENCIAS = ['Diario', 'Semanal', 'Quincenal', 'Mensual', 'Ocasional', 'Ninguno'];
 
+const KEYWORDS_FAMILIA = [
+  'diabetes', 'hta', 'hipertensión', 'hipertension', 'cáncer', 'cancer', 'neoplasia',
+  'infarto', 'asma', 'alergias', 'alergia', 'tbc', 'tuberculosis', 'hepatitis',
+  'cardiopatía', 'cardiopatia', 'obesidad', 'dislipidemia', 'tiroides',
+  'depresión', 'depresion', 'ansiedad', 'epilepsia', 'convulsiones',
+];
+
+function extraerTagsFamiliares(padre: string | null, madre: string | null, hermanos: string | null, esposo: string | null): string[] {
+  const texto = [padre, madre, hermanos, esposo].filter(Boolean).join(' ').toLowerCase();
+  if (!texto.trim()) return [];
+  const tags: string[] = [];
+  for (const kw of KEYWORDS_FAMILIA) {
+    if (texto.includes(kw) && !tags.includes(kw)) tags.push(kw);
+  }
+  return tags;
+}
+
 const defaultAntecedentesPatologicos: Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'> = {
   alergias: false,
   diabetes: false,
@@ -129,6 +148,12 @@ const defaultAntecedentesPatologicos: Omit<AntecedentesPatologicos, 'id' | 'trab
   otros: false,
   detalle_cirugias: null,
   detalle_otros: null,
+  antecedente_padre: null,
+  antecedente_madre: null,
+  antecedente_hermanos: null,
+  antecedente_esposo: null,
+  nro_hijos_fallecidos: null,
+  tags_familiares: null,
 };
 
 function calcularEdad(fechaNac: string | null): string {
@@ -181,6 +206,7 @@ export default function EvaluacionClinicaPage() {
   const [savingAntecedentes, setSavingAntecedentes] = useState(false);
   const [antecedentesPatologicos, setAntecedentesPatologicos] = useState<Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'> | null>(null);
   const [habitosNocivos, setHabitosNocivos] = useState<Array<UpsertHabitoItem & { id?: string }>>([]);
+  const [ausentismos, setAusentismos] = useState<Array<UpsertAusentismoItem & { id?: string }>>([]);
   const [savingSalud, setSavingSalud] = useState(false);
 
   const [departamentos, setDepartamentos] = useState<UbigeoItem[]>([]);
@@ -298,10 +324,25 @@ export default function EvaluacionClinicaPage() {
                   otros: ap.otros,
                   detalle_cirugias: ap.detalle_cirugias,
                   detalle_otros: ap.detalle_otros,
+                  antecedente_padre: ap.antecedente_padre,
+                  antecedente_madre: ap.antecedente_madre,
+                  antecedente_hermanos: ap.antecedente_hermanos,
+                  antecedente_esposo: ap.antecedente_esposo,
+                  nro_hijos_fallecidos: ap.nro_hijos_fallecidos,
+                  tags_familiares: ap.tags_familiares ?? null,
                 });
               } else {
                 setAntecedentesPatologicos({ ...defaultAntecedentesPatologicos });
               }
+              setAusentismos(
+                data.ausentismos?.map((a) => ({
+                  id: a.id,
+                  enfermedad_accidente: a.enfermedad_accidente,
+                  asociado_trabajo: a.asociado_trabajo,
+                  anio: a.anio,
+                  dias_descanso: a.dias_descanso,
+                })) ?? [],
+              );
               const byTipo = new Map(data.habitos_nocivos.map((h) => [h.tipo, h]));
               setHabitosNocivos(
                 TIPOS_HABITO.map((t) => {
@@ -315,10 +356,12 @@ export default function EvaluacionClinicaPage() {
             .catch(() => {
               setAntecedentesPatologicos({ ...defaultAntecedentesPatologicos });
               setHabitosNocivos(TIPOS_HABITO.map((t) => ({ tipo: t, cantidad: undefined, frecuencia: undefined })));
+              setAusentismos([]);
             });
         } else {
           setAntecedentesPatologicos(null);
           setHabitosNocivos([]);
+          setAusentismos([]);
         }
       })
       .catch((err) => {
@@ -573,7 +616,7 @@ export default function EvaluacionClinicaPage() {
     }
   };
 
-  const updateAntecedentePatologico = (key: keyof Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'>, value: boolean | string | null) => {
+  const updateAntecedentePatologico = (key: keyof Omit<AntecedentesPatologicos, 'id' | 'trabajador_id'>, value: boolean | string | number | null) => {
     setAntecedentesPatologicos((prev) => {
       if (!prev) return prev;
       return { ...prev, [key]: value };
@@ -588,11 +631,45 @@ export default function EvaluacionClinicaPage() {
     });
   };
 
+  const addAusentismo = () => {
+    setAusentismos((prev) => [
+      ...prev,
+      {
+        enfermedad_accidente: '',
+        asociado_trabajo: false,
+        anio: new Date().getFullYear(),
+        dias_descanso: 0,
+      },
+    ]);
+  };
+
+  const updateAusentismo = (index: number, partial: Partial<UpsertAusentismoItem>) => {
+    setAusentismos((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], ...partial };
+      return next;
+    });
+  };
+
+  const removeAusentismo = (index: number) => {
+    setAusentismos((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleGuardarSalud = async () => {
     if (!examen?.trabajador_id || !antecedentesPatologicos) return;
     setSavingSalud(true);
     try {
-      await saludTrabajadorService.upsertAntecedentes(examen.trabajador_id, antecedentesPatologicos);
+      const dtoAntecedentes = {
+        ...antecedentesPatologicos,
+        detalle_cirugias: antecedentesPatologicos.detalle_cirugias ?? undefined,
+        detalle_otros: antecedentesPatologicos.detalle_otros ?? undefined,
+        antecedente_padre: antecedentesPatologicos.antecedente_padre ?? undefined,
+        antecedente_madre: antecedentesPatologicos.antecedente_madre ?? undefined,
+        antecedente_hermanos: antecedentesPatologicos.antecedente_hermanos ?? undefined,
+        antecedente_esposo: antecedentesPatologicos.antecedente_esposo ?? undefined,
+        nro_hijos_fallecidos: antecedentesPatologicos.nro_hijos_fallecidos ?? undefined,
+      };
+      await saludTrabajadorService.upsertAntecedentes(examen.trabajador_id, dtoAntecedentes);
       const items: UpsertHabitoItem[] = habitosNocivos.map((h) => ({
         id: h.id,
         tipo: h.tipo,
@@ -605,7 +682,29 @@ export default function EvaluacionClinicaPage() {
           ? guardados.map((h) => ({ id: h.id, tipo: h.tipo, cantidad: h.cantidad ?? undefined, frecuencia: h.frecuencia ?? undefined }))
           : TIPOS_HABITO.map((t) => ({ tipo: t, cantidad: undefined, frecuencia: undefined })),
       );
-      toast.success('Antecedentes patológicos y hábitos guardados en el perfil del trabajador');
+      const ausentismosValidos = ausentismos.filter((a) => a.enfermedad_accidente?.trim());
+      const ausentismosPayload = ausentismosValidos.map((a) => ({
+        id: a.id,
+        enfermedad_accidente: a.enfermedad_accidente.trim(),
+        asociado_trabajo: a.asociado_trabajo,
+        anio: a.anio,
+        dias_descanso: a.dias_descanso,
+      }));
+      const guardadosAus = await saludTrabajadorService.upsertAusentismosBulk(examen.trabajador_id, ausentismosPayload);
+      setAusentismos(guardadosAus.map((a) => ({
+        id: a.id,
+        enfermedad_accidente: a.enfermedad_accidente,
+        asociado_trabajo: a.asociado_trabajo,
+        anio: a.anio,
+        dias_descanso: a.dias_descanso,
+      })));
+      if (filiacionData && examen.trabajador_id) {
+        const nroHijos = filiacionData.nroHijosVivos ? parseInt(filiacionData.nroHijosVivos, 10) : undefined;
+        if (nroHijos !== undefined && !isNaN(nroHijos)) {
+          await trabajadoresService.update(examen.trabajador_id, { nro_hijos_vivos: nroHijos });
+        }
+      }
+      toast.success('Datos de salud (antecedentes, hábitos, familiares y absentismo) guardados');
     } catch (err: unknown) {
       const msg =
         err && typeof err === 'object' && 'response' in err
@@ -617,7 +716,7 @@ export default function EvaluacionClinicaPage() {
     }
   };
 
-  const isPreOcupacional = fichaData?.tipoEvaluacion === 'PreOcupacional';
+  const isPreOcupacional = fichaData?.tipoEvaluacion === TipoExamen.PreOcupacional;
 
   if (loading || !examen || !fichaData) {
     return (
@@ -1389,8 +1488,287 @@ export default function EvaluacionClinicaPage() {
               </div>
             </div>
 
-            <Button onClick={handleGuardarSalud} disabled={savingSalud} className="bg-blue-600 hover:bg-blue-700">
-              {savingSalud ? 'Guardando...' : 'Guardar antecedentes patológicos y hábitos en perfil del trabajador'}
+            {/* Sección V - Antecedentes Familiares y Absentismo */}
+            <div className="border-t border-gray-200 pt-6 mt-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-2">
+                V. ANTECEDENTES PATOLÓGICOS FAMILIARES (llenar con letra clara)
+              </h3>
+
+              {/* A. Antecedentes familiares */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Padre</label>
+                  <Input
+                    value={antecedentesPatologicos.antecedente_padre || ''}
+                    onChange={(e) => updateAntecedentePatologico('antecedente_padre', e.target.value || null)}
+                    placeholder="Ej: Diabetes, HTA"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Madre</label>
+                  <Input
+                    value={antecedentesPatologicos.antecedente_madre || ''}
+                    onChange={(e) => updateAntecedentePatologico('antecedente_madre', e.target.value || null)}
+                    placeholder="Ej: Asma"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hermanos</label>
+                  <Input
+                    value={antecedentesPatologicos.antecedente_hermanos || ''}
+                    onChange={(e) => updateAntecedentePatologico('antecedente_hermanos', e.target.value || null)}
+                    placeholder="Ej: Alergias"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Esposo(a)</label>
+                  <Input
+                    value={antecedentesPatologicos.antecedente_esposo || ''}
+                    onChange={(e) => updateAntecedentePatologico('antecedente_esposo', e.target.value || null)}
+                    placeholder="Ej: HTA"
+                  />
+                </div>
+                {(() => {
+                  const tags = extraerTagsFamiliares(
+                    antecedentesPatologicos.antecedente_padre,
+                    antecedentesPatologicos.antecedente_madre,
+                    antecedentesPatologicos.antecedente_hermanos,
+                    antecedentesPatologicos.antecedente_esposo,
+                  );
+                  return tags.length > 0 ? (
+                    <div className="sm:col-span-2">
+                      <p className="text-xs text-gray-500">
+                        Menciones detectadas para analítica:{' '}
+                        <span className="font-medium text-blue-600">{tags.join(', ')}</span>
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">N° Hijos Vivos</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={filiacionData?.nroHijosVivos ?? ''}
+                    onChange={(e) => updateFiliacion({ nroHijosVivos: e.target.value })}
+                    placeholder="Sincronizado con Sección II"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Sincronizado con la Sección II (Filiación)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">N° Hijos Fallecidos</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={antecedentesPatologicos.nro_hijos_fallecidos ?? ''}
+                    onChange={(e) => updateAntecedentePatologico('nro_hijos_fallecidos', e.target.value ? parseInt(e.target.value, 10) : null)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* B. Absentismo */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Absentismo: Enfermedades y Accidentes (asociado a trabajo o no)
+                </label>
+                <div className="flex justify-end mb-2">
+                  <Button type="button" variant="outline" size="sm" onClick={addAusentismo} className="gap-1">
+                    <Plus className="h-4 w-4" />
+                    Agregar registro
+                  </Button>
+                </div>
+                {/* Desktop: tabla horizontal */}
+                <div className="hidden lg:block overflow-x-auto border border-gray-200 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Enfermedad / Accidente</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Asociado al trabajo</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Año</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-700">Días descanso</th>
+                        <th className="px-3 py-2 w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ausentismos.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-4 text-center text-gray-500 text-sm">
+                            No hay registros. Use &quot;Agregar registro&quot; para añadir.
+                          </td>
+                        </tr>
+                      ) : (
+                        ausentismos.map((a, i) => (
+                          <tr key={i} className="border-t border-gray-100">
+                            <td className="px-3 py-2">
+                              <AutocompleteInput
+                                value={a.enfermedad_accidente || ''}
+                                onChange={(v) => updateAusentismo(i, { enfermedad_accidente: v })}
+                                onFetchSuggestions={(q) => saludTrabajadorService.sugerenciasEnfermedadAccidente(q, 15)}
+                                placeholder="Ej: Lumbago, Gripe"
+                                className="h-9 text-sm min-w-[140px]"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex gap-2">
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`asoc-${i}`}
+                                    checked={a.asociado_trabajo === true}
+                                    onChange={() => updateAusentismo(i, { asociado_trabajo: true })}
+                                    className="text-blue-600"
+                                  />
+                                  <span className="text-xs">SÍ</span>
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input
+                                    type="radio"
+                                    name={`asoc-${i}`}
+                                    checked={a.asociado_trabajo === false}
+                                    onChange={() => updateAusentismo(i, { asociado_trabajo: false })}
+                                    className="text-blue-600"
+                                  />
+                                  <span className="text-xs">NO</span>
+                                </label>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input
+                                type="number"
+                                min={1900}
+                                max={2100}
+                                value={a.anio || ''}
+                                onChange={(e) => updateAusentismo(i, { anio: parseInt(e.target.value, 10) || 0 })}
+                                className="h-9 w-20 text-sm"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Input
+                                type="number"
+                                min={0}
+                                value={a.dias_descanso ?? ''}
+                                onChange={(e) => updateAusentismo(i, { dias_descanso: parseInt(e.target.value, 10) || 0 })}
+                                className="h-9 w-20 text-sm"
+                              />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeAusentismo(i)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Mobile: cards */}
+                <div className="lg:hidden space-y-3">
+                  {ausentismos.length === 0 ? (
+                    <p className="text-sm text-gray-500 py-4 text-center">
+                      No hay registros. Use &quot;Agregar registro&quot; para añadir.
+                    </p>
+                  ) : (
+                    ausentismos.map((a, i) => (
+                      <div key={i} className="border border-gray-200 rounded-lg p-4 bg-white">
+                        <div className="flex justify-between items-start mb-3">
+                          <span className="text-sm font-medium text-gray-700">
+                            {a.enfermedad_accidente || 'Sin especificar'}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAusentismo(i)}
+                            className="text-red-600 shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Enfermedad / Accidente</label>
+                            <AutocompleteInput
+                              value={a.enfermedad_accidente || ''}
+                              onChange={(v) => updateAusentismo(i, { enfermedad_accidente: v })}
+                              onFetchSuggestions={(q) => saludTrabajadorService.sugerenciasEnfermedadAccidente(q, 15)}
+                              placeholder="Ej: Lumbago, Gripe"
+                              className="h-9 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Asociado al trabajo</label>
+                            <div className="flex gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`asoc-m-${i}`}
+                                  checked={a.asociado_trabajo === true}
+                                  onChange={() => updateAusentismo(i, { asociado_trabajo: true })}
+                                  className="text-blue-600"
+                                />
+                                <span className="text-sm">SÍ</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`asoc-m-${i}`}
+                                  checked={a.asociado_trabajo === false}
+                                  onChange={() => updateAusentismo(i, { asociado_trabajo: false })}
+                                  className="text-blue-600"
+                                />
+                                <span className="text-sm">NO</span>
+                              </label>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Año</label>
+                              <Input
+                                type="number"
+                                min={1900}
+                                max={2100}
+                                value={a.anio || ''}
+                                onChange={(e) => updateAusentismo(i, { anio: parseInt(e.target.value, 10) || 0 })}
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Días descanso</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={a.dias_descanso ?? ''}
+                                onChange={(e) => updateAusentismo(i, { dias_descanso: parseInt(e.target.value, 10) || 0 })}
+                                className="h-9"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                {ausentismos.length > 0 && (
+                  <p className="mt-2 text-sm font-medium text-gray-700">
+                    Total días de descanso acumulados:{' '}
+                    <span className="text-blue-600">
+                      {ausentismos.reduce((sum, a) => sum + (a.dias_descanso || 0), 0)}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <Button onClick={handleGuardarSalud} disabled={savingSalud} className="bg-blue-600 hover:bg-blue-700 mt-4">
+              {savingSalud ? 'Guardando...' : 'Guardar antecedentes patológicos, hábitos, familiares y absentismo'}
             </Button>
           </div>
         )}
